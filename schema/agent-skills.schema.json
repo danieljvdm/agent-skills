@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/danieljvdm/agent-skills/main/schema/agent-skills.schema.json",
+  "title": "Agent Skills Manifest",
+  "description": "Project-local opt-in manifest for syncing portable agent skills into harness discovery paths.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "include": {
+      "description": "Skill names or family names to sync.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+      },
+      "uniqueItems": true,
+      "minItems": 1
+    },
+    "exclude": {
+      "description": "Skill names to remove from the selected set after expanding families.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+      },
+      "uniqueItems": true,
+      "default": []
+    },
+    "targets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "agents": { "$ref": "#/$defs/target" },
+        "claude": { "$ref": "#/$defs/target" },
+        "opencode": { "$ref": "#/$defs/target" }
+      },
+      "default": {
+        "agents": { "enabled": true, "mode": "copy" }
+      }
+    }
+  },
+  "required": ["include"],
+  "$defs": {
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "mode": {
+          "description": "copy copies from the package source; symlink links to the primary agents target when possible.",
+          "enum": ["copy", "symlink"],
+          "default": "copy"
+        },
+        "path": {
+          "type": "string",
+          "description": "Project-relative destination directory for skill folders."
+        }
+      }
+    }
+  }
+}

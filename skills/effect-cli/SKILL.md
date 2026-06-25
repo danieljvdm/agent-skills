@@ -9,6 +9,12 @@ description: Create or refactor TypeScript command-line scripts using Effect v4,
 
 Build scripts as small Effect programs with typed errors, platform services, and `effect/unstable/cli`. Read nearby scripts first and follow local conventions for imports, package scripts, and validation commands.
 
+## Related Skills
+
+Also use `effect-patterns` when the CLI script includes reusable services,
+layers, typed domain errors, structured logging, tests, or HTTP/runtime
+boundary code.
+
 ## Workflow
 
 1. Read nearby scripts before editing. Prefer the repo's current imports, error classes, command helper names, and package-script style.

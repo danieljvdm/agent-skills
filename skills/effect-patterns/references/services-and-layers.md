@@ -38,20 +38,56 @@ uses a consistent `Live` convention.
 
 ## Layer Builders
 
-If construction takes no arguments, `layerNoDeps` can be a `Layer`.
+Layer constructors do not take runtime dependencies as arguments. A layer is an
+Effect program: yield its config, clients, database, clock, logger, request
+context, platform bindings, and other dependencies from the Effect environment.
+Keep those requirements visible in the layer type.
 
-If construction takes arguments, make `layerNoDeps(args)` build the service
-value and wrap it with a named layer helper.
+If construction has no requirements, `layerNoDeps` can be a `Layer` or an
+Effect that builds the service value. If construction has requirements, expose
+a static `layer` that yields them directly.
 
 ```ts
-static readonly layerNoDeps = (options: FooOptions) =>
-  Effect.gen(function* () {
-    return { get: makeGet(options), save: makeSave(options) };
-  });
+export class Foo extends Context.Service<
+  Foo,
+  {
+    readonly get: (id: FooId) => Effect.Effect<Foo, FooNotFound>;
+  }
+>()("@hyper/Foo") {
+  static readonly layer = Layer.effect(
+    this,
+    Effect.gen(function* () {
+      const config = yield* FooConfig;
+      const client = yield* FooClient;
 
-static readonly layer = (options: FooOptions) =>
-  Layer.effect(this, this.layerNoDeps(options));
+      return Foo.of({
+        get: Effect.fn("Foo.get")(function* (id) {
+          return yield* client.get(config.endpoint, id);
+        }),
+      });
+    }),
+  );
+}
 ```
+
+Do not hide requirements by closing over them in a factory.
+
+```ts
+// Wrong: dependencies disappear from the layer requirement channel.
+export const makeFooLayer = (env: WorkerEnv, client: HttpClient) =>
+  Layer.effect(Foo, makeFoo(env, client));
+
+// Wrong for the same reason.
+Foo.layer({ endpoint: env.FOO_ENDPOINT, token: env.FOO_TOKEN });
+```
+
+Model `WorkerEnv`, application config, and transports as focused services. At
+the runtime boundary, provide their layers to `Foo.layer`; do not pass their
+values into it.
+
+Arguments are acceptable only when they are intrinsic definitions that create a
+distinct named service instance, not runtime dependencies or configuration.
+Default to Effect requirements whenever there is doubt.
 
 ## Domain Abstractions
 
@@ -133,9 +169,10 @@ Use domain verbs: `send`, `dispatch`, `get`, `snapshot`, `subscribe`, `run`,
 Service methods take domain inputs only. Runtime dependencies come from the
 Effect environment.
 
-Do not pass `db`, `config`, `logger`, request context, clocks, clients, or other
-deps as method arguments. Model missing deps as small services, not bucket
-services.
+Do not pass `env`, `db`, `config`, `logger`, request context, clocks, clients, or
+other dependencies to service methods, constructors, layer factories, or
+implementation helpers. Yield them while constructing the service. Model
+missing dependencies as focused services, not bucket services.
 
 When one implementation can run against multiple backends, keep one canonical
 implementation layer and model the backend choice as a dependency service.
@@ -183,15 +220,22 @@ Foo.layerCloud();
 Foo.layerDirect();
 ```
 
-Also avoid passing backend config through service methods or helper functions as
-if it were domain input.
+Do not recreate dependency injection through implementation-helper parameters.
+Yield the dependency in the service layer, then close over it in the service
+method. Yield request-scoped dependencies inside the method effect when their
+lifetime requires it.
 
 ```ts
-const run = (input: FooInput) => runFoo(connection, input);
+// Wrong: the helper introduces a second, untracked injection mechanism.
+const runFoo = (connection: FooConnection, input: FooInput) =>
+  connection.run(input);
+
+// Correct: `connection` was yielded while constructing the service.
+const run = (input: FooInput) => connection.run(input);
 ```
 
-The selected layer already owns the connection. The method should stay
-`run(input)`.
+The selected layer owns the connection. The public method and its implementation
+stay `run(input)`.
 
 ## Boundary Composition
 
@@ -232,6 +276,8 @@ ownership is already right.
   ownership boundary.
 - Factory APIs that return nested service namespaces for a single canonical
   service.
+- Layer factories that accept runtime dependencies, such as
+  `makeEmailLayer(env)`, `Foo.layer(config)`, or `makeFooLive(client)`.
 - Duplicate backend-specific implementation layers when a small dependency
   service can represent the selected connection/config.
 - Method arguments for dependencies.
@@ -239,3 +285,14 @@ ownership is already right.
   owned by one entrypoint.
 - `Effect.runPromise` except at runtime boundaries.
 - `as any` or `as never` to force a service/layer shape.
+
+## Completion Check
+
+Before completing a change, inspect every added or modified service and layer:
+
+- Keep the implementation layer on its service class when ownership permits.
+- Ensure layer constructors take no runtime dependency arguments.
+- Yield every runtime dependency from the Effect environment.
+- Keep mutable state scoped to a layer or an explicitly provided state service.
+- Document any genuine ownership-boundary exception; convenience is not an
+  exception.

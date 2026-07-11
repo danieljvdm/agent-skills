@@ -29,6 +29,9 @@ reference files that match the code being changed.
    and transport handlers thin.
 3. Model expected failures in the error channel with tagged errors or schema
    tagged errors.
-4. Prefer Effect platform APIs and service layers over direct global/runtime
+4. Make services and layers yield runtime dependencies from the Effect
+   environment. Never pass environment objects, config, clients, databases,
+   clocks, loggers, or other dependencies into layer factories.
+5. Prefer Effect platform APIs and service layers over direct global/runtime
    calls in code that should be testable.
-5. Validate with the narrowest meaningful typecheck, test, or command path.
+6. Validate with the narrowest meaningful typecheck, test, or command path.

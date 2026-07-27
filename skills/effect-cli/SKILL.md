@@ -11,9 +11,9 @@ Build scripts as small Effect programs with typed errors, platform services, and
 
 ## Related Skills
 
-Also use `effect-patterns` when the CLI script includes reusable services,
-layers, typed domain errors, structured logging, tests, or HTTP/runtime
-boundary code.
+Also use `effect-patterns` when the CLI script includes domain models, reusable
+services, layers, typed domain errors, structured logging, tests, or
+HTTP/runtime boundary code.
 
 ## Workflow
 

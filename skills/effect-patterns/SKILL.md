@@ -1,6 +1,6 @@
 ---
 name: effect-patterns
-description: Apply TypeScript Effect patterns for services, layers, typed errors, logging, testing, and HTTP boundaries. Use when writing or reviewing Effect application code, service workflows, API handlers, runtime boundaries, or tests. For command-line scripts and project automation, also use effect-cli.
+description: Apply TypeScript Effect patterns for schema-first domain models, services, layers, typed errors, logging, testing, and HTTP boundaries. Use when writing or reviewing Effect application code, domain contracts, service workflows, API handlers, runtime boundaries, or tests. For command-line scripts and project automation, also use effect-cli.
 ---
 
 # Effect Patterns
@@ -10,6 +10,9 @@ reference files that match the code being changed.
 
 ## Reference Map
 
+- For schema-first domain models, service inputs/results, branded identifiers,
+  schema-backed expected errors, and boundary validation, read
+  `references/schema-first-modeling.md`.
 - For reusable Effect helpers, `Effect.fn`, Promise boundaries, and expected
   failures, read `references/functions-and-errors.md`.
 - For services, dependency tags, layer builders, and domain abstractions, read

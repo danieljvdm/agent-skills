@@ -8,7 +8,7 @@ Prefer `Effect.fn("MeaningfulName")` for reusable helpers that return Effects.
 
 ```ts
 const decodePayload = Effect.fn("decodePayload")(function* (input: unknown) {
-  return yield* Schema.decodeUnknown(Payload)(input);
+  return yield* Schema.decodeUnknownEffect(Payload)(input);
 });
 ```
 
@@ -28,12 +28,16 @@ Do not wrap Effect-native APIs in `Effect.tryPromise`.
 
 Expected failures are values in the error channel.
 
-Use `Data.TaggedError` or schema tagged errors for failures callers can handle.
+Follow the schema-first error pattern in
+[`schema-first-modeling.md`](schema-first-modeling.md).
 
 ```ts
-class WorkspaceNotFound extends Data.TaggedError("WorkspaceNotFound")<{
-  readonly workspaceId: WorkspaceId;
-}> {}
+class WorkspaceNotFound extends Schema.TaggedErrorClass<WorkspaceNotFound>()(
+  "WorkspaceNotFound",
+  {
+    workspaceId: WorkspaceId,
+  },
+) {}
 ```
 
 In generators, use the explicit stop-control-flow shape when failing with an

@@ -30,8 +30,8 @@ reference files that match the code being changed.
    naming, layer conventions, test helpers, and runtime boundaries.
 2. Keep business logic in services and workflows. Keep request, CLI, worker,
    and transport handlers thin.
-3. Model expected failures in the error channel with tagged errors or schema
-   tagged errors.
+3. Model expected failures in the error channel with schema-backed tagged
+   errors.
 4. Make services and layers yield runtime dependencies from the Effect
    environment. Never pass environment objects, config, clients, databases,
    clocks, loggers, or other dependencies into layer factories.

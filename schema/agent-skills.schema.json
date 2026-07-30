@@ -10,7 +10,7 @@
       "type": "string"
     },
     "include": {
-      "description": "Skill names or family names to sync.",
+      "description": "Skill names or family names to sync. External source ids are available as family names.",
       "type": "array",
       "items": {
         "type": "string",
@@ -20,7 +20,7 @@
       "minItems": 1
     },
     "exclude": {
-      "description": "Skill names to remove from the selected set after expanding families.",
+      "description": "Skill names or family names to remove from the selected set after expanding includes.",
       "type": "array",
       "items": {
         "type": "string",

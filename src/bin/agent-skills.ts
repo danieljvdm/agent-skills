@@ -3,6 +3,7 @@ import { Command as CliCommand, Flag } from "effect/unstable/cli";
 import { Effect } from "effect";
 
 import { syncProjectSkills } from "../sync.ts";
+import { vendorExternalSkills } from "../vendor.ts";
 
 const syncCommand = CliCommand.make(
   "sync",
@@ -19,9 +20,32 @@ const syncCommand = CliCommand.make(
     }),
 ).pipe(CliCommand.withDescription("Sync selected agent skills into project-local harness paths."));
 
+const vendorCommand = CliCommand.make(
+  "vendor",
+  {
+    dryRun: Flag.boolean("dry-run"),
+    locked: Flag.boolean("locked"),
+    lockfile: Flag.string("lockfile").pipe(Flag.withDefault("skill-sources.lock.json")),
+    repoDir: Flag.string("repo-dir").pipe(Flag.withDefault(".")),
+    sources: Flag.string("sources").pipe(Flag.withDefault("skill-sources.jsonc")),
+  },
+  ({ dryRun, locked, lockfile, repoDir, sources }) =>
+    vendorExternalSkills({
+      dryRun,
+      locked,
+      lockfilePath: lockfile,
+      repoDir,
+      sourcesPath: sources,
+    }),
+).pipe(
+  CliCommand.withDescription(
+    "Vendor pinned external skill sources into this repository's unified catalog.",
+  ),
+);
+
 const command = CliCommand.make("agent-skills").pipe(
   CliCommand.withDescription("Portable agent skill sync tools."),
-  CliCommand.withSubcommands([syncCommand]),
+  CliCommand.withSubcommands([syncCommand, vendorCommand] as const),
 );
 
 const program = CliCommand.run(command, { version: "0.1.0" }).pipe(

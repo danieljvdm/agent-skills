@@ -1,0 +1,14 @@
+{
+  "$schema": "./schema/skill-sources.schema.json",
+  "sources": [
+    {
+      "id": "emilkowalski-skills",
+      "repository": "https://github.com/emilkowalski/skills.git",
+      "ref": "main",
+      "skillsPath": "skills",
+      "include": ["*"],
+      "licensePath": "LICENSE",
+      "stripFrontmatter": ["disable-model-invocation"]
+    }
+  ]
+}

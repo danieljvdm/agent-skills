@@ -1,6 +1,6 @@
 {
   "$schema": "./schema/agent-skills.schema.json",
-  "include": ["effect"],
+  "include": ["effect", "emilkowalski-skills"],
   "targets": {
     "agents": { "enabled": true, "mode": "copy" },
     "claude": { "enabled": true, "mode": "symlink" },

@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/danieljvdm/agent-skills/main/schema/skill-sources.schema.json",
+  "title": "External Agent Skill Sources",
+  "description": "Repository-level sources vendored into the unified skills catalog.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/source"
+      }
+    }
+  },
+  "required": ["sources"],
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Unique source id. It also becomes a family name in project manifests.",
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        },
+        "repository": {
+          "description": "Git clone URL.",
+          "type": "string",
+          "minLength": 1
+        },
+        "ref": {
+          "description": "Git branch, tag, or commit to resolve when updating.",
+          "type": "string",
+          "minLength": 1
+        },
+        "skillsPath": {
+          "description": "Repository-relative directory containing skill folders.",
+          "type": "string",
+          "minLength": 1
+        },
+        "include": {
+          "description": "Explicit skill names, or [\"*\"] to vendor every skill found under skillsPath.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(\\*|[a-z0-9]+(-[a-z0-9]+)*)$"
+          },
+          "uniqueItems": true,
+          "minItems": 1
+        },
+        "licensePath": {
+          "description": "Optional repository-relative license file copied into third-party/<id>/.",
+          "type": "string",
+          "minLength": 1
+        },
+        "stripFrontmatter": {
+          "description": "Optional upstream frontmatter keys to remove for local harness compatibility.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": ["id", "repository", "ref", "skillsPath", "include"]
+    }
+  }
+}

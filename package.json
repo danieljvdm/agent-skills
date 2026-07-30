@@ -18,20 +18,27 @@
       "default": "./src/index.ts"
     },
     "./schema": "./schema/agent-skills.schema.json",
-    "./schema/agent-skills.schema.json": "./schema/agent-skills.schema.json"
+    "./schema/agent-skills.schema.json": "./schema/agent-skills.schema.json",
+    "./schema/skill-sources.schema.json": "./schema/skill-sources.schema.json"
   },
   "files": [
     "agent-skills.example.jsonc",
     "bin/",
     "schema/",
     "skills/",
+    "third-party/",
+    "skill-sources.jsonc",
+    "skill-sources.lock.json",
     "src/"
   ],
   "scripts": {
     "check": "tsc --noEmit",
     "sync": "./bin/agent-skills.mjs sync",
     "sync:dry": "./bin/agent-skills.mjs sync --dry-run",
-    "typecheck": "tsc --noEmit"
+    "test": "node --import tsx --test test/**/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "vendor": "./bin/agent-skills.mjs vendor",
+    "vendor:locked": "./bin/agent-skills.mjs vendor --locked"
   },
   "dependencies": {
     "@effect/platform-node": "4.0.0-beta.90",

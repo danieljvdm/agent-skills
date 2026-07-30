@@ -3,6 +3,7 @@ import { Console, Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
 
 import { ManifestSchema, normalizeManifest, type HarnessTarget } from "./manifest.ts";
+import { SkillSourcesLockSchema } from "./source-manifest.ts";
 
 export type SyncOptions = {
   readonly manifestPath?: string;
@@ -53,6 +54,14 @@ class UnknownSkillOrFamilyError extends Schema.TaggedErrorClass<UnknownSkillOrFa
     return `unknown skill or family "${this.name}". Known values: ${this.known.join(", ")}`;
   }
 }
+
+class InvalidSkillCatalogError extends Schema.TaggedErrorClass<InvalidSkillCatalogError>()(
+  "InvalidSkillCatalogError",
+  {
+    family: Schema.String,
+    message: Schema.String,
+  },
+) {}
 
 class CommandError extends Schema.TaggedErrorClass<CommandError>()("CommandError", {
   command: Schema.String,
@@ -147,17 +156,50 @@ const discoverSkills = Effect.fn("discoverSkills")(function* (skillsDir: string)
   return skills.sort();
 });
 
+const discoverSkillFamilies = Effect.fn("discoverSkillFamilies")(function* (
+  packageRoot: string,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const lockfilePath = path.join(packageRoot, "skill-sources.lock.json");
+  if (!(yield* fs.exists(lockfilePath))) {
+    return SKILL_FAMILIES;
+  }
+
+  const raw = yield* fs.readFileString(lockfilePath);
+  const errors: Array<ParseError> = [];
+  const parsed = parseJsonc(raw, errors);
+  if (errors.length > 0) {
+    const first = errors[0]!;
+    return yield* new ManifestParseError({
+      path: lockfilePath,
+      message: `${printParseErrorCode(first.error)} at offset ${first.offset}`,
+    });
+  }
+  const lock = yield* Schema.decodeUnknownEffect(SkillSourcesLockSchema)(parsed).pipe(
+    Effect.mapError(
+      (cause) => new ManifestParseError({ path: lockfilePath, message: cause.message }),
+    ),
+  );
+
+  return {
+    ...SKILL_FAMILIES,
+    ...Object.fromEntries(lock.sources.map((source) => [source.id, source.skills])),
+  };
+});
+
 const expandSelection = (
   include: ReadonlyArray<string>,
   exclude: ReadonlyArray<string>,
   availableSkills: ReadonlyArray<string>,
+  skillFamilies: SkillCatalog,
 ) => {
-  const known = [...new Set([...Object.keys(SKILL_FAMILIES), ...availableSkills])].sort();
+  const known = [...new Set([...Object.keys(skillFamilies), ...availableSkills])].sort();
   const selected = new Set<string>();
 
   for (const name of include) {
-    if (SKILL_FAMILIES[name]) {
-      for (const skill of SKILL_FAMILIES[name]) {
+    if (skillFamilies[name]) {
+      for (const skill of skillFamilies[name]) {
         selected.add(skill);
       }
     } else if (availableSkills.includes(name)) {
@@ -168,7 +210,14 @@ const expandSelection = (
   }
 
   for (const name of exclude) {
-    selected.delete(name);
+    const family = skillFamilies[name];
+    if (family) {
+      for (const skill of family) {
+        selected.delete(skill);
+      }
+    } else {
+      selected.delete(name);
+    }
   }
 
   return Effect.succeed([...selected].sort());
@@ -254,7 +303,28 @@ export const syncProjectSkills = Effect.fn("syncProjectSkills")(function* (optio
 
   const manifest = normalizeManifest(yield* readManifest(manifestPath));
   const availableSkills = yield* discoverSkills(skillsDir);
-  const selectedSkills = yield* expandSelection(manifest.include, manifest.exclude, availableSkills);
+  const skillFamilies = yield* discoverSkillFamilies(packageRoot);
+  for (const [family, familySkills] of Object.entries(skillFamilies)) {
+    if (availableSkills.includes(family)) {
+      return yield* new InvalidSkillCatalogError({
+        family,
+        message: `family name conflicts with a skill name: ${family}`,
+      });
+    }
+    const missing = familySkills.filter((skill) => !availableSkills.includes(skill));
+    if (missing.length > 0) {
+      return yield* new InvalidSkillCatalogError({
+        family,
+        message: `family references missing skills: ${missing.join(", ")}`,
+      });
+    }
+  }
+  const selectedSkills = yield* expandSelection(
+    manifest.include,
+    manifest.exclude,
+    availableSkills,
+    skillFamilies,
+  );
   const actions = yield* planActions(projectDir, packageRoot, selectedSkills, manifest.targets);
 
   if (actions.length === 0) {

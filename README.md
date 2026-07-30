@@ -48,7 +48,13 @@ skills it wants:
 ```
 
 `include` accepts family names or individual skill names. The first family is
-`effect`, which expands to `effect-cli` and `effect-patterns`.
+`effect`, which expands to the consolidated `effect-ts` skill. Its focused
+references cover core Effect, schemas, errors, services and layers,
+observability, retries, schedules, SQL, testing, HTTP boundaries, service
+audits, type safety, and Effect-powered CLI tooling. Vendored source ids are
+families too, so `emilkowalski-skills` expands to every skill imported from that
+source. A project can instead select an individual imported skill, such as
+`animation-vocabulary`.
 
 By default, the sync command copies selected skills into `.agents/skills`.
 Symlink targets, such as `.claude/skills`, point at those project-local copies.

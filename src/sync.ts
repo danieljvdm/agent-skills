@@ -76,7 +76,7 @@ class CommandError extends Schema.TaggedErrorClass<CommandError>()("CommandError
 }
 
 const SKILL_FAMILIES: SkillCatalog = {
-  effect: ["effect-cli", "effect-patterns"],
+  effect: ["effect-ts"],
 };
 
 const DEFAULT_MANIFEST = "agent-skills.jsonc";

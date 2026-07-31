@@ -1,0 +1,4 @@
+interface:
+  display_name: "Update Dependencies"
+  short_description: "Safely update this repo's coupled toolchain"
+  default_prompt: "Use $update-deps to update this repository's dependencies and validate coupled Effect and tsgo versions."

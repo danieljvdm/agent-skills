@@ -3,14 +3,15 @@
   "version": "0.1.0",
   "private": false,
   "type": "module",
-  "description": "Portable agent skills and a sync CLI for project-local harness opt-in.",
+  "description": "Portable agent skills and a declarative project development toolkit.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/danieljvdm/agent-skills.git"
   },
   "license": "MIT",
   "bin": {
-    "agent-skills": "./bin/agent-skills.mjs"
+    "agent-skills": "./bin/agent-skills.mjs",
+    "dev-kit": "./bin/dev-kit.mjs"
   },
   "exports": {
     ".": {
@@ -32,10 +33,18 @@
     "src/"
   ],
   "scripts": {
+    "prepare": "./bin/dev-kit.mjs tsgo patch",
     "check": "tsc --noEmit",
     "sync": "./bin/agent-skills.mjs sync",
     "sync:dry": "./bin/agent-skills.mjs sync --dry-run",
-    "test": "node --import tsx --test test/**/*.test.ts",
+    "plan": "./bin/dev-kit.mjs plan",
+    "apply": "./bin/dev-kit.mjs apply",
+    "gitignore": "./bin/dev-kit.mjs gitignore",
+    "test": "bun run test:node && bun run test:effect",
+    "test:node": "node --import tsx --test test/effect-skill.test.ts test/sync.test.ts test/vendor.test.ts",
+    "test:effect": "vitest run --config vitest.config.ts",
+    "test:effect:watch": "vitest --config vitest.config.ts",
+    "tsgo:patch": "./bin/dev-kit.mjs tsgo patch",
     "typecheck": "tsc --noEmit",
     "vendor": "./bin/agent-skills.mjs vendor",
     "vendor:locked": "./bin/agent-skills.mjs vendor --locked"
@@ -47,8 +56,11 @@
     "tsx": "4.22.4"
   },
   "devDependencies": {
+    "@effect/tsgo": "0.24.3",
+    "@effect/vitest": "4.0.0-beta.102",
     "@types/node": "25.9.1",
-    "typescript": "5.9.3"
+    "typescript": "7.0.2",
+    "vitest": "4.1.10"
   },
   "engines": {
     "node": ">=22.12.0"

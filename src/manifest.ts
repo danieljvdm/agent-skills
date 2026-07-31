@@ -13,10 +13,23 @@ export const TargetConfigSchema = Schema.Struct({
 
 export type TargetConfig = typeof TargetConfigSchema.Type;
 
+export const EffectTsgoSetupSchema = Schema.Struct({
+  enabled: Schema.optional(Schema.Boolean),
+  force: Schema.optional(Schema.Boolean),
+  typescriptPackage: Schema.optional(Schema.String),
+});
+
+export type EffectTsgoSetup = typeof EffectTsgoSetupSchema.Type;
+
 export const ManifestSchema = Schema.Struct({
   $schema: Schema.optional(Schema.String),
   include: Schema.Array(Schema.String),
   exclude: Schema.optional(Schema.Array(Schema.String)),
+  setup: Schema.optional(
+    Schema.Struct({
+      effectTsgo: Schema.optional(EffectTsgoSetupSchema),
+    }),
+  ),
   targets: Schema.optional(
     Schema.Struct({
       agents: Schema.optional(TargetConfigSchema),
@@ -37,6 +50,13 @@ export type NormalizedTargetConfig = {
 export type NormalizedManifest = {
   readonly include: ReadonlyArray<string>;
   readonly exclude: ReadonlyArray<string>;
+  readonly setup: {
+    readonly effectTsgo: {
+      readonly enabled: boolean;
+      readonly force: boolean;
+      readonly typescriptPackage: string;
+    };
+  };
   readonly targets: Readonly<Record<HarnessTarget, NormalizedTargetConfig>>;
 };
 
@@ -57,7 +77,7 @@ export const normalizeManifest = (manifest: AgentSkillsManifest): NormalizedMani
     ...DEFAULT_TARGETS,
   };
 
-  for (const key of Object.keys(DEFAULT_TARGETS) as Array<HarnessTarget>) {
+  for (const key of ["agents", "claude", "opencode"] as const) {
     const override = manifest.targets?.[key];
     if (override) {
       targets[key] = {
@@ -71,6 +91,13 @@ export const normalizeManifest = (manifest: AgentSkillsManifest): NormalizedMani
   return {
     exclude: manifest.exclude ?? [],
     include: manifest.include,
+    setup: {
+      effectTsgo: {
+        enabled: manifest.setup?.effectTsgo?.enabled ?? false,
+        force: manifest.setup?.effectTsgo?.force ?? false,
+        typescriptPackage: manifest.setup?.effectTsgo?.typescriptPackage ?? "typescript",
+      },
+    },
     targets,
   };
 };

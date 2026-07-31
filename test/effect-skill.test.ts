@@ -103,6 +103,7 @@ test("Effect guidance matches beta.102 and avoids removed APIs", () => {
     dependencies: Record<string, string>;
   };
   const effectVersion = packageJson.dependencies.effect;
+  assert.ok(effectVersion);
   assert.equal(packageJson.dependencies["@effect/platform-node"], effectVersion);
   assert.match(readFileSync(join(skillDir, "SKILL.md"), "utf8"), new RegExp(effectVersion));
   assert.match(

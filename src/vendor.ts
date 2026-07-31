@@ -1,5 +1,5 @@
 import { parse as parseJsonc, printParseErrorCode, type ParseError } from "jsonc-parser";
-import { Console, Effect, FileSystem, Path, Schema, Stream } from "effect";
+import { Cause, Console, Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
 
 import {
@@ -113,8 +113,8 @@ const readJsonc = Effect.fn("readVendorJsonc")(function* <A>(
   const errors: Array<ParseError> = [];
   const parsed = parseJsonc(raw, errors, { allowTrailingComma: true });
 
-  if (errors.length > 0) {
-    const first = errors[0]!;
+  const first = errors[0];
+  if (first !== undefined) {
     return yield* new SourceManifestError({
       path: filePath,
       message: `${printParseErrorCode(first.error)} at offset ${first.offset}`,
@@ -504,7 +504,9 @@ const stripFrontmatterKeys = (
   const stripped = new Set(keys);
   const keptLines: Array<string> = [];
   let skipping = false;
-  for (const line of frontmatter[1]!.split(/\r?\n/)) {
+  const frontmatterBody = frontmatter[1];
+  if (frontmatterBody === undefined) return skillDocument;
+  for (const line of frontmatterBody.split(/\r?\n/)) {
     const key = line.match(/^([A-Za-z0-9_-]+):/)?.[1];
     if (key) {
       skipping = stripped.has(key);
@@ -656,7 +658,7 @@ const applyPreparedSources = Effect.fn("applyPreparedSkillSources")(function* (
       yield* fs.makeDirectory(path.dirname(replacement.destination), { recursive: true });
       yield* fs.rename(replacement.backup, replacement.destination);
     }
-  }).pipe(Effect.catchCause(() => Effect.void));
+  });
 
   const apply = Effect.gen(function* () {
     for (const replacement of replacements.values()) {
@@ -674,9 +676,16 @@ const applyPreparedSources = Effect.fn("applyPreparedSkillSources")(function* (
     yield* fs.rename(nextLockPath, lockfilePath);
   });
 
-  yield* apply.pipe(
-    Effect.catchCause((cause) => rollback.pipe(Effect.andThen(Effect.failCause(cause)))),
-  );
+  yield* Effect.uninterruptible(apply.pipe(
+    Effect.catchCause((applyCause) =>
+      rollback.pipe(
+        Effect.catchCause((rollbackCause) =>
+          Effect.failCause(Cause.combine(applyCause, rollbackCause)),
+        ),
+        Effect.andThen(Effect.failCause(applyCause)),
+      ),
+    ),
+  ));
 });
 
 export const vendorExternalSkills = Effect.fn("vendorExternalSkills")(function* (
@@ -684,9 +693,13 @@ export const vendorExternalSkills = Effect.fn("vendorExternalSkills")(function* 
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const initialDir = path.resolve(options.repoDir ?? process.cwd());
+  const initialDir = path.resolve(options.repoDir ?? ".");
   const repoDir = yield* resolveGitRoot(initialDir).pipe(
-    Effect.catchCause(() => Effect.succeed(initialDir)),
+    Effect.catchTag("CommandError", (error) =>
+      error.output.includes("not a git repository")
+        ? Effect.succeed(initialDir)
+        : Effect.fail(error),
+    ),
   );
   const sourcesPath = path.resolve(repoDir, options.sourcesPath ?? DEFAULT_SOURCES_PATH);
   const lockfilePath = path.resolve(repoDir, options.lockfilePath ?? DEFAULT_LOCKFILE_PATH);

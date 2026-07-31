@@ -23,11 +23,15 @@ Create `agent-skills.jsonc` in a project:
 }
 ```
 
-Sync selected skills:
+Preview and apply selected skills:
 
 ```bash
-bunx agent-skills sync
+bunx dev-kit plan
+bunx dev-kit apply
 ```
+
+`agent-skills sync` remains available as a compatibility alias for
+`dev-kit apply`.
 
 ## Manifest
 
@@ -62,10 +66,99 @@ Symlink targets, such as `.claude/skills`, point at those project-local copies.
 ## Commands
 
 ```bash
+dev-kit plan
+dev-kit apply
+dev-kit apply --locked
+dev-kit gitignore
+dev-kit gitignore --dry-run
+dev-kit tsgo patch --dry-run
+dev-kit tsgo patch
+dev-kit apply --manifest agent-skills.jsonc --project-dir .
+
+# compatibility commands
 agent-skills sync
 agent-skills sync --dry-run
-agent-skills sync --manifest agent-skills.jsonc --project-dir .
 ```
+
+`plan` is read-only. `apply` writes only destinations selected by the manifest,
+then records the resolved output digests in `dev-kit.lock.json` and local
+ownership receipts in `.dev-kit/state.json`. Commit `dev-kit.lock.json`; do not
+commit `.dev-kit/`.
+
+An existing destination is never adopted merely because it currently matches.
+It must either have a matching local ownership receipt or exactly match a
+committed lockfile entry. Modified owned outputs and unknown destinations are
+reported as conflicts and preserved. Cleanup follows the same rule: dev-kit
+removes only outputs that its local receipt owns and that still have their
+recorded digest.
+
+Use `--locked` in CI or postinstall automation. It refuses to apply when the
+manifest or packaged skill content differs from `dev-kit.lock.json`. Apply also
+uses a project-local process lock at `.dev-kit/apply.lock` to prevent concurrent
+writes.
+
+Dev-kit reserves `.repos/<source-id>` as the canonical location for
+project-local source checkouts. It does not use `repos/`. Run
+`dev-kit gitignore` to idempotently add `.repos/` and the local `.dev-kit/`
+state directory to the project `.gitignore`; use `--dry-run` to preview the
+patch. Existing lines are preserved, and symlinked `.gitignore` files are
+refused rather than followed.
+
+## Effect TypeScript-Go
+
+This repository and toolkit pin `@effect/tsgo` and its commit-compatible native
+TypeScript release together. Enable the task in the same manifest that selects
+skills:
+
+```jsonc
+// agent-skills.jsonc
+{
+  "include": ["effect"],
+  "setup": {
+    "effectTsgo": { "enabled": true }
+  }
+}
+```
+
+The consuming project has one lifecycle hook for every configured dev-kit task,
+not one hook per tool. After generating and committing `dev-kit.lock.json`, use:
+
+```jsonc
+// package.json
+{
+  "scripts": { "postinstall": "dev-kit apply --locked" },
+  "devDependencies": {
+    "@danieljvdm/agent-skills": "github:danieljvdm/agent-skills",
+    "@effect/tsgo": "0.24.3",
+    "typescript": "7.0.2"
+  }
+}
+```
+
+```jsonc
+// tsconfig.json
+{
+  "$schema": "./node_modules/@effect/tsgo/schema.json",
+  "compilerOptions": {
+    "plugins": [{ "name": "@effect/language-service" }]
+  }
+}
+```
+
+`dev-kit plan` now previews the setup task, and `dev-kit apply` runs it together
+with the rest of the manifest. The task uses only the project-local
+`effect-tsgo` binary, validates both exact version pins, and patches the native
+TypeScript compiler under `node_modules`. It never downloads dependencies and
+skips an installation that is already patched, so repeated applies converge.
+
+`dev-kit tsgo patch` remains available for focused troubleshooting, with
+`--dry-run` for validation. The upstream `--force` escape hatch is exposed but
+intentionally opt-in because it can select a binary built from a different
+TypeScript commit.
+
+Package and tsconfig edits are documented explicitly for now. They will move
+into the manifest once dev-kit has contribution-level ownership for shared JSONC
+files; treating either shared file as wholly owned would make cleanup unsafe.
 
 ## External sources
 

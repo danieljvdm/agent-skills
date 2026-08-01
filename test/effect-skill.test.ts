@@ -14,6 +14,7 @@ import test from "node:test";
 
 const root = resolve(".");
 const skillDir = join(root, "skills", "effect-ts");
+const devKitSkillDir = join(root, "skills", "dev-kit");
 const referencesDir = join(skillDir, "references");
 const cli = resolve("src/bin/agent-skills.ts");
 const tsx = import.meta.resolve("tsx");
@@ -121,6 +122,32 @@ test("Effect guidance matches beta.102 and avoids removed APIs", () => {
   assert.doesNotMatch(guidance, /ExecutionPlan\.captureRequirements\s*\(/);
   assert.doesNotMatch(guidance, /Context\.(?:Tag|GenericTag)\b/);
   assert.doesNotMatch(guidance, /Effect\.(?:Tag|Service|runtime)\b/);
+});
+
+test("ships dev-kit guidance as a directly selectable skill", () => {
+  const skill = readFileSync(join(devKitSkillDir, "SKILL.md"), "utf8");
+  assert.match(skill, /^---\nname: dev-kit\ndescription: /);
+  assert.doesNotMatch(skill, /TODO/);
+  assert.equal(existsSync(join(devKitSkillDir, "agents", "openai.yaml")), true);
+
+  const projectDir = mkdtempSync(join(tmpdir(), "agent-skills-dev-kit-sync-test-"));
+  try {
+    writeManifest(projectDir, ["dev-kit"]);
+    const output = runCli(
+      [
+        "sync",
+        "--dry-run",
+        "--project-dir",
+        projectDir,
+        "--manifest",
+        "agent-skills.jsonc",
+      ],
+      projectDir,
+    );
+    assert.match(output, /copy dev-kit -> \.agents\/skills\/dev-kit/);
+  } finally {
+    rmSync(projectDir, { force: true, recursive: true });
+  }
 });
 
 test("the effect family and direct skill id both select only effect-ts", () => {

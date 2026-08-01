@@ -15,7 +15,7 @@ Create `agent-skills.jsonc` in a project:
 ```jsonc
 {
   "$schema": "./node_modules/@danieljvdm/agent-skills/schema/agent-skills.schema.json",
-  "include": ["effect", "emilkowalski-skills"],
+  "include": ["dev-kit", "effect", "emilkowalski-skills"],
   "targets": {
     "agents": { "enabled": true, "mode": "copy" },
     "claude": { "enabled": true, "mode": "symlink" }
@@ -41,7 +41,7 @@ skills it wants:
 ```jsonc
 {
   "$schema": "./node_modules/@danieljvdm/agent-skills/schema/agent-skills.schema.json",
-  "include": ["effect"],
+  "include": ["dev-kit", "effect"],
   "exclude": [],
   "targets": {
     "agents": { "enabled": true, "mode": "copy" },
@@ -59,6 +59,9 @@ audits, type safety, and Effect-powered CLI tooling. Vendored source ids are
 families too, so `emilkowalski-skills` expands to every skill imported from that
 source. A project can instead select an individual imported skill, such as
 `animation-vocabulary`.
+
+Include `dev-kit` to give project agents the toolkit's apply, lock, ownership,
+conflict, gitignore, and Effect TypeScript-Go procedure.
 
 By default, the sync command copies selected skills into `.agents/skills`.
 Symlink targets, such as `.claude/skills`, point at those project-local copies.

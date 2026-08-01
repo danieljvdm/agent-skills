@@ -1,4 +1,5 @@
 {
+  "$schema": "./node_modules/@effect/tsgo/schema.json",
   "compilerOptions": {
     "allowImportingTsExtensions": true,
     "exactOptionalPropertyTypes": true,
@@ -6,6 +7,11 @@
     "moduleResolution": "NodeNext",
     "noEmit": true,
     "noUncheckedIndexedAccess": true,
+    "plugins": [
+      {
+        "name": "@effect/language-service"
+      }
+    ],
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "strict": true,
@@ -13,5 +19,5 @@
     "types": ["node"],
     "verbatimModuleSyntax": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts"]
 }

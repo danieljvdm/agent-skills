@@ -29,6 +29,17 @@
       "uniqueItems": true,
       "default": []
     },
+    "setup": {
+      "description": "Explicit setup tasks executed by dev-kit apply after dependencies are installed.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "effectTsgo": {
+          "$ref": "#/$defs/effectTsgoSetup"
+        }
+      },
+      "default": {}
+    },
     "targets": {
       "type": "object",
       "additionalProperties": false,
@@ -44,6 +55,27 @@
   },
   "required": ["include"],
   "$defs": {
+    "effectTsgoSetup": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "force": {
+          "description": "Pass the unsafe upstream --force escape hatch when no commit-exact binary matches.",
+          "type": "boolean",
+          "default": false
+        },
+        "typescriptPackage": {
+          "description": "Project-local native TypeScript package or alias for effect-tsgo to patch.",
+          "type": "string",
+          "pattern": "^(?:[a-z0-9][a-z0-9._-]*|@[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*)$",
+          "default": "typescript"
+        }
+      }
+    },
     "target": {
       "type": "object",
       "additionalProperties": false,

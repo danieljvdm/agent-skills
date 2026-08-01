@@ -1,5 +1,6 @@
 node_modules/
-.repos/effect/
+.repos/
+.dev-kit/
 .DS_Store
 dist/
 *.log

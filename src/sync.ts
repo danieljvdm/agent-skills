@@ -786,7 +786,13 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
   yield* fs.writeFileString(stagedLock, canonicalLock(plan.nextLock));
   yield* fs.writeFileString(stagedState, canonicalState(plan.nextState));
 
-  type Replacement = { readonly destination: string; readonly backup: string; readonly staged?: string };
+  type Replacement = {
+    readonly destination: string;
+    readonly backup: string;
+    readonly expected?: ObservedPath;
+    readonly path: string;
+    readonly staged?: string;
+  };
   const replacements: Array<Replacement> = [];
   let replacementIndex = 0;
   for (const action of mutating) {
@@ -801,12 +807,24 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
     replacements.push({
       destination: action.action === "remove" ? action.destination : action.desired.destination,
       backup: path.join(backupDir, String(replacementIndex++)),
+      expected: action.observed,
+      path: action.action === "remove" ? action.previous.path : action.desired.path,
       ...(staged === undefined ? {} : { staged }),
     });
   }
   replacements.push(
-    { destination: plan.lockfilePath, backup: path.join(backupDir, "lock"), staged: stagedLock },
-    { destination: plan.statePath, backup: path.join(backupDir, "state"), staged: stagedState },
+    {
+      destination: plan.lockfilePath,
+      backup: path.join(backupDir, "lock"),
+      path: plan.lockfilePath,
+      staged: stagedLock,
+    },
+    {
+      destination: plan.statePath,
+      backup: path.join(backupDir, "state"),
+      path: plan.statePath,
+      staged: stagedState,
+    },
   );
 
   const installed: Array<string> = [];
@@ -824,6 +842,12 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
   const apply = Effect.gen(function* () {
     for (const replacement of replacements) {
       const observed = yield* observePath(replacement.destination);
+      if (
+        replacement.expected !== undefined &&
+        !observationsEqual(observed, replacement.expected)
+      ) {
+        return yield* new ApplyRaceError({ path: replacement.path });
+      }
       if (observed.kind !== "missing") {
         yield* fs.makeDirectory(path.dirname(replacement.backup), { recursive: true });
         yield* fs.rename(replacement.destination, replacement.backup);

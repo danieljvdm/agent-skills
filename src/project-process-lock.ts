@@ -9,7 +9,7 @@ export class ProjectAlreadyLockedError extends Schema.TaggedErrorClass<ProjectAl
   { path: Schema.String },
 ) {
   override get message() {
-    return `another dev-kit apply may be active (${this.path}); verify the owner before removing a stale lock`;
+    return `another dev-kit operation may be active (${this.path}); verify the owner before removing a stale lock`;
   }
 }
 

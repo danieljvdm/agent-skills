@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 
-const cli = resolve("src/bin/agent-skills.ts");
+const cli = resolve("src/bin/dev-kit.ts");
 const tsx = import.meta.resolve("tsx");
 const cliArgs = ["--import", tsx, cli];
 
@@ -37,14 +37,14 @@ const commitAll = (repository: string, message: string) => {
 };
 
 const createFixture = () => {
-  const root = mkdtempSync(join(tmpdir(), "agent-skills-vendor-test-"));
+  const root = mkdtempSync(join(tmpdir(), "dev-kit-vendor-test-"));
   const upstream = join(root, "upstream");
   const aggregate = join(root, "aggregate");
   mkdirSync(upstream);
   mkdirSync(aggregate);
   run("git", ["init", "-b", "main"], upstream);
-  run("git", ["config", "user.name", "Agent Skills Test"], upstream);
-  run("git", ["config", "user.email", "agent-skills@example.test"], upstream);
+  run("git", ["config", "user.name", "Dev Kit Test"], upstream);
+  run("git", ["config", "user.email", "dev-kit@example.test"], upstream);
   writeSkill(upstream, "one", "version one");
   writeSkill(upstream, "two", "second skill");
   writeFileSync(join(upstream, "LICENSE"), "test license\n");
@@ -140,7 +140,7 @@ test("vendors, transforms, locks, and updates a local git source", () => {
 });
 
 test("rejects symlinks in vendored skill paths", () => {
-  const root = mkdtempSync(join(tmpdir(), "agent-skills-vendor-symlink-test-"));
+  const root = mkdtempSync(join(tmpdir(), "dev-kit-vendor-symlink-test-"));
   try {
     const upstream = join(root, "upstream");
     const aggregate = join(root, "aggregate");
@@ -154,8 +154,8 @@ test("rejects symlinks in vendored skill paths", () => {
     );
     symlinkSync(outside, join(upstream, "skills", "escaped"));
     run("git", ["init", "-b", "main"], upstream);
-    run("git", ["config", "user.name", "Agent Skills Test"], upstream);
-    run("git", ["config", "user.email", "agent-skills@example.test"], upstream);
+    run("git", ["config", "user.name", "Dev Kit Test"], upstream);
+    run("git", ["config", "user.email", "dev-kit@example.test"], upstream);
     commitAll(upstream, "symlink");
     writeFileSync(
       join(aggregate, "skill-sources.jsonc"),

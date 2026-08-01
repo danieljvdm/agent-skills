@@ -1,8 +1,8 @@
-# Agent Skills
+# Dev Kit
 
-Portable agent skills plus a project-local sync CLI. This repository is the
-distribution boundary: projects install skills from here even when some of
-them are maintained elsewhere.
+A declarative project development toolkit with portable agent skills. This
+repository is the distribution boundary: projects install skills from here
+even when some of them are maintained elsewhere.
 
 ## Install
 
@@ -10,11 +10,11 @@ them are maintained elsewhere.
 bun add -d github:danieljvdm/agent-skills
 ```
 
-Create `agent-skills.jsonc` in a project:
+Create `dev-kit.jsonc` in a project:
 
 ```jsonc
 {
-  "$schema": "./node_modules/@danieljvdm/agent-skills/schema/agent-skills.schema.json",
+  "$schema": "./node_modules/@danieljvdm/dev-kit/schema/dev-kit.schema.json",
   "include": ["dev-kit", "effect", "emilkowalski-skills"],
   "targets": {
     "agents": { "enabled": true, "mode": "copy" },
@@ -30,17 +30,16 @@ bunx dev-kit plan
 bunx dev-kit apply
 ```
 
-`agent-skills sync` remains available as a compatibility alias for
-`dev-kit apply`.
+`agent-skills sync` remains available as a deprecated compatibility alias.
 
 ## Manifest
 
-`agent-skills.jsonc` is intentionally project-local. A repo opts into only the
+`dev-kit.jsonc` is intentionally project-local. A repo opts into only the
 skills it wants:
 
 ```jsonc
 {
-  "$schema": "./node_modules/@danieljvdm/agent-skills/schema/agent-skills.schema.json",
+  "$schema": "./node_modules/@danieljvdm/dev-kit/schema/dev-kit.schema.json",
   "include": ["dev-kit", "effect"],
   "exclude": [],
   "targets": {
@@ -76,12 +75,15 @@ dev-kit gitignore
 dev-kit gitignore --dry-run
 dev-kit tsgo patch --dry-run
 dev-kit tsgo patch
-dev-kit apply --manifest agent-skills.jsonc --project-dir .
+dev-kit apply --manifest dev-kit.jsonc --project-dir .
 
 # compatibility commands
 agent-skills sync
 agent-skills sync --dry-run
 ```
+
+The legacy binary defaults to `agent-skills.jsonc`; canonical `dev-kit`
+commands default to `dev-kit.jsonc`.
 
 `plan` is read-only. `apply` writes only destinations selected by the manifest,
 then records the resolved output digests and setup-tool versions in
@@ -114,7 +116,7 @@ TypeScript release together. Enable the task in the same manifest that selects
 skills:
 
 ```jsonc
-// agent-skills.jsonc
+// dev-kit.jsonc
 {
   "include": ["effect"],
   "setup": {
@@ -131,7 +133,7 @@ not one hook per tool. After generating and committing `dev-kit.lock.json`, use:
 {
   "scripts": { "postinstall": "dev-kit apply --locked" },
   "devDependencies": {
-    "@danieljvdm/agent-skills": "github:danieljvdm/agent-skills",
+    "@danieljvdm/dev-kit": "github:danieljvdm/agent-skills",
     "@effect/tsgo": "0.24.3",
     "typescript": "7.0.2"
   }
@@ -216,7 +218,23 @@ Locked mode also requires every output-affecting source setting to match the
 lockfile, so changing selection, paths, licenses, or transforms requires a
 normal `bun run vendor` update.
 
-Downstream `agent-skills sync` never contacts the external repositories. It
-only copies from this package, keeping installs centralized and reproducible.
+Downstream `dev-kit apply` never contacts the external repositories. It only
+copies from this package, keeping installs centralized and reproducible.
 Review vendored diffs before committing: skills are instructions your agents
 will execute.
+
+## Migrating from Agent Skills
+
+For canonical naming:
+
+1. Rename `agent-skills.jsonc` to `dev-kit.jsonc`.
+2. Change its schema path to
+   `./node_modules/@danieljvdm/dev-kit/schema/dev-kit.schema.json`.
+3. Rename the dependency key from `@danieljvdm/agent-skills` to
+   `@danieljvdm/dev-kit` and refresh the package-manager lockfile.
+4. Replace `agent-skills sync` with `dev-kit apply`.
+5. Run `dev-kit apply` once to regenerate `dev-kit.lock.json` for the renamed
+   package version, review it, then use `dev-kit apply --locked` again.
+
+The `agent-skills` binary and legacy schema path remain as deprecated aliases
+for existing projects. New projects should use only `dev-kit` names.

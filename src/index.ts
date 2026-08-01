@@ -1,5 +1,7 @@
 export {
   type AgentSkillsManifest,
+  type DevKitManifest,
+  DevKitManifestSchema,
   type EffectTsgoSetup,
   EffectTsgoSetupSchema,
   type HarnessTarget,

@@ -1,5 +1,5 @@
 {
-  "$schema": "./schema/agent-skills.schema.json",
+  "$schema": "./schema/dev-kit.schema.json",
   "include": ["dev-kit", "effect", "emilkowalski-skills"],
   "setup": {
     "effectTsgo": { "enabled": true }

@@ -1,3 +1,4 @@
 #!/usr/bin/env -S node --import tsx
 
-import "../src/bin/agent-skills.ts";
+// Deprecated compatibility entrypoint. Use `dev-kit` for new projects.
+import "../src/bin/dev-kit.ts";

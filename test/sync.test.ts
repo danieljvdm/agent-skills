@@ -21,7 +21,7 @@ import {
   EFFECT_TSGO_VERSION,
 } from "../src/effect-tsgo.ts";
 
-const cli = resolve("src/bin/agent-skills.ts");
+const cli = resolve("src/bin/dev-kit.ts");
 const tsx = import.meta.resolve("tsx");
 const cliArgs = ["--import", tsx, cli];
 const effectSkill = resolve("skills/effect-ts");
@@ -34,7 +34,7 @@ type ManifestOptions = {
 
 const writeManifest = (projectDir: string, options: ManifestOptions = {}) => {
   writeFileSync(
-    join(projectDir, "agent-skills.jsonc"),
+    join(projectDir, "dev-kit.jsonc"),
     `${JSON.stringify(
       {
         include: ["effect"],

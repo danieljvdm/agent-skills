@@ -1,204 +1,243 @@
-import assert from "node:assert/strict";
-import { execFileSync, spawnSync } from "node:child_process";
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import test from "node:test";
+import { NodeServices } from "@effect/platform-node";
+import { assert, describe, layer } from "@effect/vitest";
+import { Effect, FileSystem, Path, Stream } from "effect";
+import { ChildProcess } from "effect/unstable/process";
 
-const root = resolve(".");
-const skillDir = join(root, "skills", "effect-ts");
-const devKitSkillDir = join(root, "skills", "dev-kit");
-const referencesDir = join(skillDir, "references");
-const cli = resolve("src/bin/dev-kit.ts");
-const tsx = import.meta.resolve("tsx");
-const cliArgs = ["--import", tsx, cli];
+const repositoryPaths = Effect.fn("repositoryPaths")(function* () {
+  const path = yield* Path.Path;
+  const testPath = yield* path.fromFileUrl(new URL(import.meta.url));
+  const root = path.resolve(path.dirname(testPath), "..");
+  const skillDir = path.join(root, "skills", "effect-ts");
+  return {
+    root,
+    skillDir,
+    devKitSkillDir: path.join(root, "skills", "dev-kit"),
+    referencesDir: path.join(skillDir, "references"),
+    cli: path.join(root, "src", "bin", "dev-kit.ts"),
+    tsx: yield* path.fromFileUrl(new URL(import.meta.resolve("tsx"))),
+  };
+});
 
-const runCli = (args: ReadonlyArray<string>, cwd: string) =>
-  execFileSync(process.execPath, [...cliArgs, ...args], {
-    cwd,
-    encoding: "utf8",
-    stdio: "pipe",
-  });
+const runCli = Effect.fn("runTestCli")(function* (
+  cli: string,
+  tsx: string,
+  cwd: string,
+  args: ReadonlyArray<string>,
+) {
+  const child = yield* ChildProcess.make(
+    "node",
+    ["--import", tsx, cli, ...args],
+    { cwd, stderr: "pipe", stdout: "pipe" },
+  );
+  const [output, exitCode] = yield* Effect.all([
+    Stream.mkString(Stream.decodeText(child.all)),
+    child.exitCode,
+  ]);
+  return { exitCode, output };
+});
 
-const writeManifest = (projectDir: string, include: ReadonlyArray<string>) => {
-  writeFileSync(
-    join(projectDir, "dev-kit.jsonc"),
+const writeManifest = Effect.fn("writeTestManifest")(function* (
+  projectDir: string,
+  include: ReadonlyArray<string>,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  yield* fs.writeFileString(
+    path.join(projectDir, "dev-kit.jsonc"),
     `${JSON.stringify({ include }, null, 2)}\n`,
   );
-};
-
-test("ships one consolidated Effect skill with valid local references", () => {
-  assert.equal(existsSync(join(skillDir, "SKILL.md")), true);
-  assert.equal(existsSync(join(root, "skills", "effect-cli", "SKILL.md")), false);
-  assert.equal(existsSync(join(root, "skills", "effect-patterns", "SKILL.md")), false);
-
-  const skill = readFileSync(join(skillDir, "SKILL.md"), "utf8");
-  assert.match(skill, /^---\nname: effect-ts\n/);
-  assert.doesNotMatch(skill, /name: effect-(?:cli|patterns)/);
-  assert.doesNotMatch(skill, /stop and prompt the user.*\.repos\/effect/is);
-
-  const referenceNames = new Set(readdirSync(referencesDir));
-  assert.equal(referenceNames.has("audit-services.md"), true);
-  for (const duplicateReference of [
-    "guide-functions-and-errors.md",
-    "guide-logging.md",
-    "guide-schema-first-modeling.md",
-    "guide-service-design.md",
-    "guide-service-design-audit.md",
-    "guide-testing-conventions.md",
-  ]) {
-    assert.equal(
-      referenceNames.has(duplicateReference),
-      false,
-      `duplicate topic reference still exists: ${duplicateReference}`,
-    );
-  }
-
-  const routedReferences = [
-    ...skill.matchAll(/`\.\/references\/([^`]+\.md)`/g),
-  ].map((match) => match[1]!);
-  const uniqueRoutedReferences = new Set(routedReferences);
-
-  assert.ok(routedReferences.length > 0);
-  for (const reference of routedReferences) {
-    assert.equal(
-      referenceNames.has(reference),
-      true,
-      `SKILL.md routes to missing reference: ${reference}`,
-    );
-  }
-  for (const reference of referenceNames) {
-    if (reference.endsWith(".md")) {
-      assert.equal(
-        uniqueRoutedReferences.has(reference),
-        true,
-        `reference is not routed from SKILL.md: ${reference}`,
-      );
-    }
-  }
-
-  for (const reference of referenceNames) {
-    if (!reference.endsWith(".md")) {
-      continue;
-    }
-    const markdown = readFileSync(join(referencesDir, reference), "utf8");
-    for (const match of markdown.matchAll(/\]\((?!https?:|#)([^)]+\.md)(?:#[^)]+)?\)/g)) {
-      assert.equal(
-        existsSync(resolve(referencesDir, match[1]!)),
-        true,
-        `${reference} links to missing file: ${match[1]}`,
-      );
-    }
-  }
 });
 
-test("Effect guidance matches beta.102 and avoids removed APIs", () => {
-  const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
-    dependencies: Record<string, string>;
-  };
-  const effectVersion = packageJson.dependencies.effect;
-  assert.ok(effectVersion);
-  assert.equal(packageJson.dependencies["@effect/platform-node"], effectVersion);
-  assert.match(readFileSync(join(skillDir, "SKILL.md"), "utf8"), new RegExp(effectVersion));
-  assert.match(
-    readFileSync(join(referencesDir, "version-and-source.md"), "utf8"),
-    new RegExp(effectVersion),
-  );
+describe("shipped skills", () => {
+  layer(NodeServices.layer)((it) => {
+    it.effect("ships one consolidated Effect skill with valid local references", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const { root, skillDir, referencesDir } = yield* repositoryPaths();
 
-  const guidance = readdirSync(referencesDir)
-    .filter((name) => name.endsWith(".md") && name !== "version-and-source.md")
-    .map((name) => readFileSync(join(referencesDir, name), "utf8"))
-    .join("\n");
+        assert.isTrue(yield* fs.exists(path.join(skillDir, "SKILL.md")));
+        assert.isFalse(
+          yield* fs.exists(path.join(root, "skills", "effect-cli", "SKILL.md")),
+        );
+        assert.isFalse(
+          yield* fs.exists(path.join(root, "skills", "effect-patterns", "SKILL.md")),
+        );
 
-  assert.doesNotMatch(guidance, /Schema\.DefectWithStack/);
-  assert.doesNotMatch(guidance, /Schedule\.either\s*\(/);
-  assert.doesNotMatch(guidance, /ExecutionPlan\.captureRequirements\s*\(/);
-  assert.doesNotMatch(guidance, /Context\.(?:Tag|GenericTag)\b/);
-  assert.doesNotMatch(guidance, /Effect\.(?:Tag|Service|runtime)\b/);
-});
+        const skill = yield* fs.readFileString(path.join(skillDir, "SKILL.md"));
+        assert.match(skill, /^---\nname: effect-ts\n/);
+        assert.notMatch(skill, /name: effect-(?:cli|patterns)/);
+        assert.notMatch(skill, /stop and prompt the user.*\.repos\/effect/is);
 
-test("ships dev-kit guidance as a directly selectable skill", () => {
-  const skill = readFileSync(join(devKitSkillDir, "SKILL.md"), "utf8");
-  assert.match(skill, /^---\nname: dev-kit\ndescription: /);
-  assert.doesNotMatch(skill, /TODO/);
-  assert.equal(existsSync(join(devKitSkillDir, "agents", "openai.yaml")), true);
+        const referenceNames = new Set(yield* fs.readDirectory(referencesDir));
+        assert.isTrue(referenceNames.has("audit-services.md"));
+        for (const duplicateReference of [
+          "guide-functions-and-errors.md",
+          "guide-logging.md",
+          "guide-schema-first-modeling.md",
+          "guide-service-design.md",
+          "guide-service-design-audit.md",
+          "guide-testing-conventions.md",
+        ]) {
+          assert.isFalse(
+            referenceNames.has(duplicateReference),
+            `duplicate topic reference still exists: ${duplicateReference}`,
+          );
+        }
 
-  const projectDir = mkdtempSync(join(tmpdir(), "dev-kit-self-sync-test-"));
-  try {
-    writeManifest(projectDir, ["dev-kit"]);
-    const output = runCli(
-      [
-        "plan",
-        "--project-dir",
-        projectDir,
-        "--manifest",
-        "dev-kit.jsonc",
-      ],
-      projectDir,
-    );
-    assert.match(output, /copy dev-kit -> \.agents\/skills\/dev-kit/);
-  } finally {
-    rmSync(projectDir, { force: true, recursive: true });
-  }
-});
+        const routedReferences = [
+          ...skill.matchAll(/`\.\/references\/([^`]+\.md)`/g),
+        ].map((match) => match[1]!);
+        const uniqueRoutedReferences = new Set(routedReferences);
 
-test("uses canonical dev-kit package, manifest, and schema names", () => {
-  const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-  assert.equal(packageJson.name, "@danieljvdm/dev-kit");
-  assert.equal(existsSync(join(root, "dev-kit.example.jsonc")), true);
-  assert.equal(existsSync(join(root, "schema", "dev-kit.schema.json")), true);
-});
+        assert.isNotEmpty(routedReferences);
+        for (const reference of routedReferences) {
+          assert.isTrue(
+            referenceNames.has(reference),
+            `SKILL.md routes to missing reference: ${reference}`,
+          );
+        }
+        for (const reference of referenceNames) {
+          if (reference.endsWith(".md")) {
+            assert.isTrue(
+              uniqueRoutedReferences.has(reference),
+              `reference is not routed from SKILL.md: ${reference}`,
+            );
+          }
+        }
 
-test("the effect family and direct skill id both select only effect-ts", () => {
-  const projectDir = mkdtempSync(join(tmpdir(), "dev-kit-effect-sync-test-"));
-  try {
-    for (const include of [["effect"], ["effect-ts"]]) {
-      writeManifest(projectDir, include);
-      const output = runCli(
-        [
+        for (const reference of referenceNames) {
+          if (!reference.endsWith(".md")) continue;
+          const markdown = yield* fs.readFileString(path.join(referencesDir, reference));
+          for (const match of markdown.matchAll(
+            /\]\((?!https?:|#)([^)]+\.md)(?:#[^)]+)?\)/g,
+          )) {
+            assert.isTrue(
+              yield* fs.exists(path.resolve(referencesDir, match[1]!)),
+              `${reference} links to missing file: ${match[1]}`,
+            );
+          }
+        }
+      }));
+
+    it.effect("matches the pinned Effect version and avoids removed APIs", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const { root, skillDir, referencesDir } = yield* repositoryPaths();
+        const packageJson = JSON.parse(
+          yield* fs.readFileString(path.join(root, "package.json")),
+        ) as { dependencies: Record<string, string> };
+        const effectVersion = packageJson.dependencies.effect!;
+
+        assert.isString(effectVersion);
+        assert.strictEqual(packageJson.dependencies["@effect/platform-node"], effectVersion);
+        assert.match(
+          yield* fs.readFileString(path.join(skillDir, "SKILL.md")),
+          new RegExp(effectVersion),
+        );
+        assert.match(
+          yield* fs.readFileString(path.join(referencesDir, "version-and-source.md")),
+          new RegExp(effectVersion),
+        );
+
+        const guidance = (
+          yield* Effect.forEach(
+            (yield* fs.readDirectory(referencesDir)).filter(
+              (name) => name.endsWith(".md") && name !== "version-and-source.md",
+            ),
+            (name) => fs.readFileString(path.join(referencesDir, name)),
+          )
+        ).join("\n");
+
+        assert.notMatch(guidance, /Schema\.DefectWithStack/);
+        assert.notMatch(guidance, /Schedule\.either\s*\(/);
+        assert.notMatch(guidance, /ExecutionPlan\.captureRequirements\s*\(/);
+        assert.notMatch(guidance, /Context\.(?:Tag|GenericTag)\b/);
+        assert.notMatch(guidance, /Effect\.(?:Tag|Service|runtime)\b/);
+      }));
+
+    it.effect("ships dev-kit guidance as a directly selectable skill", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const { cli, devKitSkillDir, tsx } = yield* repositoryPaths();
+        const skill = yield* fs.readFileString(path.join(devKitSkillDir, "SKILL.md"));
+
+        assert.match(skill, /^---\nname: dev-kit\ndescription: /);
+        assert.notMatch(skill, /TODO/);
+        assert.isTrue(
+          yield* fs.exists(path.join(devKitSkillDir, "agents", "openai.yaml")),
+        );
+
+        const projectDir = yield* fs.makeTempDirectoryScoped({
+          prefix: "dev-kit-self-plan-test-",
+        });
+        yield* writeManifest(projectDir, ["dev-kit"]);
+        const result = yield* runCli(cli, tsx, projectDir, [
           "plan",
           "--project-dir",
           projectDir,
-          "--manifest",
-          "dev-kit.jsonc",
-        ],
-        projectDir,
-      );
-      assert.match(output, /copy effect-ts -> \.agents\/skills\/effect-ts/);
-      assert.doesNotMatch(output, /effect-cli|effect-patterns/);
-    }
-  } finally {
-    rmSync(projectDir, { force: true, recursive: true });
-  }
-});
+        ]);
 
-test("old split Effect skill ids are no longer selectable", () => {
-  const projectDir = mkdtempSync(join(tmpdir(), "dev-kit-old-effect-id-test-"));
-  try {
-    for (const oldSkill of ["effect-cli", "effect-patterns"]) {
-      writeManifest(projectDir, [oldSkill]);
-      const result = spawnSync(
-        process.execPath,
-        [
-          ...cliArgs,
-          "plan",
-          "--project-dir",
-          projectDir,
-          "--manifest",
-          "dev-kit.jsonc",
-        ],
-        { cwd: projectDir, encoding: "utf8" },
-      );
-      assert.notEqual(result.status, 0);
-    }
-  } finally {
-    rmSync(projectDir, { force: true, recursive: true });
-  }
+        assert.strictEqual(result.exitCode, 0, result.output);
+        assert.match(result.output, /copy dev-kit -> \.agents\/skills\/dev-kit/);
+      }));
+
+    it.effect("uses canonical dev-kit package, manifest, and schema names", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const { root } = yield* repositoryPaths();
+        const packageJson = JSON.parse(
+          yield* fs.readFileString(path.join(root, "package.json")),
+        ) as { name: string };
+
+        assert.strictEqual(packageJson.name, "@danieljvdm/dev-kit");
+        assert.isTrue(yield* fs.exists(path.join(root, "dev-kit.example.jsonc")));
+        assert.isTrue(
+          yield* fs.exists(path.join(root, "schema", "dev-kit.schema.json")),
+        );
+      }));
+
+    it.effect("selects only effect-ts for the effect family and direct skill id", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const { cli, tsx } = yield* repositoryPaths();
+        const projectDir = yield* fs.makeTempDirectoryScoped({
+          prefix: "dev-kit-effect-plan-test-",
+        });
+
+        for (const include of [["effect"], ["effect-ts"]]) {
+          yield* writeManifest(projectDir, include);
+          const result = yield* runCli(cli, tsx, projectDir, [
+            "plan",
+            "--project-dir",
+            projectDir,
+          ]);
+          assert.strictEqual(result.exitCode, 0, result.output);
+          assert.match(result.output, /copy effect-ts -> \.agents\/skills\/effect-ts/);
+          assert.notMatch(result.output, /effect-cli|effect-patterns/);
+        }
+      }));
+
+    it.effect("rejects removed split Effect skill ids", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const { cli, tsx } = yield* repositoryPaths();
+        const projectDir = yield* fs.makeTempDirectoryScoped({
+          prefix: "dev-kit-old-effect-id-test-",
+        });
+
+        for (const oldSkill of ["effect-cli", "effect-patterns"]) {
+          yield* writeManifest(projectDir, [oldSkill]);
+          const result = yield* runCli(cli, tsx, projectDir, [
+            "plan",
+            "--project-dir",
+            projectDir,
+          ]);
+          assert.notStrictEqual(result.exitCode, 0);
+        }
+      }));
+  });
 });

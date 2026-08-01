@@ -194,5 +194,5 @@ Review and commit the manifest, lockfile, skills, and licenses together.
 ```bash
 bun install
 bun run check
-bun run test
+vitest run --config vitest.config.ts
 ```

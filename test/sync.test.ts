@@ -1,4 +1,3 @@
-import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
   cpSync,
@@ -14,7 +13,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
-import test from "node:test";
+import { assert, test } from "vitest";
 
 import {
   EFFECT_TSGO_TYPESCRIPT_VERSION,

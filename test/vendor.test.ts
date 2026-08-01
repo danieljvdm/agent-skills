@@ -1,4 +1,3 @@
-import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
   mkdtempSync,
@@ -10,7 +9,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import test from "node:test";
+import { assert, test } from "vitest";
 
 const cli = resolve("src/bin/dev-kit.ts");
 const tsx = import.meta.resolve("tsx");
@@ -86,7 +85,7 @@ test("vendors, transforms, locks, and updates a local git source", () => {
       "utf8",
     );
     assert.match(firstSkill, /version one/);
-    assert.doesNotMatch(firstSkill, /disable-model-invocation/);
+    assert.notMatch(firstSkill, /disable-model-invocation/);
     assert.equal(
       readFileSync(
         join(fixture.aggregate, "third-party", "fixture-skills", "LICENSE"),

@@ -1,8 +1,15 @@
 import { parse as parseJsonc, printParseErrorCode, type ParseError } from "jsonc-parser";
-import { Cause, Console, Effect, FileSystem, Path, Schema, Stream } from "effect";
+import { Cause, Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
 
 import { DevKitManifestSchema, normalizeManifest } from "./manifest.ts";
+import { loadSkillCatalog, resolveSkillSources, type ResolvedSkillSource } from "./catalog.ts";
+import { printDetail, printStatus, withSpinner } from "./cli-ui.ts";
+import {
+  applyEffectSourcePlan,
+  planEffectSource,
+  type EffectSourcePlan,
+} from "./effect-source.ts";
 import {
   applyEffectTsgoPatchPlan,
   planEffectTsgoPatch,
@@ -27,7 +34,6 @@ import {
   PROJECT_PROCESS_LOCK_PATH,
 } from "./project-process-lock.ts";
 import { observeSymbolicLink } from "./node-symbolic-link.ts";
-import { SkillSourcesLockSchema } from "./source-manifest.ts";
 import { DEV_KIT_VERSION } from "./tool-metadata.ts";
 
 export type SyncOptions = {
@@ -90,6 +96,7 @@ export type SkillPlan = {
   readonly lockfilePath: string;
   readonly statePath: string;
   readonly actions: ReadonlyArray<SkillPlanAction>;
+  readonly effectSource?: EffectSourcePlan;
   readonly effectTsgo?: EffectTsgoPatchPlan;
   readonly nextLock: DevKitLock;
   readonly nextState: AppliedState;
@@ -160,7 +167,8 @@ class PlanConflictError extends Schema.TaggedErrorClass<PlanConflictError>()(
   { conflicts: Schema.Array(Schema.String) },
 ) {
   override get message() {
-    return `plan has ${this.conflicts.length} conflict${this.conflicts.length === 1 ? "" : "s"}`;
+    const heading = `plan has ${this.conflicts.length} conflict${this.conflicts.length === 1 ? "" : "s"}`;
+    return `${heading}:\n${this.conflicts.map((conflict) => `  ${conflict}`).join("\n")}`;
   }
 }
 
@@ -242,41 +250,6 @@ const readOptionalStructuredFile = Effect.fn("readOptionalStructuredFile")(funct
     return undefined;
   }
   return yield* parseStructuredFile(filePath, yield* fs.readFileString(filePath), schema);
-});
-
-const discoverSkills = Effect.fn("discoverSkills")(function* (skillsDir: string) {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  const entries = yield* fs.readDirectory(skillsDir);
-  const skills: Array<string> = [];
-  for (const entry of entries) {
-    const skillDir = path.join(skillsDir, entry);
-    const info = yield* fs.stat(skillDir);
-    if (info.type === "Directory" && (yield* fs.exists(path.join(skillDir, "SKILL.md")))) {
-      skills.push(entry);
-    }
-  }
-  return skills.sort();
-});
-
-const discoverSkillFamilies = Effect.fn("discoverSkillFamilies")(function* (
-  packageRoot: string,
-) {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  const lockfilePath = path.join(packageRoot, "skill-sources.lock.json");
-  if (!(yield* fs.exists(lockfilePath))) {
-    return SKILL_FAMILIES;
-  }
-  const lock = yield* parseStructuredFile(
-    lockfilePath,
-    yield* fs.readFileString(lockfilePath),
-    SkillSourcesLockSchema,
-  );
-  return {
-    ...SKILL_FAMILIES,
-    ...Object.fromEntries(lock.sources.map((source) => [source.id, source.skills])),
-  };
 });
 
 const expandSelection = (
@@ -370,13 +343,14 @@ const validateReservedPaths = Effect.fn("validateReservedPaths")(function* (
   }
 });
 
-const outputIdentity = (output: Pick<ManagedSkillOutput, "resourceId" | "path" | "mode" | "kind" | "digest">) =>
+const outputIdentity = (output: Pick<ManagedSkillOutput, "resourceId" | "path" | "mode" | "kind" | "digest" | "catalog">) =>
   JSON.stringify({
     resourceId: output.resourceId,
     path: output.path,
     mode: output.mode,
     kind: output.kind,
     digest: output.digest,
+    catalog: output.catalog,
   });
 
 const validateInventory = Effect.fn("validateManagedInventory")(function* (
@@ -432,7 +406,7 @@ const validateCrossInventoryPaths = Effect.fn("validateCrossInventoryPaths")(fun
 
 const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
   projectDir: string,
-  packageRoot: string,
+  sourceBySkill: ReadonlyMap<string, ResolvedSkillSource>,
   skills: ReadonlyArray<string>,
   targets: ReturnType<typeof normalizeManifest>["targets"],
 ) {
@@ -440,7 +414,11 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
   const outputs: Array<DesiredSkillOutput> = [];
   const agentsTarget = targets.agents;
   for (const skill of skills) {
-    const source = path.join(packageRoot, "skills", skill);
+    const resolvedSource = sourceBySkill.get(skill);
+    if (resolvedSource === undefined) {
+      return yield* new InvalidProjectStateError({ message: `skill source is unavailable: ${skill}` });
+    }
+    const source = resolvedSource.path;
     const sourceObservation = yield* observePath(source);
     if (sourceObservation.kind !== "directory") {
       return yield* new InvalidProjectStateError({ message: `skill source is not a directory: ${source}` });
@@ -458,6 +436,7 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
           mode: "copy",
           kind: "directory",
           digest: sourceObservation.digest,
+          ...(resolvedSource.catalog ? { catalog: resolvedSource.catalog } : {}),
           source,
           destination: managed.absolute,
         });
@@ -477,6 +456,7 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
         mode: "symlink",
         kind: "symlink",
         digest: linkDigest,
+        ...(resolvedSource.catalog ? { catalog: resolvedSource.catalog } : {}),
         source,
         destination: managed.absolute,
         linkTarget,
@@ -593,6 +573,14 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
   const processLockManaged = yield* resolveManagedPath(projectDir, PROJECT_PROCESS_LOCK_PATH);
   const packageRoot = yield* resolvePackageRoot();
   const manifest = normalizeManifest(yield* readManifest(manifestManaged.absolute));
+  const effectSource = manifest.setup.effectSource.enabled
+    ? yield* planEffectSource({
+        packageName: manifest.setup.effectSource.packageName,
+        path: manifest.setup.effectSource.path,
+        projectDir,
+        repository: manifest.setup.effectSource.repository,
+      })
+    : undefined;
   const effectTsgo = manifest.setup.effectTsgo.enabled
     ? yield* planEffectTsgoPatch({
         force: manifest.setup.effectTsgo.force,
@@ -600,8 +588,9 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
         typescriptPackage: manifest.setup.effectTsgo.typescriptPackage,
       })
     : undefined;
-  const availableSkills = yield* discoverSkills(path.join(packageRoot, "skills"));
-  const skillFamilies = yield* discoverSkillFamilies(packageRoot);
+  const catalog = yield* loadSkillCatalog(packageRoot);
+  const availableSkills = catalog.skills.map((skill) => skill.name);
+  const skillFamilies = { ...SKILL_FAMILIES, ...catalog.families };
   for (const [family, familySkills] of Object.entries(skillFamilies)) {
     if (availableSkills.includes(family)) {
       return yield* new InvalidSkillCatalogError({ family, message: `family name conflicts with a skill name: ${family}` });
@@ -612,12 +601,27 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
     }
   }
   const selectedSkills = yield* expandSelection(manifest.include, manifest.exclude, availableSkills, skillFamilies);
-  const desired = yield* buildDesiredOutputs(projectDir, packageRoot, selectedSkills, manifest.targets);
+  const sourceBySkill = yield* withSpinner(
+    "Fetching selected skills",
+    resolveSkillSources(packageRoot, projectDir, selectedSkills, options.dryRun !== true),
+  );
+  const desired = yield* buildDesiredOutputs(projectDir, sourceBySkill, selectedSkills, manifest.targets);
   const nextLock: DevKitLock = {
     version: 1,
     toolVersion: DEV_KIT_VERSION,
     manifestDigest: yield* digestText(JSON.stringify(manifest)),
     setup: {
+      ...(effectSource === undefined
+        ? {}
+        : {
+            effectSource: {
+              packageName: effectSource.packageName,
+              packageVersion: effectSource.packageVersion,
+              path: effectSource.path,
+              repository: effectSource.repository,
+              tag: effectSource.tag,
+            },
+          }),
       ...(effectTsgo === undefined
         ? {}
         : {
@@ -628,7 +632,7 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
             },
           }),
     },
-    outputs: desired.map(({ resourceId, path: outputPath, skill, target, mode, kind, digest }) => ({
+    outputs: desired.map(({ resourceId, path: outputPath, skill, target, mode, kind, digest, catalog }) => ({
       resourceId,
       path: outputPath,
       skill,
@@ -636,6 +640,7 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
       mode,
       kind,
       digest,
+      ...(catalog ? { catalog } : {}),
     })),
   };
   const reservedPaths = [
@@ -643,6 +648,9 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
     { label: "lockfile", path: lockManaged.relative },
     { label: "state", path: stateManaged.relative },
     { label: "process lock", path: processLockManaged.relative },
+    ...(effectSource === undefined
+      ? []
+      : [{ label: "Effect source checkout", path: effectSource.path }]),
   ];
   yield* validateReservedPaths(projectDir, reservedPaths, desired);
   const currentLock = yield* readOptionalStructuredFile(lockManaged.absolute, DevKitLockSchema);
@@ -669,6 +677,7 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
     lockfilePath: lockManaged.absolute,
     statePath: stateManaged.absolute,
     actions: planned.actions,
+    ...(effectSource === undefined ? {} : { effectSource }),
     ...(effectTsgo === undefined ? {} : { effectTsgo }),
     nextLock,
     nextState: planned.nextState,
@@ -679,23 +688,46 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
 });
 
 const formatAction = (action: SkillPlanAction): string => {
-  if (action.action === "conflict") return `conflict ${action.path}: ${action.reason}`;
-  if (action.action === "remove") return `remove ${action.previous.resourceId} -> ${action.previous.path}`;
+  if (action.action === "conflict") return `! ${action.path}: ${action.reason}`;
+  if (action.action === "remove") return `− ${action.previous.resourceId} → ${action.previous.path}`;
   const verb = action.desired.mode === "copy" ? "copy" : "link";
   const adoption = action.action === "unchanged" && action.adopted ? " (adopt)" : "";
-  return `${action.action} ${verb} ${action.desired.skill} -> ${action.desired.path}${adoption}`;
+  const marker = action.action === "create" ? "+" : action.action === "update" ? "~" : "=";
+  return `${marker} ${verb} ${action.desired.skill} → ${action.desired.path}${adoption}`;
+};
+
+const operationalChangeCount = (plan: SkillPlan): number =>
+  plan.actions.filter((action) => action.action !== "unchanged").length +
+  (plan.effectSource?.action === "sync" ? 1 : 0) +
+  (plan.effectTsgo !== undefined && !plan.effectTsgo.alreadyPatched ? 1 : 0);
+
+const plannedChangeCount = (plan: SkillPlan): number => {
+  const operational = operationalChangeCount(plan);
+  return operational === 0 && plan.metadataChanged ? 1 : operational;
 };
 
 export const printSkillPlan = Effect.fn("printSkillPlan")(function* (plan: SkillPlan) {
-  if (plan.actions.length === 0 && plan.effectTsgo === undefined) {
-    yield* Console.log("No changes.");
+  const changes = plannedChangeCount(plan);
+  if (changes === 0) {
+    yield* printStatus("success", "Already up to date");
     return;
   }
-  for (const action of plan.actions) yield* Console.log(formatAction(action));
-  if (plan.effectTsgo !== undefined) {
-    yield* Console.log(
-      `${plan.effectTsgo.alreadyPatched ? "unchanged" : "setup"} effect-tsgo@${plan.effectTsgo.effectTsgoVersion} -> ${plan.effectTsgo.typescriptPackage}@${plan.effectTsgo.typescriptVersion}`,
+  yield* printStatus("plan", `${changes} change${changes === 1 ? "" : "s"} planned`);
+  for (const action of plan.actions) {
+    if (action.action !== "unchanged") yield* printDetail(formatAction(action));
+  }
+  if (plan.effectSource?.action === "sync") {
+    yield* printDetail(
+      `+ Effect source ${plan.effectSource.tag} → ${plan.effectSource.path}`,
     );
+  }
+  if (plan.effectTsgo !== undefined && !plan.effectTsgo.alreadyPatched) {
+    yield* printDetail(
+      `+ TypeScript patch @effect/tsgo@${plan.effectTsgo.effectTsgoVersion} → ${plan.effectTsgo.typescriptPackage}@${plan.effectTsgo.typescriptVersion}`,
+    );
+  }
+  if (operationalChangeCount(plan) === 0 && plan.metadataChanged) {
+    yield* printDetail("+ Dev kit metadata");
   }
 });
 
@@ -819,7 +851,7 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
 
 export const runProjectSkillPlan = Effect.fn("runProjectSkillPlan")(function* (options: SyncOptions) {
   const plan = yield* planProjectSkills(options);
-  yield* printSkillPlan(plan);
+  if (options.dryRun) yield* printSkillPlan(plan);
   const conflicts = plan.actions.filter((action) => action.action === "conflict");
   if (conflicts.length > 0) {
     return yield* new PlanConflictError({
@@ -832,12 +864,14 @@ export const runProjectSkillPlan = Effect.fn("runProjectSkillPlan")(function* (o
   const replanned = yield* planProjectSkills(options);
   const originalSignature = JSON.stringify({
     actions: plan.actions,
+    effectSource: plan.effectSource,
     effectTsgo: plan.effectTsgo,
     nextLock: plan.nextLock,
     nextState: plan.nextState,
   });
   const nextSignature = JSON.stringify({
     actions: replanned.actions,
+    effectSource: replanned.effectSource,
     effectTsgo: replanned.effectTsgo,
     nextLock: replanned.nextLock,
     nextState: replanned.nextState,
@@ -845,8 +879,22 @@ export const runProjectSkillPlan = Effect.fn("runProjectSkillPlan")(function* (o
   if (originalSignature !== nextSignature) {
     return yield* new ApplyRaceError({ path: "project state" });
   }
-  if (replanned.effectTsgo !== undefined) {
-    yield* applyEffectTsgoPatchPlan(replanned.effectTsgo);
-  }
-  yield* applyPlannedSkillChanges(replanned);
+  const changes = plannedChangeCount(replanned);
+  yield* withSpinner(
+    "Applying dev kit",
+    Effect.gen(function* () {
+      if (replanned.effectSource !== undefined) {
+        yield* applyEffectSourcePlan(replanned.effectSource);
+      }
+      if (replanned.effectTsgo !== undefined) {
+        yield* applyEffectTsgoPatchPlan(replanned.effectTsgo);
+      }
+      yield* applyPlannedSkillChanges(replanned);
+    }),
+  );
+  yield* printStatus(
+    "success",
+    changes === 0 && !replanned.metadataChanged ? "Dev kit up to date" : "Dev kit ready",
+    changes > 0 ? `${changes} change${changes === 1 ? "" : "s"}` : undefined,
+  );
 });

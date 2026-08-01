@@ -25,12 +25,24 @@ export const EffectTsgoSetupSchema = Schema.Struct({
 
 export type EffectTsgoSetup = typeof EffectTsgoSetupSchema.Type;
 
+export const EffectSourceSetupSchema = Schema.Struct({
+  enabled: Schema.optional(Schema.Boolean),
+  packageName: Schema.optional(
+    Schema.String.check(Schema.isPattern(TYPESCRIPT_PACKAGE_NAME_PATTERN)),
+  ),
+  path: Schema.optional(Schema.String),
+  repository: Schema.optional(Schema.String),
+});
+
+export type EffectSourceSetup = typeof EffectSourceSetupSchema.Type;
+
 export const DevKitManifestSchema = Schema.Struct({
   $schema: Schema.optional(Schema.String),
   include: Schema.Array(Schema.String),
   exclude: Schema.optional(Schema.Array(Schema.String)),
   setup: Schema.optional(
     Schema.Struct({
+      effectSource: Schema.optional(EffectSourceSetupSchema),
       effectTsgo: Schema.optional(EffectTsgoSetupSchema),
     }),
   ),
@@ -55,6 +67,12 @@ export type NormalizedManifest = {
   readonly include: ReadonlyArray<string>;
   readonly exclude: ReadonlyArray<string>;
   readonly setup: {
+    readonly effectSource: {
+      readonly enabled: boolean;
+      readonly packageName: string;
+      readonly path: string;
+      readonly repository: string;
+    };
     readonly effectTsgo: {
       readonly enabled: boolean;
       readonly force: boolean;
@@ -96,6 +114,14 @@ export const normalizeManifest = (manifest: DevKitManifest): NormalizedManifest 
     exclude: manifest.exclude ?? [],
     include: manifest.include,
     setup: {
+      effectSource: {
+        enabled: manifest.setup?.effectSource?.enabled ?? false,
+        packageName: manifest.setup?.effectSource?.packageName ?? "effect",
+        path: manifest.setup?.effectSource?.path ?? ".repos/effect",
+        repository:
+          manifest.setup?.effectSource?.repository ??
+          "https://github.com/Effect-TS/effect.git",
+      },
       effectTsgo: {
         enabled: manifest.setup?.effectTsgo?.enabled ?? false,
         force: manifest.setup?.effectTsgo?.force ?? false,

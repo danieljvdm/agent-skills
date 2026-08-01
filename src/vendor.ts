@@ -1,6 +1,9 @@
 import { parse as parseJsonc, printParseErrorCode, type ParseError } from "jsonc-parser";
-import { Cause, Console, Effect, FileSystem, Path, Schema, Stream } from "effect";
+import { Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
+
+import { printStatus, withSpinner } from "./cli-ui.ts";
+import { observePath, type Digest } from "./path-digest.ts";
 
 import {
   SkillSourcesLockSchema,
@@ -10,13 +13,15 @@ import {
   type SkillSourcesLock,
 } from "./source-manifest.ts";
 
-export type VendorOptions = {
+export type CatalogRefreshOptions = {
   readonly repoDir?: string;
   readonly sourcesPath?: string;
   readonly lockfilePath?: string;
   readonly dryRun?: boolean;
   readonly locked?: boolean;
 };
+/** @deprecated Use CatalogRefreshOptions. */
+export type VendorOptions = CatalogRefreshOptions;
 
 type PreparedSource = {
   readonly source: ExternalSkillSource;
@@ -190,7 +195,7 @@ const rejectGitSymlinks = Effect.fn("rejectGitSymlinks")(function* (
   if (symlink) {
     return yield* new InvalidSourceError({
       source: sourceId,
-      reason: `symlinks are not allowed in vendored paths: ${symlink.slice(symlink.indexOf("\t") + 1)}`,
+      reason: `symlinks are not allowed in catalog paths: ${symlink.slice(symlink.indexOf("\t") + 1)}`,
     });
   }
 });
@@ -309,7 +314,7 @@ const prepareSource = Effect.fn("prepareSkillSource")(function* (
   ) {
     return yield* new InvalidSourceError({
       source: source.id,
-      reason: "no matching lockfile entry; run vendor without --locked first",
+      reason: "no matching lockfile entry; run catalog refresh without --locked first",
     });
   }
 
@@ -526,7 +531,6 @@ const stageSources = Effect.fn("stageSkillSources")(function* (
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const stagedSkillsDir = path.join(tempDir, "staged", "skills");
-  const stagedLicensesDir = path.join(tempDir, "staged", "third-party");
   yield* fs.makeDirectory(stagedSkillsDir, { recursive: true });
 
   for (const preparedSource of prepared) {
@@ -546,150 +550,56 @@ const stageSources = Effect.fn("stageSkillSources")(function* (
         );
       }
     }
-    if (preparedSource.licenseSource) {
-      const licenseDir = path.join(stagedLicensesDir, preparedSource.source.id);
-      yield* fs.makeDirectory(licenseDir, { recursive: true });
-      yield* fs.copyFile(
-        preparedSource.licenseSource,
-        path.join(licenseDir, path.basename(preparedSource.licenseSource)),
-      );
-    }
   }
 
-  return { stagedLicensesDir, stagedSkillsDir };
+  return { stagedSkillsDir };
 });
 
-const buildLock = (prepared: ReadonlyArray<PreparedSource>): SkillSourcesLock => ({
-  version: 1,
-  sources: prepared.map(({ resolved, skills, source }) => ({
-    id: source.id,
-    repository: source.repository,
-    ref: source.ref,
-    resolved,
-    skillsPath: source.skillsPath,
-    include: source.include,
-    skills,
-    ...(source.licensePath ? { licensePath: source.licensePath } : {}),
-    ...(source.stripFrontmatter ? { stripFrontmatter: source.stripFrontmatter } : {}),
-  })),
-});
-
-const applyPreparedSources = Effect.fn("applyPreparedSkillSources")(function* (
-  repoDir: string,
-  tempDir: string,
-  lockfilePath: string,
-  currentLock: SkillSourcesLock | undefined,
-  nextLock: SkillSourcesLock,
-  staged: { readonly stagedSkillsDir: string; readonly stagedLicensesDir: string },
+const buildLock = Effect.fn("buildSkillCatalogLock")(function* (
+  prepared: ReadonlyArray<PreparedSource>,
+  stagedSkillsDir: string,
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const skillsDir = path.join(repoDir, "skills");
-  const licensesDir = path.join(repoDir, "third-party");
-  const backupDir = path.join(tempDir, "backup");
-  const nextLockPath = path.join(tempDir, "next-lock.json");
-  yield* fs.makeDirectory(skillsDir, { recursive: true });
-  yield* fs.writeFileString(nextLockPath, `${JSON.stringify(nextLock, null, 2)}\n`);
-
-  type Replacement = {
-    readonly destination: string;
-    readonly backup: string;
-    staged?: string;
-  };
-  const replacements = new Map<string, Replacement>();
-  const addReplacement = (
-    destinationRoot: string,
-    backupRoot: string,
-    name: string,
-    stagedPath?: string,
-  ) => {
-    const destination = path.resolve(destinationRoot, name);
-    const relative = path.relative(destinationRoot, destination);
-    if (relative.startsWith("..") || path.isAbsolute(relative) || relative.length === 0) {
-      return Effect.fail(
-        new InvalidSourceError({
-          source: "lockfile",
-          reason: `managed path escapes its destination: ${name}`,
-        }),
-      );
+  const sources: Array<LockedSkillSource> = [];
+  for (const { resolved, skills, source } of prepared) {
+    const descriptions: Record<string, string> = {};
+    const digests: Record<string, Digest> = {};
+    for (const skill of skills) {
+      const stagedSkill = path.join(stagedSkillsDir, skill);
+      const document = yield* fs.readFileString(path.join(stagedSkill, "SKILL.md"));
+      descriptions[skill] = document
+        .match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1]
+        ?.split(/\r?\n/)
+        .find((line) => line.startsWith("description:"))
+        ?.slice("description:".length)
+        .trim()
+        .replace(/^(['"])(.*)\1$/, "$2") ?? "";
+      const observation = yield* observePath(stagedSkill);
+      if (observation.kind !== "directory") {
+        return yield* new InvalidSourceError({ source: source.id, reason: `could not digest ${skill}` });
+      }
+      digests[skill] = observation.digest;
     }
-    const existing = replacements.get(destination);
-    replacements.set(destination, {
-      backup: path.resolve(backupRoot, name),
-      destination,
-      ...(stagedPath ? { staged: stagedPath } : existing?.staged ? { staged: existing.staged } : {}),
+    sources.push({
+      id: source.id,
+      repository: source.repository,
+      ref: source.ref,
+      resolved,
+      skillsPath: source.skillsPath,
+      include: source.include,
+      skills,
+      descriptions,
+      digests,
+      ...(source.licensePath ? { licensePath: source.licensePath } : {}),
+      ...(source.stripFrontmatter ? { stripFrontmatter: source.stripFrontmatter } : {}),
     });
-    return Effect.void;
-  };
-
-  for (const source of currentLock?.sources ?? []) {
-    for (const skill of source.skills) {
-      yield* addReplacement(skillsDir, path.join(backupDir, "skills"), skill);
-    }
-    yield* addReplacement(licensesDir, path.join(backupDir, "third-party"), source.id);
   }
-  for (const source of nextLock.sources) {
-    for (const skill of source.skills) {
-      yield* addReplacement(
-        skillsDir,
-        path.join(backupDir, "skills"),
-        skill,
-        path.join(staged.stagedSkillsDir, skill),
-      );
-    }
-    const stagedLicenseDir = path.join(staged.stagedLicensesDir, source.id);
-    if (yield* fs.exists(stagedLicenseDir)) {
-      yield* addReplacement(
-        licensesDir,
-        path.join(backupDir, "third-party"),
-        source.id,
-        stagedLicenseDir,
-      );
-    }
-  }
-
-  const installed: Array<string> = [];
-  const backedUp: Array<Replacement> = [];
-  const rollback = Effect.gen(function* () {
-    for (const destination of [...installed].reverse()) {
-      yield* fs.remove(destination, { force: true, recursive: true });
-    }
-    for (const replacement of [...backedUp].reverse()) {
-      yield* fs.makeDirectory(path.dirname(replacement.destination), { recursive: true });
-      yield* fs.rename(replacement.backup, replacement.destination);
-    }
-  });
-
-  const apply = Effect.gen(function* () {
-    for (const replacement of replacements.values()) {
-      if (yield* fs.exists(replacement.destination)) {
-        yield* fs.makeDirectory(path.dirname(replacement.backup), { recursive: true });
-        yield* fs.rename(replacement.destination, replacement.backup);
-        backedUp.push(replacement);
-      }
-      if (replacement.staged) {
-        yield* fs.makeDirectory(path.dirname(replacement.destination), { recursive: true });
-        yield* fs.rename(replacement.staged, replacement.destination);
-        installed.push(replacement.destination);
-      }
-    }
-    yield* fs.rename(nextLockPath, lockfilePath);
-  });
-
-  yield* Effect.uninterruptible(apply.pipe(
-    Effect.catchCause((applyCause) =>
-      rollback.pipe(
-        Effect.catchCause((rollbackCause) =>
-          Effect.failCause(Cause.combine(applyCause, rollbackCause)),
-        ),
-        Effect.andThen(Effect.failCause(applyCause)),
-      ),
-    ),
-  ));
+  return { version: 1, sources } satisfies SkillSourcesLock;
 });
 
-export const vendorExternalSkills = Effect.fn("vendorExternalSkills")(function* (
-  options: VendorOptions,
+export const refreshSkillCatalog = Effect.fn("refreshSkillCatalog")(function* (
+  options: CatalogRefreshOptions,
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -733,7 +643,7 @@ export const vendorExternalSkills = Effect.fn("vendorExternalSkills")(function* 
     if (missingFromManifest || missingFromLock) {
       return yield* new SourceManifestError({
         path: lockfilePath,
-        message: "source ids differ from skill-sources.jsonc; run vendor without --locked",
+        message: "source ids differ from skill-sources.jsonc; run catalog refresh without --locked",
       });
     }
   }
@@ -742,29 +652,44 @@ export const vendorExternalSkills = Effect.fn("vendorExternalSkills")(function* 
     directory: repoDir,
     prefix: ".dev-kit-vendor-",
   });
-  const prepared = yield* Effect.forEach(
-    manifest.sources,
-    (source) =>
-      prepareSource(tempDir, source, lockedById.get(source.id), options.locked ?? false),
-    { concurrency: 4 },
+  const prepared = yield* withSpinner(
+    "Fetching skill sources",
+    Effect.forEach(
+      manifest.sources,
+      (source) =>
+        prepareSource(tempDir, source, lockedById.get(source.id), options.locked ?? false),
+      { concurrency: 4 },
+    ),
   );
   const localSkills = yield* currentLocalSkills(path.join(repoDir, "skills"), currentLock);
   yield* validateOwnership(prepared, localSkills);
   const staged = yield* stageSources(tempDir, prepared);
-  const nextLock = buildLock(prepared);
+  const nextLock = yield* buildLock(prepared, staged.stagedSkillsDir);
 
-  for (const source of nextLock.sources) {
-    yield* Console.log(`${source.id} ${source.resolved.slice(0, 12)}`);
-    for (const skill of source.skills) {
-      yield* Console.log(`  vendor ${skill}`);
+  const skillCount = new Set(nextLock.sources.flatMap((source) => source.skills)).size;
+  const summary = `${skillCount} skill${skillCount === 1 ? "" : "s"} from ${nextLock.sources.length} source${nextLock.sources.length === 1 ? "" : "s"}`;
+
+  if (options.locked) {
+    if (JSON.stringify(currentLock) !== JSON.stringify(nextLock)) {
+      return yield* new SourceManifestError({
+        path: lockfilePath,
+        message: "approved catalog metadata differs from the lock; run catalog refresh and review it",
+      });
     }
-  }
-
-  if (options.dryRun) {
-    yield* Console.log("Dry run: no files changed.");
+    yield* printStatus("success", "Catalog verified", summary);
     return;
   }
 
-  yield* applyPreparedSources(repoDir, tempDir, lockfilePath, currentLock, nextLock, staged);
-  yield* Console.log(`Updated ${path.relative(repoDir, lockfilePath)}`);
+  if (options.dryRun) {
+    yield* printStatus("plan", "Would refresh catalog", summary);
+    return;
+  }
+
+  const nextLockPath = path.join(tempDir, "next-catalog-lock.json");
+  yield* fs.writeFileString(nextLockPath, `${JSON.stringify(nextLock, null, 2)}\n`);
+  yield* fs.rename(nextLockPath, lockfilePath);
+  yield* printStatus("success", "Catalog refreshed", summary);
 });
+
+/** @deprecated Use refreshSkillCatalog. */
+export const vendorExternalSkills = refreshSkillCatalog;

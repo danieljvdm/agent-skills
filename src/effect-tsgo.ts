@@ -1,7 +1,8 @@
-import { Console, Crypto, Effect, Encoding, FileSystem, Path, Schema, Stream } from "effect";
+import { Crypto, Effect, Encoding, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
 
 import { acquireProjectProcessLock } from "./project-process-lock.ts";
+import { printStatus, withSpinner } from "./cli-ui.ts";
 import { isTypeScriptPackageName } from "./typescript-package-name.ts";
 
 export const EFFECT_TSGO_VERSION = "0.24.3";
@@ -206,10 +207,7 @@ export const planEffectTsgoPatch = Effect.fn("planEffectTsgoPatch")(function* (
 export const applyEffectTsgoPatchPlan = Effect.fn("applyEffectTsgoPatchPlan")(function* (
   plan: EffectTsgoPatchPlan,
 ) {
-  if (plan.alreadyPatched) {
-    yield* Console.log("Effect TypeScript-Go is already patched.");
-    return;
-  }
+  if (plan.alreadyPatched) return;
   const child = yield* ChildProcess.make(plan.executable, plan.args, {
     cwd: plan.projectDir,
     stderr: "pipe",
@@ -227,18 +225,18 @@ export const applyEffectTsgoPatchPlan = Effect.fn("applyEffectTsgoPatchPlan")(fu
       output: trimmed,
     });
   }
-  if (trimmed.length > 0) yield* Console.log(trimmed);
 });
 
 export const patchEffectTsgo = Effect.fn("patchEffectTsgo")(function* (
   options: EffectTsgoPatchOptions = {},
 ) {
   const plan = yield* planEffectTsgoPatch(options);
+  const detail = `@effect/tsgo@${plan.effectTsgoVersion} → ${plan.typescriptPackage}@${plan.typescriptVersion}`;
   if (options.dryRun) {
-    yield* Console.log(
-      plan.alreadyPatched
-        ? "Effect TypeScript-Go is already patched."
-        : `Would run ${[plan.executable, ...plan.args].join(" ")} with @effect/tsgo@${plan.effectTsgoVersion} and ${plan.typescriptPackage}@${plan.typescriptVersion}`,
+    yield* printStatus(
+      plan.alreadyPatched ? "success" : "plan",
+      plan.alreadyPatched ? "TypeScript patch up to date" : "Would patch TypeScript",
+      detail,
     );
     return plan;
   }
@@ -246,7 +244,12 @@ export const patchEffectTsgo = Effect.fn("patchEffectTsgo")(function* (
   return yield* Effect.scoped(
     Effect.gen(function* () {
       yield* acquireProjectProcessLock(plan.projectDir);
-      yield* applyEffectTsgoPatchPlan(plan);
+      if (plan.alreadyPatched) {
+        yield* printStatus("success", "TypeScript patch up to date", detail);
+        return plan;
+      }
+      yield* withSpinner("Patching TypeScript", applyEffectTsgoPatchPlan(plan));
+      yield* printStatus("success", "TypeScript patched", detail);
       return plan;
     }),
   );

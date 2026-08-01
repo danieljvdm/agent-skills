@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/danieljvdm/agent-skills/main/schema/skill-sources.schema.json",
   "title": "External Agent Skill Sources",
-  "description": "Repository-level sources vendored into the unified skills catalog.",
+  "description": "Repository-level sources approved for the skill catalog.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -43,7 +43,7 @@
           "minLength": 1
         },
         "include": {
-          "description": "Explicit skill names, or [\"*\"] to vendor every skill found under skillsPath.",
+          "description": "Explicit skill names, or [\"*\"] to approve every skill found under skillsPath.",
           "type": "array",
           "items": {
             "type": "string",
@@ -53,7 +53,7 @@
           "minItems": 1
         },
         "licensePath": {
-          "description": "Optional repository-relative license file copied into third-party/<id>/.",
+          "description": "Optional repository-relative license file validated during catalog refresh.",
           "type": "string",
           "minLength": 1
         },

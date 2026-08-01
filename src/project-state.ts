@@ -10,6 +10,13 @@ export const ManagedSkillOutputSchema = Schema.Struct({
   mode: Schema.Literals(["copy", "symlink"]),
   kind: Schema.Literals(["directory", "symlink"]),
   digest: DigestSchema,
+  catalog: Schema.optional(
+    Schema.Struct({
+      source: Schema.String,
+      repository: Schema.String,
+      resolved: Schema.String,
+    }),
+  ),
 });
 export type ManagedSkillOutput = typeof ManagedSkillOutputSchema.Type;
 
@@ -20,12 +27,22 @@ export const EffectTsgoLockSchema = Schema.Struct({
 });
 export type EffectTsgoLock = typeof EffectTsgoLockSchema.Type;
 
+export const EffectSourceLockSchema = Schema.Struct({
+  packageName: Schema.String,
+  packageVersion: Schema.String,
+  path: Schema.String,
+  repository: Schema.String,
+  tag: Schema.String,
+});
+export type EffectSourceLock = typeof EffectSourceLockSchema.Type;
+
 export const DevKitLockSchema = Schema.Struct({
   version: Schema.Literal(1),
   toolVersion: Schema.String,
   manifestDigest: DigestSchema,
   setup: Schema.optional(
     Schema.Struct({
+      effectSource: Schema.optional(EffectSourceLockSchema),
       effectTsgo: Schema.optional(EffectTsgoLockSchema),
     }),
   ),

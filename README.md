@@ -6,7 +6,8 @@ Dev Kit gives every project the same development conventions without requiring a
 collection of unrelated postinstall scripts. It can:
 
 - install selected skills for Codex, Claude, and OpenCode;
-- run explicit setup tasks such as Effect TypeScript-Go patching;
+- run explicit setup tasks such as version-matched Effect source checkout and
+  Effect TypeScript-Go patching;
 - preview changes before writing them;
 - lock resolved outputs for reproducible installs; and
 - detect ownership conflicts without overwriting user files.
@@ -19,7 +20,20 @@ Install Dev Kit from GitHub:
 bun add -d github:danieljvdm/agent-skills
 ```
 
-Create `dev-kit.jsonc`:
+Initialize the project, browse the approved catalog, and add skills:
+
+```bash
+bunx dev-kit init
+bunx dev-kit list --all
+bunx dev-kit add dev-kit effect
+```
+
+`add` updates `dev-kit.jsonc` and applies the selection immediately. The
+resulting manifest is ordinary JSONC:
+
+In an interactive terminal, `dev-kit add` and `dev-kit remove` with no names
+open a multi-select picker. Pass several names to change them in one command,
+or use `--no-apply` to edit the manifest without syncing yet.
 
 ```jsonc
 {
@@ -32,7 +46,7 @@ Create `dev-kit.jsonc`:
 }
 ```
 
-Preview and apply the configuration:
+For review-first workflows, edit the manifest or pass `--no-apply`, then:
 
 ```bash
 bunx dev-kit plan
@@ -52,16 +66,38 @@ lifecycle:
 
 That single postinstall applies every task enabled in `dev-kit.jsonc`.
 
+This repository dogfoods the same flow with its committed `dev-kit.jsonc` and
+`dev-kit.lock.json`. From this source checkout, invoke the local CLI with:
+
+```bash
+bun run dev-kit plan
+bun run dev-kit apply --locked
+```
+
+`bun x dev-kit` is for consuming projects where installation has created the
+`node_modules/.bin/dev-kit` link; package managers do not create that link for
+the root package itself.
+
 ## Commands
 
 | Command | Purpose |
 | --- | --- |
+| `dev-kit` | Show selected skills and the four common next actions. |
+| `dev-kit init` | Create a minimal `dev-kit.jsonc`. |
+| `dev-kit add <skill...>` | Select and immediately install skills. |
+| `dev-kit remove <skill...>` | Deselect and uninstall skills safely. |
+| `dev-kit list [--all]` | List selected skills or browse the catalog. |
+| `dev-kit search <words...>` | Search names and descriptions. |
+| `dev-kit info <skill>` | Show description, source, and approved commit. |
+| `dev-kit status` | Check whether the project matches its selection. |
+| `dev-kit sync` | Apply the current manifest. |
 | `dev-kit plan` | Preview project changes without writing files. |
 | `dev-kit apply` | Apply the manifest and update `dev-kit.lock.json`. |
 | `dev-kit apply --locked` | Reproduce the committed lock or fail on drift. |
 | `dev-kit gitignore` | Add `.repos/` and `.dev-kit/` to `.gitignore`. |
+| `dev-kit effect sync` | Sync `.repos/effect` to the installed Effect version. |
 | `dev-kit tsgo patch` | Validate and patch Effect TypeScript-Go directly. |
-| `dev-kit vendor` | Update this repository's pinned external skills. |
+| `dev-kit catalog refresh` | Maintainer command to approve current upstream refs. |
 
 Options vary by command and include `--dry-run`, `--manifest`, `--lockfile`,
 and `--project-dir`. Run any command with `--help` for its complete usage.
@@ -106,13 +142,35 @@ tool versions. A project-local process lock also prevents concurrent applies.
 
 - `dev-kit` installs guidance for operating the toolkit itself.
 - `effect` expands to the consolidated `effect-ts` skill.
-- A vendored source ID selects all skills imported from that source.
-- An individual imported skill can be selected directly.
+- An approved source ID selects every skill from that catalog source.
+- An individual catalog skill can be selected directly.
 
 Dev Kit reserves `.repos/<source-id>` for project-local source checkouts. Run
 `dev-kit gitignore` to add `.repos/` and `.dev-kit/` to the project ignore file.
 The patch is idempotent, preserves existing lines, and refuses symlinked
 `.gitignore` files.
+
+## Effect source checkout
+
+Enable a local checkout of the exact installed Effect release in the manifest:
+
+```jsonc
+{
+  "include": ["effect"],
+  "setup": {
+    "effectSource": { "enabled": true }
+  }
+}
+```
+
+`dev-kit apply` reads `node_modules/effect/package.json`, then shallow-clones or
+updates `.repos/effect` to the detached `effect@<version>` tag. It skips the
+checkout in CI, leaves the repository in place when the task is disabled, and
+refuses to switch a checkout with local changes or an unexpected origin.
+
+The path, package name, and repository URL may be overridden for compatible
+Effect package layouts. Use `dev-kit effect sync --dry-run` to inspect this
+task directly.
 
 ## Effect TypeScript-Go
 
@@ -122,6 +180,7 @@ Enable Effect TypeScript-Go in the same manifest:
 {
   "include": ["effect"],
   "setup": {
+    "effectSource": { "enabled": true },
     "effectTsgo": { "enabled": true }
   }
 }
@@ -156,11 +215,10 @@ troubleshooting the task directly.
 Package and tsconfig edits remain explicit until Dev Kit can safely own parts
 of shared JSONC files.
 
-## Vendored skills
+## Approved external skills
 
-This repository can distribute skills maintained elsewhere without contacting
-their source repositories during downstream installs. Sources are declared in
-`skill-sources.jsonc`:
+This repository is an opinionated catalog, not a mirror of every upstream skill
+tree. `skill-sources.jsonc` declares sources Dan has approved:
 
 ```jsonc
 {
@@ -178,16 +236,23 @@ their source repositories during downstream installs. Sources are declared in
 }
 ```
 
-Update or reproduce the vendored catalog with:
+Maintainers approve a new upstream snapshot with:
 
 ```bash
-bun run vendor
-bun run vendor:locked
+bun run catalog:refresh
+bun run catalog:check
 ```
 
-`vendor` resolves refs to commits, validates selected skills, rejects name
-collisions, copies declared licenses, and updates `skill-sources.lock.json`.
-Review and commit the manifest, lockfile, skills, and licenses together.
+The refresh resolves refs to exact commits, validates names and paths, rejects
+symlinks and collisions, extracts short descriptions, and updates
+`skill-sources.lock.json`. It does not copy upstream skill trees into this
+repository.
+
+When a consuming project selects an external skill, Dev Kit fetches that exact
+approved commit into the ignored `.dev-kit/cache`, applies declared compatibility
+transforms, and installs the result through the ownership-safe sync path. Normal
+installs never float to a newer upstream commit; only a reviewed catalog refresh
+changes what is approved.
 
 ## Development
 

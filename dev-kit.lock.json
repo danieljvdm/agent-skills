@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "toolVersion": "0.2.0",
+  "manifestDigest": "sha256:416da921abf21ef6fa25bf73401a07a58c400918a637365843a66f83741ef450",
+  "setup": {
+    "effectSource": {
+      "packageName": "effect",
+      "packageVersion": "4.0.0-beta.102",
+      "path": ".repos/effect",
+      "repository": "https://github.com/Effect-TS/effect.git",
+      "tag": "effect@4.0.0-beta.102"
+    },
+    "effectTsgo": {
+      "effectTsgoVersion": "0.24.3",
+      "typescriptPackage": "typescript",
+      "typescriptVersion": "7.0.2"
+    }
+  },
+  "outputs": []
+}

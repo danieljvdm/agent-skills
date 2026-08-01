@@ -131,7 +131,7 @@ describe("project apply", () => {
         ]);
 
         assert.strictEqual(result.exitCode, 0, result.output);
-        assert.match(result.output, /create copy effect-ts -> \.agents\/skills\/effect-ts/);
+        assert.match(result.output, /\+ copy effect-ts → \.agents\/skills\/effect-ts/);
         assert.isFalse(yield* fs.exists(path.join(projectDir, ".agents")));
         assert.isFalse(yield* fs.exists(path.join(projectDir, "dev-kit.lock.json")));
         assert.isFalse(yield* fs.exists(path.join(projectDir, ".dev-kit")));
@@ -145,7 +145,7 @@ describe("project apply", () => {
 
         const first = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
         assert.strictEqual(first.exitCode, 0, first.output);
-        assert.match(first.output, /create copy effect-ts/);
+        assert.match(first.output, /Dev kit ready 1 change/);
         assert.isTrue(
           yield* fs.exists(
             path.join(projectDir, ".agents", "skills", "effect-ts", "SKILL.md"),
@@ -162,7 +162,7 @@ describe("project apply", () => {
 
         const second = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
         assert.strictEqual(second.exitCode, 0, second.output);
-        assert.match(second.output, /unchanged copy effect-ts/);
+        assert.match(second.output, /Dev kit up to date/);
         assert.strictEqual(yield* fs.readFileString(lockPath), firstLock);
         assert.strictEqual(yield* fs.readFileString(statePath), firstState);
       }));
@@ -178,11 +178,13 @@ describe("project apply", () => {
 
         const planned = yield* runDevKit(projectDir, ["plan", "--project-dir", projectDir]);
         assert.strictEqual(planned.exitCode, 0, planned.output);
-        assert.match(planned.output, /setup effect-tsgo@0\.24\.3 -> typescript@7\.0\.2/);
+        assert.match(planned.output, /TypeScript patch @effect\/tsgo@0\.24\.3 → typescript@7\.0\.2/);
         assert.isFalse(yield* fs.exists(marker));
 
         const applied = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
         assert.strictEqual(applied.exitCode, 0, applied.output);
+        assert.match(applied.output, /✓ Dev kit ready 2 changes/);
+        assert.notMatch(applied.output, /Verification succeeded|Backed up original binary/);
         assert.strictEqual(yield* fs.readFileString(marker), "1");
 
         const lockPath = path.join(projectDir, "dev-kit.lock.json");
@@ -200,7 +202,7 @@ describe("project apply", () => {
           projectDir,
         ]);
         assert.strictEqual(postinstall.exitCode, 0, postinstall.output);
-        assert.match(postinstall.output, /unchanged effect-tsgo@0\.24\.3/);
+        assert.match(postinstall.output, /Dev kit up to date/);
         assert.strictEqual(yield* fs.readFileString(marker), "1");
 
         lock.setup.effectTsgo.effectTsgoVersion = "0.0.0";
@@ -227,7 +229,7 @@ describe("project apply", () => {
         const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
 
         assert.notStrictEqual(result.exitCode, 0);
-        assert.match(result.output, /conflict \.agents\/skills\/effect-ts/);
+        assert.match(result.output, /plan has 1 conflict:[\s\S]*\.agents\/skills\/effect-ts/);
         assert.strictEqual(
           yield* fs.readFileString(path.join(destination, "keep.txt")),
           "user content\n",
@@ -251,7 +253,7 @@ describe("project apply", () => {
 
         const planned = yield* runDevKit(projectDir, ["plan", "--project-dir", projectDir]);
         assert.strictEqual(planned.exitCode, 0, planned.output);
-        assert.match(planned.output, /remove skill:effect-ts@agents/);
+        assert.match(planned.output, /− skill:effect-ts@agents/);
         assert.isTrue(
           yield* fs.exists(path.join(projectDir, ".agents", "skills", "effect-ts")),
         );
@@ -323,7 +325,7 @@ describe("project apply", () => {
         ]);
 
         assert.strictEqual(result.exitCode, 0, result.output);
-        assert.match(result.output, /unchanged copy effect-ts.*\(adopt\)/);
+        assert.match(result.output, /Dev kit ready/);
         assert.isTrue(yield* fs.exists(path.join(projectDir, ".dev-kit", "state.json")));
       }));
 
@@ -408,7 +410,7 @@ describe("project apply", () => {
         ]);
 
         assert.strictEqual(result.exitCode, 0, result.output);
-        assert.match(result.output, /remove skill:effect-ts@agents/);
+        assert.match(result.output, /Dev kit ready 1 change/);
         assert.isFalse(
           yield* fs.exists(path.join(projectDir, ".agents", "skills", "effect-ts")),
         );

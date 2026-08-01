@@ -28,6 +28,17 @@ bun x dev-kit list --all
 bun x dev-kit add dev-kit effect
 ```
 
+Before adding external skills, scan the repository's agent instructions,
+package and lock files, framework or tool configuration, and CI workflows for
+the capabilities it actually uses. Search and inspect candidates using those
+signals, then add the matching skills individually:
+
+```bash
+bun x dev-kit search cloudflare
+bun x dev-kit info workers-best-practices
+bun x dev-kit add workers-best-practices wrangler
+```
+
 `add` updates `dev-kit.jsonc` and applies the selection immediately. The
 resulting manifest is ordinary JSONC:
 
@@ -138,9 +149,9 @@ tool versions. A project-local process lock also prevents concurrent applies.
   "include": [
     "dev-kit",
     "effect",
-    "cloudflare-skills",
-    "serve-sim",
-    "emilkowalski-skills"
+    "workers-best-practices",
+    "wrangler",
+    "serve-sim"
   ],
   "exclude": ["animation-vocabulary"],
   "targets": {
@@ -153,11 +164,11 @@ tool versions. A project-local process lock also prevents concurrent applies.
 
 - `dev-kit` installs guidance for operating the toolkit itself.
 - `effect` expands to the consolidated `effect-ts` skill.
-- `cloudflare-skills` and `emilkowalski-skills` select every skill approved from
-  those catalog sources.
+- Prefer individual external skills such as `workers-best-practices` and
+  `wrangler`, selected after scanning the project for relevant technologies.
 - `serve-sim` selects the approved Evan Bacon simulator skill directly.
-- Any approved source ID selects every skill from that catalog source.
-- An individual catalog skill can be selected directly.
+- An approved source ID is broad shorthand that selects every skill from that
+  source. Use it only when the scan confirms that every member applies.
 
 Dev Kit reserves `.repos/<source-id>` for project-local source checkouts. Run
 `dev-kit gitignore` to add `.repos/` and `.dev-kit/` to the project ignore file.

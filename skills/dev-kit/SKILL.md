@@ -21,11 +21,15 @@ stores explicit skill names and exact commit/content digests.
 
 ## Apply loop
 
-1. Establish the Git root. Read `dev-kit.jsonc`, `dev-kit.lock.json` when
-   present, `package.json`, and the configured target paths. Finish with the
-   intended skill selection, targets, and setup tasks identified.
-2. Update `dev-kit.jsonc`. Preserve JSONC comments and validate against the
-   package schema. Finish when every desired resource is represented once.
+1. Establish the Git root. Read project agent instructions, `dev-kit.jsonc`,
+   `dev-kit.lock.json` when present, package and lock files, framework or tool
+   configuration, CI workflows, and the configured target paths. Derive the
+   capabilities the project actually uses from those signals.
+2. Use `dev-kit search <terms>` and `dev-kit info <skill>` to inspect matching
+   catalog entries. Prefer individual external skills; select an external
+   source family only when every approved skill from it applies. Update
+   `dev-kit.jsonc`, preserve JSONC comments, and validate against the package
+   schema. Finish with each desired resource represented once.
 3. Run `dev-kit plan`. Use `--manifest`, `--project-dir`, or `--lockfile` when
    the project overrides their defaults. Planning is read-only; inspect every
    create, update, remove, adoption, and conflict before proceeding. Finish
@@ -39,8 +43,10 @@ stores explicit skill names and exact commit/content digests.
 ## Manifest
 
 Use skill names or family names in `include`; subtract selections with
-`exclude`. Include this skill as `dev-kit` when project agents should carry the
-toolkit procedure.
+`exclude`. Built-in families such as `effect` are intentional bundles. An
+external source ID is also a family, but expands to every approved skill from
+that source, so prefer individually relevant external skills. Include this
+skill as `dev-kit` when project agents should carry the toolkit procedure.
 
 ```jsonc
 {

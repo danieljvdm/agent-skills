@@ -66,10 +66,34 @@ describe("skill management UX", () => {
         const projectDir = yield* fs.makeTempDirectoryScoped({ prefix: "dev-kit-search-" });
         const searched = yield* runDevKit(projectDir, ["search", "motion", "--project-dir", projectDir]);
         assert.strictEqual(searched.exitCode, 0, searched.output);
-        assert.match(searched.output, /animation-vocabulary/);
+        assert.match(searched.output, /animation-vocabulary \[emilkowalski-skills\]/);
+        const sourceSearch = yield* runDevKit(projectDir, [
+          "search", "emilkowalski-skills", "--project-dir", projectDir,
+        ]);
+        assert.strictEqual(sourceSearch.exitCode, 0, sourceSearch.output);
+        assert.match(sourceSearch.output, /animation-vocabulary \[emilkowalski-skills\]/);
         const info = yield* runDevKit(projectDir, ["info", "prototype"]);
         assert.strictEqual(info.exitCode, 0, info.output);
         assert.match(info.output, /Approved commit: [0-9a-f]{40}/);
+      }));
+
+    it.effect("warns when a source family selects every approved skill", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const projectDir = yield* fs.makeTempDirectoryScoped({ prefix: "dev-kit-source-family-" });
+
+        const added = yield* runDevKit(projectDir, [
+          "add", "emilkowalski-skills", "--no-apply", "--project-dir", projectDir,
+        ]);
+
+        assert.strictEqual(added.exitCode, 0, added.output);
+        assert.match(added.output, /selects all \d+ approved skills/);
+        assert.match(added.output, /Prefer individual skill names/);
+        assert.include(
+          yield* fs.readFileString(path.join(projectDir, "dev-kit.jsonc")),
+          '"emilkowalski-skills"',
+        );
       }));
 
     it.effect("keeps custom manifests inside the project and renders a relative schema path", () =>

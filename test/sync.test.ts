@@ -470,7 +470,7 @@ describe("project apply", () => {
         const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
 
         assert.notStrictEqual(result.exitCode, 0);
-        assert.match(result.output, /another dev-kit apply may be active/);
+        assert.match(result.output, /another dev-kit operation may be active/);
         assert.isFalse(yield* fs.exists(path.join(projectDir, ".agents")));
         assert.isFalse(yield* fs.exists(path.join(projectDir, "dev-kit.lock.json")));
         assert.strictEqual(

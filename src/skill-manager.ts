@@ -5,6 +5,7 @@ import { Prompt } from "effect/unstable/cli";
 import { loadSkillCatalog } from "./catalog.ts";
 import { isInteractiveTerminal, printDetail, printLine, printStatus } from "./cli-ui.ts";
 import { DevKitManifestSchema } from "./manifest.ts";
+import { observeSymbolicLink } from "./node-symbolic-link.ts";
 import { runProjectSkillPlan } from "./sync.ts";
 import { patchProjectGitignore } from "./gitignore.ts";
 
@@ -27,22 +28,83 @@ const packageRoot = Effect.fn("skillManagerPackageRoot")(function* () {
 const resolvePaths = Effect.fn("resolveSkillManagerPaths")(function* (
   options: ManagerOptions,
 ) {
+  const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const projectDir = path.resolve(options.projectDir ?? ".");
+  const candidate = options.manifestPath ?? "dev-kit.jsonc";
+  if (candidate.length === 0 || path.isAbsolute(candidate)) {
+    return yield* new SkillManagerError({
+      message: "--manifest must be a non-empty project-relative path",
+    });
+  }
+  const manifestPath = path.resolve(projectDir, candidate);
+  const relative = path.relative(projectDir, manifestPath);
+  if (
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
+    return yield* new SkillManagerError({
+      message: "--manifest must resolve inside the project",
+    });
+  }
+  let ancestor = projectDir;
+  for (const segment of relative.split(path.sep).slice(0, -1)) {
+    ancestor = path.join(ancestor, segment);
+    if ((yield* observeSymbolicLink(ancestor)).kind === "symlink") {
+      return yield* new SkillManagerError({
+        message: `manifest ancestor is a symlink: ${path.relative(projectDir, ancestor)}`,
+      });
+    }
+  }
+  const destination = yield* observeSymbolicLink(manifestPath);
+  if (destination.kind === "symlink") {
+    return yield* new SkillManagerError({ message: `manifest is a symlink: ${relative}` });
+  }
+  if (destination.kind === "not-symlink" && (yield* fs.stat(manifestPath)).type !== "File") {
+    return yield* new SkillManagerError({ message: `manifest is not a regular file: ${relative}` });
+  }
   return {
     projectDir,
-    manifestPath: path.resolve(projectDir, options.manifestPath ?? "dev-kit.jsonc"),
+    manifestPath,
   };
 });
 
-const defaultManifest = `{
-  "$schema": "./node_modules/@danieljvdm/dev-kit/schema/dev-kit.schema.json",
-  "include": [],
-  "targets": {
-    "agents": { "enabled": true, "mode": "copy" }
-  }
-}
-`;
+const renderDefaultManifest = (projectDir: string, manifestPath: string, path: Path.Path) => {
+  const rawSchemaPath = path.relative(
+    path.dirname(manifestPath),
+    path.join(projectDir, "node_modules", "@danieljvdm", "dev-kit", "schema", "dev-kit.schema.json"),
+  );
+  const portableSchemaPath = path.sep === "/"
+    ? rawSchemaPath
+    : rawSchemaPath.split(path.sep).join("/");
+  const schemaPath = portableSchemaPath.startsWith(".")
+    ? portableSchemaPath
+    : `./${portableSchemaPath}`;
+  return `${JSON.stringify({
+    $schema: schemaPath,
+    include: [],
+    targets: { agents: { enabled: true, mode: "copy" } },
+  }, null, 2)}\n`;
+};
+
+const createDefaultManifest = Effect.fn("createDefaultSkillManifest")(function* (
+  paths: { readonly projectDir: string; readonly manifestPath: string },
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  yield* fs.makeDirectory(path.dirname(paths.manifestPath), { recursive: true });
+  const staged = yield* fs.makeTempFileScoped({
+    directory: path.dirname(paths.manifestPath),
+    prefix: ".dev-kit-init-",
+  });
+  yield* fs.writeFileString(
+    staged,
+    renderDefaultManifest(paths.projectDir, paths.manifestPath, path),
+  );
+  yield* fs.rename(staged, paths.manifestPath);
+  yield* patchProjectGitignore({ projectDir: paths.projectDir });
+});
 
 const readManifest = Effect.fn("readManagedSkillManifest")(function* (
   options: ManagerOptions,
@@ -56,8 +118,7 @@ const readManifest = Effect.fn("readManagedSkillManifest")(function* (
         message: "dev-kit.jsonc not found. Run `dev-kit init` first.",
       });
     }
-    yield* fs.writeFileString(paths.manifestPath, defaultManifest);
-    yield* patchProjectGitignore({ projectDir: paths.projectDir });
+    yield* createDefaultManifest(paths);
   }
   const raw = yield* fs.readFileString(paths.manifestPath);
   const errors: Array<ParseError> = [];
@@ -147,8 +208,7 @@ export const initProject = Effect.fn("initDevKitProject")(function* (options: Ma
     yield* printStatus("info", "Already initialized", paths.manifestPath);
     return;
   }
-  yield* fs.writeFileString(paths.manifestPath, defaultManifest);
-  yield* patchProjectGitignore({ projectDir: paths.projectDir });
+  yield* createDefaultManifest(paths);
   yield* printStatus("success", "Created dev-kit.jsonc");
   yield* printDetail("Add a skill with: dev-kit add <name>");
 });

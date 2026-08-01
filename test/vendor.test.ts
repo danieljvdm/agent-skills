@@ -326,5 +326,30 @@ describe("approved skill catalog", () => {
         assert.notStrictEqual(result.exitCode, 0);
         assert.strictEqual(yield* fs.readFileString(protectedFile), "keep me\n");
       }));
+
+    it.effect("refuses to refresh while another dev-kit operation holds the lock", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const fixture = yield* createFixture();
+        const processLock = path.join(fixture.aggregate, ".dev-kit", "apply.lock");
+        const ownerPath = path.join(processLock, "owner.json");
+        yield* fs.makeDirectory(processLock, { recursive: true });
+        yield* fs.writeFileString(ownerPath, '{"token":"other-process"}\n');
+
+        const result = yield* runDevKit(fixture.aggregate, [
+          "catalog", "refresh", "--repo-dir", fixture.aggregate,
+        ]);
+
+        assert.notStrictEqual(result.exitCode, 0);
+        assert.match(result.output, /another dev-kit operation may be active/);
+        assert.isFalse(
+          yield* fs.exists(path.join(fixture.aggregate, "skill-sources.lock.json")),
+        );
+        assert.strictEqual(
+          yield* fs.readFileString(ownerPath),
+          '{"token":"other-process"}\n',
+        );
+      }));
   });
 });

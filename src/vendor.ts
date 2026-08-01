@@ -4,6 +4,7 @@ import { ChildProcess } from "effect/unstable/process";
 
 import { printStatus, withSpinner } from "./cli-ui.ts";
 import { observePath, type Digest } from "./path-digest.ts";
+import { acquireProjectProcessLock } from "./project-process-lock.ts";
 
 import {
   SkillSourcesLockSchema,
@@ -754,6 +755,7 @@ export const refreshSkillCatalog = Effect.fn("refreshSkillCatalog")(function* (
         : Effect.fail(error),
     ),
   );
+  yield* acquireProjectProcessLock(repoDir);
   const sourcesPath = path.resolve(repoDir, options.sourcesPath ?? DEFAULT_SOURCES_PATH);
   const lockfilePath = path.resolve(repoDir, options.lockfilePath ?? DEFAULT_LOCKFILE_PATH);
   const manifest = yield* readJsonc(sourcesPath, SkillSourcesManifestSchema);

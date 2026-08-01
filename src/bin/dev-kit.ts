@@ -13,6 +13,12 @@ import {
 import { DEV_KIT_VERSION } from "../tool-metadata.ts";
 import { refreshSkillCatalog } from "../vendor.ts";
 import {
+  addCatalogSource,
+  listCatalogSources,
+  removeCatalogEntry,
+  showCatalogSource,
+} from "../catalog-manager.ts";
+import {
   addSkills,
   chooseSkillsToAdd,
   chooseSkillsToRemove,
@@ -218,22 +224,117 @@ const effectCommand = CliCommand.make("effect").pipe(
   CliCommand.withSubcommands([effectSyncCommand] as const),
 );
 
+const catalogFilesFlags = {
+  lockfile: Flag.string("lockfile").pipe(
+    Flag.withDefault("skill-sources.lock.json"),
+    Flag.withDescription("Approved catalog snapshot path."),
+  ),
+  repoDir: Flag.string("repo-dir").pipe(
+    Flag.withDefault("."),
+    Flag.withDescription("Catalog repository directory."),
+  ),
+  sources: Flag.string("sources").pipe(
+    Flag.withDefault("skill-sources.jsonc"),
+    Flag.withDescription("Authored source manifest path."),
+  ),
+};
+
+const catalogAddCommand = CliCommand.make(
+  "add",
+  {
+    repository: Argument.string("repository"),
+    all: Flag.boolean("all").pipe(
+      Flag.withDescription("Approve every skill discovered in this snapshot."),
+    ),
+    dryRun: Flag.boolean("dry-run").pipe(Flag.withDescription("Inspect without writing.")),
+    id: Flag.string("id").pipe(Flag.withDefault(""), Flag.withDescription("Override the inferred source id.")),
+    license: Flag.string("license").pipe(Flag.withDefault(""), Flag.withDescription("Repository-relative license path.")),
+    ref: Flag.string("ref").pipe(Flag.withDefault(""), Flag.withDescription("Branch, tag, or commit to track.")),
+    skill: Flag.string("skill").pipe(
+      Flag.atLeast(0),
+      Flag.withDescription("Approve one skill; repeat for several."),
+    ),
+    skillsPath: Flag.string("skills-path").pipe(
+      Flag.withDefault(""),
+      Flag.withDescription("Repository-relative directory containing skills."),
+    ),
+    stripFrontmatter: Flag.string("strip-frontmatter").pipe(
+      Flag.atLeast(0),
+      Flag.withDescription("Remove an upstream frontmatter key; repeat for several."),
+    ),
+    ...catalogFilesFlags,
+  },
+  ({ repository, all, dryRun, id, license, ref, skill, skillsPath, stripFrontmatter, lockfile, repoDir, sources }) =>
+    addCatalogSource({
+      repository,
+      all,
+      dryRun,
+      skills: skill,
+      stripFrontmatter,
+      lockfilePath: lockfile,
+      repoDir,
+      sourcesPath: sources,
+      ...(id ? { id } : {}),
+      ...(license ? { licensePath: license } : {}),
+      ...(ref ? { ref } : {}),
+      ...(skillsPath ? { skillsPath } : {}),
+    }),
+).pipe(CliCommand.withDescription("Inspect a repository and approve selected skills."));
+
+const catalogListCommand = CliCommand.make(
+  "list",
+  catalogFilesFlags,
+  ({ lockfile, repoDir, sources }) =>
+    listCatalogSources({ lockfilePath: lockfile, repoDir, sourcesPath: sources }),
+).pipe(CliCommand.withDescription("List approved upstream repositories."));
+
+const catalogInfoCommand = CliCommand.make(
+  "info",
+  { source: Argument.string("source"), ...catalogFilesFlags },
+  ({ source, lockfile, repoDir, sources }) =>
+    showCatalogSource(source, { lockfilePath: lockfile, repoDir, sourcesPath: sources }),
+).pipe(CliCommand.withDescription("Show an approved source and its skills."));
+
+const catalogRemoveCommand = CliCommand.make(
+  "remove",
+  {
+    entry: Argument.string("source-or-skill"),
+    dryRun: Flag.boolean("dry-run").pipe(Flag.withDescription("Preview without writing.")),
+    yes: Flag.boolean("yes").pipe(Flag.withDescription("Confirm catalog revocation.")),
+    ...catalogFilesFlags,
+  },
+  ({ entry, dryRun, yes, lockfile, repoDir, sources }) =>
+    removeCatalogEntry(entry, { dryRun, yes, lockfilePath: lockfile, repoDir, sourcesPath: sources }),
+).pipe(CliCommand.withDescription("Revoke an approved source or individual skill."));
+
 const catalogRefreshCommand = CliCommand.make(
   "refresh",
   {
-    dryRun: Flag.boolean("dry-run"),
-    locked: Flag.boolean("locked"),
-    lockfile: Flag.string("lockfile").pipe(Flag.withDefault("skill-sources.lock.json")),
-    repoDir: Flag.string("repo-dir").pipe(Flag.withDefault(".")),
-    sources: Flag.string("sources").pipe(Flag.withDefault("skill-sources.jsonc")),
+    dryRun: Flag.boolean("dry-run").pipe(Flag.withDescription("Preview without writing.")),
+    locked: Flag.boolean("locked").pipe(Flag.withHidden),
+    ...catalogFilesFlags,
   },
   ({ dryRun, locked, lockfile, repoDir, sources }) =>
     refreshSkillCatalog({ dryRun, locked, lockfilePath: lockfile, repoDir, sourcesPath: sources }),
 ).pipe(CliCommand.withDescription("Approve the current upstream refs as an exact catalog snapshot."));
 
+const catalogVerifyCommand = CliCommand.make(
+  "verify",
+  catalogFilesFlags,
+  ({ lockfile, repoDir, sources }) =>
+    refreshSkillCatalog({ locked: true, lockfilePath: lockfile, repoDir, sourcesPath: sources }),
+).pipe(CliCommand.withDescription("Verify the committed catalog without advancing refs."));
+
 const catalogCommand = CliCommand.make("catalog").pipe(
   CliCommand.withDescription("Maintain the approved upstream catalog."),
-  CliCommand.withSubcommands([catalogRefreshCommand] as const),
+  CliCommand.withSubcommands([
+    catalogAddCommand,
+    catalogRemoveCommand,
+    catalogListCommand,
+    catalogInfoCommand,
+    catalogRefreshCommand,
+    catalogVerifyCommand,
+  ] as const),
 );
 
 const command = CliCommand.make("dev-kit", projectFlags, ({ manifest, projectDir }) =>

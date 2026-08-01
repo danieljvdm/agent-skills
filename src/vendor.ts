@@ -19,9 +19,29 @@ export type CatalogRefreshOptions = {
   readonly lockfilePath?: string;
   readonly dryRun?: boolean;
   readonly locked?: boolean;
+  readonly updateSourceIds?: ReadonlyArray<string>;
+  readonly pinSourceIds?: ReadonlyArray<string>;
 };
 /** @deprecated Use CatalogRefreshOptions. */
 export type VendorOptions = CatalogRefreshOptions;
+
+export type CatalogInspection = {
+  readonly id: string;
+  readonly repository: string;
+  readonly ref: string;
+  readonly resolved: string;
+  readonly skillsPath: string;
+  readonly skills: ReadonlyArray<{ readonly name: string; readonly description: string }>;
+  readonly licensePath?: string;
+};
+
+export type CatalogInspectOptions = {
+  readonly repository: string;
+  readonly id?: string;
+  readonly ref?: string;
+  readonly skillsPath?: string;
+  readonly repoDir?: string;
+};
 
 type PreparedSource = {
   readonly source: ExternalSkillSource;
@@ -80,6 +100,47 @@ const DEFAULT_LOCKFILE_PATH = "skill-sources.lock.json";
 const SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const SOURCE_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const RESERVED_SOURCE_IDS = new Set(["effect"]);
+
+const inferSourceId = (repository: string): string => {
+  const cleaned = repository.replace(/[\\/]+$/, "").replace(/\.git$/i, "");
+  const segments = cleaned.split(/[\\/:]+/).filter(Boolean);
+  const tail = segments.slice(-2).join("-").toLowerCase();
+  return tail.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+};
+
+const normalizeRepositoryLocator = (
+  repository: string,
+): Effect.Effect<{
+  readonly repository: string;
+  readonly ref?: string;
+  readonly skillsPath?: string;
+}, InvalidSourceError> => {
+  if (/[\u0000-\u001f\u007f]/.test(repository)) {
+    return Effect.fail(new InvalidSourceError({ source: repository, reason: "repository contains control characters" }));
+  }
+  try {
+    const url = new URL(repository);
+    if ((url.protocol === "http:" || url.protocol === "https:") && (url.username || url.password)) {
+      return Effect.fail(new InvalidSourceError({ source: repository, reason: "repository URLs must not contain credentials" }));
+    }
+    if (url.hostname.toLowerCase() !== "github.com") return Effect.succeed({ repository });
+    const segments = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+    if (segments.length < 2) return Effect.succeed({ repository });
+    const owner = segments[0]!;
+    const name = segments[1]!.replace(/\.git$/i, "");
+    const normalized = `https://github.com/${owner}/${name}.git`;
+    if (segments[2] === "tree" && segments[3]) {
+      return Effect.succeed({
+        repository: normalized,
+        ref: segments[3],
+        ...(segments.length > 4 ? { skillsPath: segments.slice(4).join("/") } : {}),
+      });
+    }
+    return Effect.succeed({ repository: normalized });
+  } catch {
+    return Effect.succeed({ repository });
+  }
+};
 
 const runCommand = Effect.fn("runVendorCommand")(function* (
   cwd: string,
@@ -248,7 +309,9 @@ const discoverSkills = Effect.fn("discoverVendoredSkills")(function* (
     });
   }
 
-  const selected = includeAll ? discovered : [...source.include];
+  const selected = (includeAll ? discovered : [...source.include]).filter(
+    (skill) => !(source.exclude ?? []).includes(skill),
+  );
   if (selected.length === 0) {
     return yield* new InvalidSourceError({
       source: source.id,
@@ -279,6 +342,7 @@ const prepareSource = Effect.fn("prepareSkillSource")(function* (
   source: ExternalSkillSource,
   lockedSource: LockedSkillSource | undefined,
   useLock: boolean,
+  validateLockConfig = useLock,
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -302,12 +366,14 @@ const prepareSource = Effect.fn("prepareSkillSource")(function* (
     });
   }
   if (
-    useLock &&
+    useLock && validateLockConfig &&
     (!lockedSource ||
       lockedSource.repository !== source.repository ||
       lockedSource.ref !== source.ref ||
       lockedSource.skillsPath !== source.skillsPath ||
       [...lockedSource.include].sort().join("\0") !== [...source.include].sort().join("\0") ||
+      [...(lockedSource.exclude ?? [])].sort().join("\0") !==
+        [...(source.exclude ?? [])].sort().join("\0") ||
       lockedSource.licensePath !== source.licensePath ||
       [...(lockedSource.stripFrontmatter ?? [])].sort().join("\0") !==
         [...(source.stripFrontmatter ?? [])].sort().join("\0"))
@@ -588,6 +654,7 @@ const buildLock = Effect.fn("buildSkillCatalogLock")(function* (
       resolved,
       skillsPath: source.skillsPath,
       include: source.include,
+      ...(source.exclude ? { exclude: source.exclude } : {}),
       skills,
       descriptions,
       digests,
@@ -596,6 +663,82 @@ const buildLock = Effect.fn("buildSkillCatalogLock")(function* (
     });
   }
   return { version: 1, sources } satisfies SkillSourcesLock;
+});
+
+export const inspectCatalogRepository = Effect.fn("inspectCatalogRepository")(function* (
+  options: CatalogInspectOptions,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const repoDir = path.resolve(options.repoDir ?? ".");
+  const locator = yield* normalizeRepositoryLocator(options.repository);
+  const repository = locator.repository;
+  const id = options.id ?? inferSourceId(repository);
+  if (id.length === 0) {
+    return yield* new InvalidSourceError({
+      source: repository,
+      reason: "could not infer a source id; pass --id",
+    });
+  }
+  const source: ExternalSkillSource = {
+    id,
+    repository,
+    ref: options.ref ?? locator.ref ?? "HEAD",
+    skillsPath: options.skillsPath ?? locator.skillsPath ?? "skills",
+    include: ["*"],
+  };
+  const tempDir = yield* fs.makeTempDirectoryScoped({
+    directory: repoDir,
+    prefix: ".dev-kit-inspect-",
+  });
+  const prepared = yield* withSpinner(
+    "Inspecting skill repository",
+    prepareSource(tempDir, source, undefined, false),
+  );
+  let ref = source.ref;
+  if (ref === "HEAD") {
+    const symbolicHead = yield* runCommand(prepared.checkoutDir, "git", [
+      "ls-remote",
+      "--symref",
+      "origin",
+      "HEAD",
+    ]);
+    ref = symbolicHead.match(/^ref:\s+refs\/heads\/([^\s]+)\s+HEAD$/m)?.[1] ?? ref;
+  }
+  const skills: Array<{ readonly name: string; readonly description: string }> = [];
+  for (const name of prepared.skills) {
+    const document = yield* fs.readFileString(
+      path.join(prepared.checkoutDir, source.skillsPath, name, "SKILL.md"),
+    );
+    const description = document
+      .match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1]
+      ?.split(/\r?\n/)
+      .find((line) => line.startsWith("description:"))
+      ?.slice("description:".length)
+      .trim()
+      .replace(/^(['"])(.*)\1$/, "$2") ?? "";
+    skills.push({ name, description });
+  }
+  let licensePath: string | undefined;
+  for (const candidate of ["LICENSE", "LICENSE.md", "LICENSE.txt", "COPYING"]) {
+    const candidatePath = path.join(prepared.checkoutDir, candidate);
+    if (yield* fs.exists(candidatePath)) {
+      const info = yield* fs.stat(candidatePath);
+      if (info.type === "File") {
+        licensePath = candidate;
+        break;
+      }
+    }
+  }
+  return {
+    id,
+    repository,
+    ref,
+    resolved: prepared.resolved,
+    skillsPath: source.skillsPath,
+    skills,
+    ...(licensePath ? { licensePath } : {}),
+  } satisfies CatalogInspection;
 });
 
 export const refreshSkillCatalog = Effect.fn("refreshSkillCatalog")(function* (
@@ -656,8 +799,18 @@ export const refreshSkillCatalog = Effect.fn("refreshSkillCatalog")(function* (
     "Fetching skill sources",
     Effect.forEach(
       manifest.sources,
-      (source) =>
-        prepareSource(tempDir, source, lockedById.get(source.id), options.locked ?? false),
+      (source) => {
+        const pinned = options.pinSourceIds?.includes(source.id) ?? false;
+        const useLock = (options.locked ?? false) || pinned ||
+          (options.updateSourceIds !== undefined && !options.updateSourceIds.includes(source.id));
+        return prepareSource(
+          tempDir,
+          source,
+          lockedById.get(source.id),
+          useLock,
+          (options.locked ?? false) || !pinned,
+        );
+      },
       { concurrency: 4 },
     ),
   );

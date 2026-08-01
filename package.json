@@ -43,7 +43,7 @@
     "tsgo:patch": "./bin/dev-kit.mjs tsgo patch",
     "typecheck": "tsc --noEmit",
     "catalog:refresh": "./bin/dev-kit.mjs catalog refresh",
-    "catalog:check": "./bin/dev-kit.mjs catalog refresh --locked"
+    "catalog:check": "./bin/dev-kit.mjs catalog verify"
   },
   "dependencies": {
     "@effect/platform-node": "4.0.0-beta.102",

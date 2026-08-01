@@ -8,6 +8,7 @@ export const ExternalSkillSourceSchema = Schema.Struct({
   ref: Schema.String,
   skillsPath: Schema.String,
   include: Schema.Array(Schema.String),
+  exclude: Schema.optional(Schema.Array(Schema.String)),
   licensePath: Schema.optional(Schema.String),
   stripFrontmatter: Schema.optional(Schema.Array(Schema.String)),
 });
@@ -28,6 +29,7 @@ export const LockedSkillSourceSchema = Schema.Struct({
   resolved: Schema.String,
   skillsPath: Schema.String,
   include: Schema.Array(Schema.String),
+  exclude: Schema.optional(Schema.Array(Schema.String)),
   skills: Schema.Array(Schema.String),
   descriptions: Schema.optional(
     Schema.Record(Schema.String, Schema.String),

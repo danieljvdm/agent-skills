@@ -8,7 +8,14 @@
       "resolved": "70744e3816f1d93eafb697161a8b880a7384c5ff",
       "skillsPath": "skills",
       "include": [
-        "*"
+        "animation-vocabulary",
+        "apple-design",
+        "emil-design-eng",
+        "find-animation-opportunities",
+        "improve-animations",
+        "pick-ui-library",
+        "prototype",
+        "review-animations"
       ],
       "skills": [
         "animation-vocabulary",
@@ -44,6 +51,86 @@
       "stripFrontmatter": [
         "disable-model-invocation"
       ]
+    },
+    {
+      "id": "cloudflare-skills",
+      "repository": "https://github.com/cloudflare/skills.git",
+      "ref": "main",
+      "resolved": "30553f89ae1ef1e3c2917cd09d72dac992bb4e9a",
+      "skillsPath": "skills",
+      "include": [
+        "agents-sdk",
+        "cloudflare",
+        "cloudflare-email-service",
+        "cloudflare-one",
+        "cloudflare-one-migrations",
+        "durable-objects",
+        "sandbox-sdk",
+        "turnstile-spin",
+        "web-perf",
+        "workers-best-practices",
+        "wrangler"
+      ],
+      "skills": [
+        "agents-sdk",
+        "cloudflare",
+        "cloudflare-email-service",
+        "cloudflare-one",
+        "cloudflare-one-migrations",
+        "durable-objects",
+        "sandbox-sdk",
+        "turnstile-spin",
+        "web-perf",
+        "workers-best-practices",
+        "wrangler"
+      ],
+      "descriptions": {
+        "agents-sdk": "Build AI agents on Cloudflare Workers using the Agents SDK. Load when creating stateful agents, durable workflows, real-time WebSocket apps, scheduled tasks, MCP servers, chat applications, voice agents, or browser automation. Covers Agent class, state management, callable RPC, Workflows, durable execution, queues, retries, observability, and React hooks. Biases towards retrieval from Cloudflare docs over pre-trained knowledge.",
+        "cloudflare": "Comprehensive Cloudflare platform skill covering Workers, Pages, storage (KV, D1, R2), AI (Workers AI, Vectorize, Agents SDK), feature flags (Flagship), networking (Tunnel, Spectrum), security (WAF, DDoS), and infrastructure-as-code (Terraform, Pulumi). Use for any Cloudflare development task. Biases towards retrieval from Cloudflare docs over pre-trained knowledge.",
+        "cloudflare-email-service": "Send and receive transactional emails with Cloudflare Email Service (Email Sending + Email Routing). Use when building email sending (Workers binding or REST API), email routing, Agents SDK email handling, or integrating email into any app — Workers, Node.js, Python, Go, etc. Also use for email deliverability, SPF/DKIM/DMARC, wrangler email setup, MCP email tools, or when a coding agent needs to send emails. Even for simple requests like \"add email to my Worker\" — this skill has critical config details.",
+        "cloudflare-one": "Guides Cloudflare One Zero Trust and SASE work across Access, Gateway, WARP, Tunnel, Cloudflare WAN, DLP, CASB, device posture, and identity. Use when designing, configuring, troubleshooting, or reviewing Cloudflare One deployments. Retrieval-first: use current Cloudflare docs/API schemas instead of embedded product docs.",
+        "cloudflare-one-migrations": "Plans migrations from Zscaler ZIA/ZPA, Palo Alto, legacy VPN, SWG, or SASE stacks to Cloudflare One. Use for migration assessments, policy mapping, rollout plans, and parity/gap analysis.",
+        "durable-objects": "Create and review Cloudflare Durable Objects. Use when building stateful coordination (chat rooms, multiplayer games, booking systems), implementing RPC methods, SQLite storage, alarms, WebSockets, or reviewing DO code for best practices. Covers Workers integration, wrangler config, and testing with Vitest. Biases towards retrieval from Cloudflare docs over pre-trained knowledge.",
+        "sandbox-sdk": "Build sandboxed applications for secure code execution. Load when building AI code execution, code interpreters, CI/CD systems, interactive dev environments, or executing untrusted code. Covers Sandbox SDK lifecycle, commands, files, code interpreter, and preview URLs. Biases towards retrieval from Cloudflare docs over pre-trained knowledge.",
+        "turnstile-spin": "Set up Cloudflare Turnstile end-to-end in a project. Scan the codebase, create the widget via the Cloudflare API, embed it where user requests need bot verification (form submissions, SPA actions, API endpoints, download links, comment or vote submissions, etc.), wire canonical server-side siteverify in the customer's existing backend, validate, and persist the skill. Load this when a user asks to add Turnstile, set up CAPTCHA, protect a form or endpoint from bots, or fix a Turnstile integration. Mirrors developers.cloudflare.com/turnstile/spin.",
+        "web-perf": "Analyzes web performance using Chrome DevTools MCP. Measures Core Web Vitals (LCP, INP, CLS) and supplementary metrics (FCP, TBT, Speed Index), identifies render-blocking resources, network dependency chains, layout shifts, caching issues, and accessibility gaps. Use when asked to audit, profile, debug, or optimize page load performance, Lighthouse scores, or site speed. Biases towards retrieval from current documentation over pre-trained knowledge.",
+        "workers-best-practices": "Reviews and authors Cloudflare Workers code against production best practices. Load when writing new Workers, reviewing Worker code, configuring wrangler.jsonc, or checking for common Workers anti-patterns (streaming, floating promises, global state, secrets, bindings, observability). Biases towards retrieval from Cloudflare docs over pre-trained knowledge.",
+        "wrangler": "Cloudflare Workers CLI for deploying, developing, and managing Workers, KV, R2, D1, Vectorize, Hyperdrive, Workers AI, Containers, Queues, Workflows, Pipelines, and Secrets Store. Load before running wrangler commands to ensure correct syntax and best practices. Biases towards retrieval from Cloudflare docs over pre-trained knowledge."
+      },
+      "digests": {
+        "agents-sdk": "sha256:721bd3f54bf45ce35827d90a1886ed92d644fe2bfff2e80c21bcd1777079dc54",
+        "cloudflare": "sha256:dfc92bac99350aa358617e0b8edd61fd7115cbf1a873ba01d32f93d967b9822e",
+        "cloudflare-email-service": "sha256:c74226f6ce9226640193a30142a2d5348cc276baefb91913db9dc44e97d971c0",
+        "cloudflare-one": "sha256:44c1455ac02448fab391795a7d84205387c3cdae457e3d17d5549207ff466bfa",
+        "cloudflare-one-migrations": "sha256:9b1e197c3cf33fd7061d5f7c2e654a9b72257ed2169d57b704bca4122a51febc",
+        "durable-objects": "sha256:533bfa75d2074cf6ac30ab77854a665465318dd0540ff4bdbb9c5f4ef8acfb38",
+        "sandbox-sdk": "sha256:e1ec676cfa5e9638f62673097850ec0e8e7f7e42dfd0606cc217b5854df0132b",
+        "turnstile-spin": "sha256:c6095261a7f69b2321729604a8f57b36456146fa6e544bfc54d764d206c1037a",
+        "web-perf": "sha256:4d6d66e3d36bee3f592a8ac76ec633c6a96c688c0c9767ef26c164f2509726a8",
+        "workers-best-practices": "sha256:f8925cccde1682df5e6c9aba8e3ee125355fc73761ba6581107d88adb8b44f47",
+        "wrangler": "sha256:217184cf167933b565466cf0d846e8085e8a985d6b7ff828316757d3fc4932cb"
+      },
+      "licensePath": "LICENSE"
+    },
+    {
+      "id": "evanbacon-serve-sim",
+      "repository": "https://github.com/EvanBacon/serve-sim.git",
+      "ref": "main",
+      "resolved": "14ad57ff922551bf7be81e907ddfcfa6191e64f2",
+      "skillsPath": "skills",
+      "include": [
+        "serve-sim"
+      ],
+      "skills": [
+        "serve-sim"
+      ],
+      "descriptions": {
+        "serve-sim": "Control and stream a running iOS, iPad, or Apple Watch Simulator with npx serve-sim. Use for simulator preview, taps, gestures, hardware buttons, rotation, camera injection, permissions, accessibility, and CoreAnimation debug."
+      },
+      "digests": {
+        "serve-sim": "sha256:782f41d4d79100d5bfc9ec1211e5d4766e978299bbb93fd8e34c6f8d2ecf2114"
+      },
+      "licensePath": "LICENSE"
     }
   ]
 }

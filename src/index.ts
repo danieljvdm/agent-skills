@@ -83,3 +83,16 @@ export {
   type ResolvedSkillSource,
   type SkillCatalog,
 } from "./catalog.ts";
+export {
+  addCatalogSource,
+  listCatalogSources,
+  removeCatalogEntry,
+  showCatalogSource,
+  type CatalogAddOptions,
+  type CatalogCommandOptions,
+} from "./catalog-manager.ts";
+export {
+  inspectCatalogRepository,
+  type CatalogInspection,
+  type CatalogInspectOptions,
+} from "./vendor.ts";

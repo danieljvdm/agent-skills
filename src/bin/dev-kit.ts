@@ -1,15 +1,95 @@
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
-import { Command as CliCommand, Flag } from "effect/unstable/cli";
-import { Console, Effect } from "effect";
+import { Argument, CliError, Command as CliCommand, Flag } from "effect/unstable/cli";
+import { Effect, Result } from "effect";
 
+import { printError } from "../cli-ui.ts";
 import { patchEffectTsgo } from "../effect-tsgo.ts";
+import { syncEffectSource } from "../effect-source.ts";
 import { patchProjectGitignore } from "../gitignore.ts";
 import {
   DEFAULT_MANIFEST,
   runProjectSkillPlan,
 } from "../sync.ts";
 import { DEV_KIT_VERSION } from "../tool-metadata.ts";
-import { vendorExternalSkills } from "../vendor.ts";
+import { refreshSkillCatalog } from "../vendor.ts";
+import {
+  addSkills,
+  chooseSkillsToAdd,
+  chooseSkillsToRemove,
+  initProject,
+  listSkills,
+  removeSkills,
+  showDashboard,
+  showSkill,
+} from "../skill-manager.ts";
+
+const projectFlags = {
+  manifest: Flag.string("manifest").pipe(
+    Flag.withDefault(DEFAULT_MANIFEST),
+    Flag.withDescription("Project-relative manifest path."),
+  ),
+  projectDir: Flag.string("project-dir").pipe(
+    Flag.withDefault("."),
+    Flag.withDescription("Project directory (defaults to the current directory)."),
+  ),
+};
+
+const initCommand = CliCommand.make("init", projectFlags, ({ manifest, projectDir }) =>
+  initProject({ manifestPath: manifest, projectDir }),
+).pipe(CliCommand.withDescription("Initialize skill management in this project."));
+
+const addCommand = CliCommand.make(
+  "add",
+  {
+    skills: Argument.string("skills").pipe(Argument.variadic()),
+    noApply: Flag.boolean("no-apply").pipe(
+      Flag.withDescription("Update the manifest without installing yet."),
+    ),
+    ...projectFlags,
+  },
+  ({ skills, noApply, manifest, projectDir }) =>
+    skills.length === 0
+      ? chooseSkillsToAdd({ apply: !noApply, manifestPath: manifest, projectDir })
+      : addSkills(skills, { apply: !noApply, manifestPath: manifest, projectDir }),
+).pipe(CliCommand.withDescription("Select and install one or more approved skills."));
+
+const removeCommand = CliCommand.make(
+  "remove",
+  {
+    skills: Argument.string("skills").pipe(Argument.variadic()),
+    noApply: Flag.boolean("no-apply").pipe(
+      Flag.withDescription("Update the manifest without uninstalling yet."),
+    ),
+    ...projectFlags,
+  },
+  ({ skills, noApply, manifest, projectDir }) =>
+    skills.length === 0
+      ? chooseSkillsToRemove({ apply: !noApply, manifestPath: manifest, projectDir })
+      : removeSkills(skills, { apply: !noApply, manifestPath: manifest, projectDir }),
+).pipe(CliCommand.withDescription("Deselect and uninstall one or more skills."));
+
+const listCommand = CliCommand.make(
+  "list",
+  {
+    all: Flag.boolean("all").pipe(Flag.withDescription("Include unselected skills.")),
+    ...projectFlags,
+  },
+  ({ all, manifest, projectDir }) =>
+    listSkills({ all, manifestPath: manifest, projectDir }),
+).pipe(CliCommand.withDescription("List selected skills; use --all to browse the catalog."));
+
+const searchCommand = CliCommand.make(
+  "search",
+  { query: Argument.string("query").pipe(Argument.variadic({ min: 1 })), ...projectFlags },
+  ({ query, manifest, projectDir }) =>
+    listSkills({ all: true, query: query.join(" "), manifestPath: manifest, projectDir }),
+).pipe(CliCommand.withDescription("Search approved skill names and descriptions."));
+
+const infoCommand = CliCommand.make(
+  "info",
+  { skill: Argument.string("skill") },
+  ({ skill }) => showSkill(skill),
+).pipe(CliCommand.withDescription("Show provenance and details for an approved skill."));
 
 const planCommand = CliCommand.make(
   "plan",
@@ -45,6 +125,32 @@ const applyCommand = CliCommand.make(
       projectDir,
     }),
 ).pipe(CliCommand.withDescription("Apply ownership-safe project skill changes and update the lock."));
+
+const syncCommand = CliCommand.make(
+  "sync",
+  {
+    locked: Flag.boolean("locked"),
+    lockfile: Flag.string("lockfile").pipe(Flag.withDefault("dev-kit.lock.json")),
+    ...projectFlags,
+  },
+  ({ locked, lockfile, manifest, projectDir }) =>
+    runProjectSkillPlan({ locked, lockfilePath: lockfile, manifestPath: manifest, projectDir }),
+).pipe(CliCommand.withDescription("Install the skills selected in dev-kit.jsonc."));
+
+const statusCommand = CliCommand.make(
+  "status",
+  {
+    lockfile: Flag.string("lockfile").pipe(Flag.withDefault("dev-kit.lock.json")),
+    ...projectFlags,
+  },
+  ({ lockfile, manifest, projectDir }) =>
+    runProjectSkillPlan({
+      dryRun: true,
+      lockfilePath: lockfile,
+      manifestPath: manifest,
+      projectDir,
+    }),
+).pipe(CliCommand.withDescription("Check whether selected skills match the project."));
 
 const gitignoreCommand = CliCommand.make(
   "gitignore",
@@ -82,8 +188,38 @@ const tsgoCommand = CliCommand.make("tsgo").pipe(
   CliCommand.withSubcommands([tsgoPatchCommand] as const),
 );
 
-const vendorCommand = CliCommand.make(
-  "vendor",
+const effectSyncCommand = CliCommand.make(
+  "sync",
+  {
+    dryRun: Flag.boolean("dry-run"),
+    packageName: Flag.string("package").pipe(Flag.withDefault("effect")),
+    path: Flag.string("path").pipe(Flag.withDefault(".repos/effect")),
+    projectDir: Flag.string("project-dir").pipe(Flag.withDefault(".")),
+    repository: Flag.string("repository").pipe(
+      Flag.withDefault("https://github.com/Effect-TS/effect.git"),
+    ),
+  },
+  ({ dryRun, packageName, path, projectDir, repository }) =>
+    syncEffectSource({
+      dryRun,
+      packageName,
+      path,
+      projectDir,
+      repository,
+    }),
+).pipe(
+  CliCommand.withDescription(
+    "Sync a detached Effect source checkout to the installed package version.",
+  ),
+);
+
+const effectCommand = CliCommand.make("effect").pipe(
+  CliCommand.withDescription("Manage the version-matched Effect source checkout."),
+  CliCommand.withSubcommands([effectSyncCommand] as const),
+);
+
+const catalogRefreshCommand = CliCommand.make(
+  "refresh",
   {
     dryRun: Flag.boolean("dry-run"),
     locked: Flag.boolean("locked"),
@@ -92,35 +228,41 @@ const vendorCommand = CliCommand.make(
     sources: Flag.string("sources").pipe(Flag.withDefault("skill-sources.jsonc")),
   },
   ({ dryRun, locked, lockfile, repoDir, sources }) =>
-    vendorExternalSkills({
-      dryRun,
-      locked,
-      lockfilePath: lockfile,
-      repoDir,
-      sourcesPath: sources,
-    }),
-).pipe(
-  CliCommand.withDescription(
-    "Vendor pinned external skill sources into this repository's unified catalog.",
-  ),
+    refreshSkillCatalog({ dryRun, locked, lockfilePath: lockfile, repoDir, sourcesPath: sources }),
+).pipe(CliCommand.withDescription("Approve the current upstream refs as an exact catalog snapshot."));
+
+const catalogCommand = CliCommand.make("catalog").pipe(
+  CliCommand.withDescription("Maintain the approved upstream catalog."),
+  CliCommand.withSubcommands([catalogRefreshCommand] as const),
 );
 
-const command = CliCommand.make("dev-kit").pipe(
-  CliCommand.withDescription("Declarative project development toolkit."),
+const command = CliCommand.make("dev-kit", projectFlags, ({ manifest, projectDir }) =>
+  showDashboard({ manifestPath: manifest, projectDir }),
+).pipe(
+  CliCommand.withDescription("Your approved skill catalog for coding agents."),
   CliCommand.withSubcommands([
-    planCommand,
-    applyCommand,
-    gitignoreCommand,
-    tsgoCommand,
-    vendorCommand,
+    {
+      group: "Skills",
+      commands: [initCommand, addCommand, removeCommand, listCommand, searchCommand, infoCommand],
+    },
+    { group: "Project", commands: [statusCommand, syncCommand] },
+    {
+      group: "Advanced",
+      commands: [planCommand, applyCommand, gitignoreCommand, effectCommand, tsgoCommand, catalogCommand],
+    },
   ] as const),
 );
 
 const program = CliCommand.run(command, { version: DEV_KIT_VERSION }).pipe(
-  Effect.catch((error) =>
-    Console.error(error instanceof Error ? error.message : String(error)).pipe(
-      Effect.andThen(Effect.fail(error)),
-    ),
+  Effect.catchFilter(
+    (error) =>
+      CliError.isCliError(error) && error._tag === "ShowHelp"
+        ? Result.fail(error)
+        : Result.succeed(error),
+    (error) =>
+      printError(error instanceof Error ? error.message : String(error)).pipe(
+        Effect.andThen(Effect.fail(error)),
+      ),
   ),
   Effect.scoped,
   Effect.provide(NodeServices.layer),

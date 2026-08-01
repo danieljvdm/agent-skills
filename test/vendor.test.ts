@@ -89,36 +89,23 @@ const createFixture = Effect.fn("createVendorTestFixture")(function* () {
   return { aggregate, root, upstream };
 });
 
-describe("external skill vendoring", () => {
+describe("approved skill catalog", () => {
   layer(NodeServices.layer)((it) => {
-    it.effect("vendors, transforms, locks, and updates a local git source", () =>
+    it.effect("pins source metadata without copying upstream trees into the distro", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const fixture = yield* createFixture();
 
         const firstRun = yield* runDevKit(fixture.aggregate, [
-          "vendor",
+          "catalog",
+          "refresh",
           "--repo-dir",
           fixture.aggregate,
         ]);
         assert.strictEqual(firstRun.exitCode, 0, firstRun.output);
-        const firstSkill = yield* fs.readFileString(
-          path.join(fixture.aggregate, "skills", "one", "SKILL.md"),
-        );
-        assert.match(firstSkill, /version one/);
-        assert.notMatch(firstSkill, /disable-model-invocation/);
-        assert.strictEqual(
-          yield* fs.readFileString(
-            path.join(
-              fixture.aggregate,
-              "third-party",
-              "fixture-skills",
-              "LICENSE",
-            ),
-          ),
-          "test license\n",
-        );
+        assert.isFalse(yield* fs.exists(path.join(fixture.aggregate, "skills", "one")));
+        assert.isFalse(yield* fs.exists(path.join(fixture.aggregate, "third-party")));
 
         const firstLockPath = path.join(
           fixture.aggregate,
@@ -128,6 +115,7 @@ describe("external skill vendoring", () => {
         const firstLock = JSON.parse(firstLockText);
         assert.deepEqual(firstLock.sources[0].skills, ["one"]);
         assert.deepEqual(firstLock.sources[0].include, ["one"]);
+        assert.strictEqual(firstLock.sources[0].descriptions.one, "Test skill one.");
         assert.strictEqual(
           firstLock.sources[0].resolved,
           (yield* runCommandSuccess(fixture.upstream, "git", [
@@ -139,51 +127,39 @@ describe("external skill vendoring", () => {
         yield* writeSkill(fixture.upstream, "one", "version two");
         yield* commitAll(fixture.upstream, "update");
         const lockedRun = yield* runDevKit(fixture.aggregate, [
-          "vendor",
+          "catalog",
+          "refresh",
           "--locked",
           "--repo-dir",
           fixture.aggregate,
         ]);
         assert.strictEqual(lockedRun.exitCode, 0, lockedRun.output);
-        assert.match(
-          yield* fs.readFileString(
-            path.join(fixture.aggregate, "skills", "one", "SKILL.md"),
-          ),
-          /version one/,
-        );
+        assert.strictEqual(yield* fs.readFileString(firstLockPath), firstLockText);
 
         yield* writeSourceManifest(fixture.aggregate, fixture.upstream, ["two"]);
         const failedLockedRun = yield* runDevKit(fixture.aggregate, [
-          "vendor",
+          "catalog",
+          "refresh",
           "--locked",
           "--repo-dir",
           fixture.aggregate,
         ]);
         assert.notStrictEqual(failedLockedRun.exitCode, 0);
         assert.strictEqual(yield* fs.readFileString(firstLockPath), firstLockText);
-        assert.match(
-          yield* fs.readFileString(
-            path.join(fixture.aggregate, "skills", "one", "SKILL.md"),
-          ),
-          /version one/,
-        );
 
         yield* writeSourceManifest(fixture.aggregate, fixture.upstream, ["one"]);
         const updatedRun = yield* runDevKit(fixture.aggregate, [
-          "vendor",
+          "catalog",
+          "refresh",
           "--repo-dir",
           fixture.aggregate,
         ]);
         assert.strictEqual(updatedRun.exitCode, 0, updatedRun.output);
-        assert.match(
-          yield* fs.readFileString(
-            path.join(fixture.aggregate, "skills", "one", "SKILL.md"),
-          ),
-          /version two/,
-        );
+        const updatedLock = JSON.parse(yield* fs.readFileString(firstLockPath));
+        assert.notStrictEqual(updatedLock.sources[0].resolved, firstLock.sources[0].resolved);
       }));
 
-    it.effect("rejects symlinks in vendored skill paths", () =>
+    it.effect("rejects symlinks in approved skill paths", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
@@ -229,7 +205,8 @@ describe("external skill vendoring", () => {
         );
 
         const result = yield* runDevKit(aggregate, [
-          "vendor",
+          "catalog",
+          "refresh",
           "--repo-dir",
           aggregate,
         ]);
@@ -244,7 +221,8 @@ describe("external skill vendoring", () => {
         const path = yield* Path.Path;
         const fixture = yield* createFixture();
         const firstRun = yield* runDevKit(fixture.aggregate, [
-          "vendor",
+          "catalog",
+          "refresh",
           "--repo-dir",
           fixture.aggregate,
         ]);
@@ -257,7 +235,8 @@ describe("external skill vendoring", () => {
         yield* fs.writeFileString(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
 
         const result = yield* runDevKit(fixture.aggregate, [
-          "vendor",
+          "catalog",
+          "refresh",
           "--repo-dir",
           fixture.aggregate,
         ]);

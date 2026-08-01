@@ -20,6 +20,26 @@
         "prototype",
         "review-animations"
       ],
+      "descriptions": {
+        "animation-vocabulary": "Reverse-lookup glossary that turns a vague description of a web animation or motion effect into its exact term (\"the bouncy thing when a popover opens\" → Pop in; \"the iOS rubber-band scroll\" → Rubber-banding). Use when the user asks \"what's it called when…\", or describes a motion effect without knowing its name and wants the right word to prompt an AI or designer with. For naming an effect, not designing or building one.",
+        "apple-design": "Apple's approach to interface design and fluid, physical motion, translated for the web. Use when building or reviewing gesture-driven UI, spring animations, drag/swipe/sheet interactions, momentum and interruptible transitions, translucent materials and depth, typography (optical sizing, tracking, leading), reduced-motion, or the design foundations (feedback, spatial consistency, restraint) behind Apple-style interfaces.",
+        "emil-design-eng": "This skill encodes Emil Kowalski's philosophy on UI polish, component design, animation decisions, and the invisible details that make software feel great.",
+        "find-animation-opportunities": "Search a codebase or UI for places that don't animate but should, and reject everything that shouldn't. Read-only; it proposes motion with exact values, it does not implement it. Use when the user asks \"what could be animated here?\" or wants to \"make this feel more alive\". For fixing existing animations, use improve-animations or review-animations instead.",
+        "improve-animations": "Survey a codebase's animation and motion code as a senior motion advisor, then produce a prioritized audit and self-contained implementation plans for other agents (or cheaper models) to execute. Read-only on source code — it plans improvements, it does not apply them. Use when the user asks to \"improve the animations\", \"audit the motion\", \"make this app feel better\", or wants a roadmap of animation fixes rather than a review of a single diff.",
+        "pick-ui-library": "Pick the right library for a given frontend task from a curated, opinionated list — numbers, OTP inputs, charts, command menus, virtualization, drag and drop, toasts, state, styling, and more. Only runs when explicitly invoked; it does not trigger on its own.",
+        "prototype": "Build multiple genuinely different versions of a UI piece you describe, rendered behind a visual picker so you can flip through them live and promote the one that feels right. Only runs when explicitly invoked; it does not trigger on its own.",
+        "review-animations": "Reviews animation and motion code against a high craft bar derived from Emil Kowalski's design engineering philosophy. Default to flagging; approval is earned."
+      },
+      "digests": {
+        "animation-vocabulary": "sha256:d270769a8a19c8ff48489c118e19d5f86113c6acfdd0e981116ffd74b01b9e6b",
+        "apple-design": "sha256:dabc421a391bd6b2ba0d004a8f4d4a1b632fc003a45d4676ab9f2ade8099fc7b",
+        "emil-design-eng": "sha256:cedac6e0b7ff8ca471d5d2b35dc7d91f13b57ff57c4395822e677f0df7ecebc8",
+        "find-animation-opportunities": "sha256:0c6f5d397c01cb02b4fc06f45836825d5cb576c006e1a4d6eaa721f9f126835e",
+        "improve-animations": "sha256:b02183838b096282eef43bbcbdb85fd76cf0687dac188eff5174a3010f2b86ba",
+        "pick-ui-library": "sha256:f507c1caaff077d6c7f0aedf56a888ea0248894ad80b5bac4f279924db5f44a3",
+        "prototype": "sha256:564efd1ce0ee72520058eccb5f47d2f77b1ece27ae9b399edb7c121c8f9f2dd5",
+        "review-animations": "sha256:d78c312f4102c0243fb524f85d1fd999e8c413a5afbef9ac3c7fe054fbb84570"
+      },
       "licensePath": "LICENSE",
       "stripFrontmatter": [
         "disable-model-invocation"

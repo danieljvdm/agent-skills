@@ -1,5 +1,7 @@
 import { Schema } from "effect";
 
+import { DigestSchema } from "./path-digest.ts";
+
 export const ExternalSkillSourceSchema = Schema.Struct({
   id: Schema.String,
   repository: Schema.String,
@@ -27,6 +29,12 @@ export const LockedSkillSourceSchema = Schema.Struct({
   skillsPath: Schema.String,
   include: Schema.Array(Schema.String),
   skills: Schema.Array(Schema.String),
+  descriptions: Schema.optional(
+    Schema.Record(Schema.String, Schema.String),
+  ),
+  digests: Schema.optional(
+    Schema.Record(Schema.String, DigestSchema),
+  ),
   licensePath: Schema.optional(Schema.String),
   stripFrontmatter: Schema.optional(Schema.Array(Schema.String)),
 });

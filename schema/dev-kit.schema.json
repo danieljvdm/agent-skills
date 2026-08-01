@@ -17,7 +17,7 @@
         "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
       },
       "uniqueItems": true,
-      "minItems": 1
+      "minItems": 0
     },
     "exclude": {
       "description": "Skill names or family names to remove from the selected set after expanding includes.",
@@ -34,6 +34,9 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "effectSource": {
+          "$ref": "#/$defs/effectSourceSetup"
+        },
         "effectTsgo": {
           "$ref": "#/$defs/effectTsgoSetup"
         }
@@ -55,6 +58,32 @@
   },
   "required": ["include"],
   "$defs": {
+    "effectSourceSetup": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "packageName": {
+          "description": "Installed package whose exact version selects the Effect source tag.",
+          "type": "string",
+          "pattern": "^(?:[a-z0-9][a-z0-9._-]*|@[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*)$",
+          "default": "effect"
+        },
+        "path": {
+          "description": "Project-relative checkout destination.",
+          "type": "string",
+          "default": ".repos/effect"
+        },
+        "repository": {
+          "description": "Git repository containing effect@<version> tags.",
+          "type": "string",
+          "default": "https://github.com/Effect-TS/effect.git"
+        }
+      }
+    },
     "effectTsgoSetup": {
       "type": "object",
       "additionalProperties": false,

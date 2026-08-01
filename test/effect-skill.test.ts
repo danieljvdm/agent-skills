@@ -181,7 +181,7 @@ describe("shipped skills", () => {
         ]);
 
         assert.strictEqual(result.exitCode, 0, result.output);
-        assert.match(result.output, /copy dev-kit -> \.agents\/skills\/dev-kit/);
+        assert.match(result.output, /copy dev-kit → \.agents\/skills\/dev-kit/);
       }));
 
     it.effect("uses canonical dev-kit package, manifest, and schema names", () =>
@@ -191,9 +191,23 @@ describe("shipped skills", () => {
         const { root } = yield* repositoryPaths();
         const packageJson = JSON.parse(
           yield* fs.readFileString(path.join(root, "package.json")),
-        ) as { name: string };
+        ) as { name: string; scripts: Record<string, string> };
+        const selfManifest = JSON.parse(
+          yield* fs.readFileString(path.join(root, "dev-kit.jsonc")),
+        );
+        const selfLock = JSON.parse(
+          yield* fs.readFileString(path.join(root, "dev-kit.lock.json")),
+        );
 
         assert.strictEqual(packageJson.name, "@danieljvdm/dev-kit");
+        assert.strictEqual(packageJson.scripts.prepare, "./bin/dev-kit.mjs apply --locked");
+        assert.strictEqual(packageJson.scripts["dev-kit"], "./bin/dev-kit.mjs");
+        assert.deepEqual(selfManifest.include, ["dev-kit", "effect"]);
+        assert.isTrue(selfManifest.setup.effectSource.enabled);
+        assert.isTrue(selfManifest.setup.effectTsgo.enabled);
+        assert.isFalse(selfManifest.targets.agents.enabled);
+        assert.deepEqual(selfLock.outputs, []);
+        assert.strictEqual(selfLock.setup.effectSource.tag, "effect@4.0.0-beta.102");
         assert.isTrue(yield* fs.exists(path.join(root, "dev-kit.example.jsonc")));
         assert.isTrue(
           yield* fs.exists(path.join(root, "schema", "dev-kit.schema.json")),
@@ -216,7 +230,7 @@ describe("shipped skills", () => {
             projectDir,
           ]);
           assert.strictEqual(result.exitCode, 0, result.output);
-          assert.match(result.output, /copy effect-ts -> \.agents\/skills\/effect-ts/);
+          assert.match(result.output, /copy effect-ts → \.agents\/skills\/effect-ts/);
           assert.notMatch(result.output, /effect-cli|effect-patterns/);
         }
       }));

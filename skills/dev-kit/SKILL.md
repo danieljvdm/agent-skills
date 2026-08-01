@@ -8,6 +8,11 @@ description: Dev-kit operations for projects that configure dev-kit.jsonc, sync 
 Treat `dev-kit.jsonc` as desired state, `dev-kit.lock.json` as the committed
 resolution, and `.dev-kit/state.json` as local ownership receipts.
 
+Use the high-level commands for routine changes: `dev-kit init`, `dev-kit add
+<skill...>`, `dev-kit remove <skill...>`, `dev-kit list --all`, `dev-kit search
+<words...>`, and `dev-kit info <skill>`. Add and remove apply immediately unless
+passed `--no-apply`; `dev-kit sync` applies an already-edited manifest.
+
 ## Apply loop
 
 1. Establish the Git root. Read `dev-kit.jsonc`, `dev-kit.lock.json` when
@@ -83,6 +88,27 @@ For one lifecycle entry point, configure:
 }
 ```
 
+## Effect source checkout
+
+Enable the source task when agents should have canonical source matching the
+installed Effect package:
+
+```jsonc
+{
+  "setup": {
+    "effectSource": { "enabled": true }
+  }
+}
+```
+
+The task reads the exact installed `effect` version and converges the ignored
+`.repos/effect` checkout on the corresponding `effect@<version>` tag. It skips
+CI, preserves a dirty or unrelated destination, and never deletes the checkout
+when disabled. Use `dev-kit effect sync --dry-run` for focused diagnosis.
+
+Override `packageName`, `path`, or `repository` only for a compatible Effect
+distribution or a deliberate mirror.
+
 ## Effect TypeScript-Go
 
 Enable the setup task in the same manifest:
@@ -106,7 +132,8 @@ after the user accepts a potentially commit-incompatible TypeScript binary.
 
 ## Current boundary
 
-Manage skill outputs and the explicit `setup.effectTsgo` task. Edit shared
-`package.json` and `tsconfig.json` contributions deliberately. Treat repository
-cloning, named bundles, Oxlint/Oxfmt presets, and broader setup tasks as future
-manifest capabilities until the installed CLI exposes them.
+Manage skill outputs, the `setup.effectSource` checkout, and the explicit
+`setup.effectTsgo` task. Edit shared `package.json` and `tsconfig.json`
+contributions deliberately. Treat named bundles, Oxlint/Oxfmt presets, and
+broader setup tasks as future manifest capabilities until the installed CLI
+exposes them.

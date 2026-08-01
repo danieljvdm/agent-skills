@@ -16,9 +16,11 @@ export const runCommand = Effect.fn("runTestCommand")(function* (
   cwd: string,
   command: string,
   args: ReadonlyArray<string>,
+  env?: Readonly<Record<string, string>>,
 ) {
   const child = yield* ChildProcess.make(command, args, {
     cwd,
+    ...(env === undefined ? {} : { env, extendEnv: true }),
     stderr: "pipe",
     stdout: "pipe",
   });
@@ -46,6 +48,7 @@ export const runCommandSuccess = Effect.fn("runSuccessfulTestCommand")(function*
 export const runDevKit = Effect.fn("runTestDevKit")(function* (
   cwd: string,
   args: ReadonlyArray<string>,
+  env?: Readonly<Record<string, string>>,
 ) {
   const path = yield* Path.Path;
   const root = yield* repositoryRoot();
@@ -55,5 +58,5 @@ export const runDevKit = Effect.fn("runTestDevKit")(function* (
     tsx,
     path.join(root, "src", "bin", "dev-kit.ts"),
     ...args,
-  ]);
+  ], env);
 });

@@ -1,5 +1,6 @@
-import { Cause, Console, Effect, FileSystem, Path, PlatformError, Schema } from "effect";
+import { Cause, Effect, FileSystem, Path, PlatformError, Schema } from "effect";
 
+import { printStatus } from "./cli-ui.ts";
 import { observeSymbolicLink } from "./node-symbolic-link.ts";
 import { acquireProjectProcessLock } from "./project-process-lock.ts";
 
@@ -187,10 +188,10 @@ export const patchProjectGitignore = Effect.fn("patchProjectGitignore")(function
 
   if (options.dryRun) {
     const patch = yield* planGitignorePatch(projectDir);
-    yield* Console.log(
-      patch.changed
-        ? `Would update ${path.relative(projectDir, patch.path)}: add ${patch.added.join(", ")}`
-        : `${path.relative(projectDir, patch.path)} already ignores dev-kit managed paths`,
+    yield* printStatus(
+      patch.changed ? "plan" : "success",
+      patch.changed ? "Would update .gitignore" : ".gitignore up to date",
+      patch.changed ? `add ${patch.added.join(", ")}` : undefined,
     );
     return publicPatch(patch);
   }
@@ -200,10 +201,10 @@ export const patchProjectGitignore = Effect.fn("patchProjectGitignore")(function
       yield* acquireProjectProcessLock(projectDir);
       const patch = yield* planGitignorePatch(projectDir);
       yield* applyGitignorePatch(projectDir, patch);
-      yield* Console.log(
-        patch.changed
-          ? `Updated ${path.relative(projectDir, patch.path)}: added ${patch.added.join(", ")}`
-          : `${path.relative(projectDir, patch.path)} already ignores dev-kit managed paths`,
+      yield* printStatus(
+        "success",
+        patch.changed ? "Updated .gitignore" : ".gitignore up to date",
+        patch.changed ? `added ${patch.added.join(", ")}` : undefined,
       );
       return publicPatch(patch);
     }),

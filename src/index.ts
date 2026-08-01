@@ -1,11 +1,22 @@
 export {
   type DevKitManifest,
   DevKitManifestSchema,
+  type EffectSourceSetup,
+  EffectSourceSetupSchema,
   type EffectTsgoSetup,
   EffectTsgoSetupSchema,
   type HarnessTarget,
   TargetConfigSchema,
 } from "./manifest.ts";
+export {
+  applyEffectSourcePlan,
+  EffectSourceCheckoutError,
+  EffectSourceDependencyError,
+  type EffectSourceOptions,
+  type EffectSourcePlan,
+  planEffectSource,
+  syncEffectSource,
+} from "./effect-source.ts";
 export {
   CANONICAL_REPOSITORIES_DIRECTORY,
   DEV_KIT_GITIGNORE_ENTRIES,
@@ -48,13 +59,27 @@ export {
 export {
   AppliedStateSchema,
   DevKitLockSchema,
+  EffectSourceLockSchema,
   EffectTsgoLockSchema,
   ManagedSkillOutputSchema,
   OwnershipReceiptSchema,
   type AppliedState,
   type DevKitLock,
+  type EffectSourceLock,
   type EffectTsgoLock,
   type ManagedSkillOutput,
   type OwnershipReceipt,
 } from "./project-state.ts";
-export { vendorExternalSkills, type VendorOptions } from "./vendor.ts";
+export {
+  refreshSkillCatalog,
+  vendorExternalSkills,
+  type CatalogRefreshOptions,
+  type VendorOptions,
+} from "./vendor.ts";
+export {
+  loadSkillCatalog,
+  resolveSkillSources,
+  type CatalogSkill,
+  type ResolvedSkillSource,
+  type SkillCatalog,
+} from "./catalog.ts";

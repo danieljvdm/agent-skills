@@ -13,6 +13,12 @@ Use the high-level commands for routine changes: `dev-kit init`, `dev-kit add
 <words...>`, and `dev-kit info <skill>`. Add and remove apply immediately unless
 passed `--no-apply`; `dev-kit sync` applies an already-edited manifest.
 
+For distro maintenance, use `dev-kit catalog add <repository>` to inspect and
+approve upstream skills, `catalog list`/`catalog info` to review provenance,
+`catalog remove <source-or-skill>` to revoke approval, and `catalog verify` in
+CI. Pass repeated `--skill` flags or `--all` outside a terminal. Approval always
+stores explicit skill names and exact commit/content digests.
+
 ## Apply loop
 
 1. Establish the Git root. Read `dev-kit.jsonc`, `dev-kit.lock.json` when

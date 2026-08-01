@@ -98,6 +98,11 @@ the root package itself.
 | `dev-kit effect sync` | Sync `.repos/effect` to the installed Effect version. |
 | `dev-kit tsgo patch` | Validate and patch Effect TypeScript-Go directly. |
 | `dev-kit catalog refresh` | Maintainer command to approve current upstream refs. |
+| `dev-kit catalog add <repository>` | Inspect a repository and approve selected skills. |
+| `dev-kit catalog remove <source-or-skill>` | Revoke an approval (`--yes` outside a terminal). |
+| `dev-kit catalog list` | List approved upstream repositories. |
+| `dev-kit catalog info <source>` | Show a source, commit, and approved skills. |
+| `dev-kit catalog verify` | Verify the committed snapshot without advancing refs. |
 
 Options vary by command and include `--dry-run`, `--manifest`, `--lockfile`,
 and `--project-dir`. Run any command with `--help` for its complete usage.
@@ -242,6 +247,28 @@ Maintainers approve a new upstream snapshot with:
 bun run catalog:refresh
 bun run catalog:check
 ```
+
+Adding a source does not require editing JSONC:
+
+```bash
+# Opens a skill picker in a terminal
+dev-kit catalog add https://github.com/owner/repository
+
+# Explicit and automation-friendly
+dev-kit catalog add https://github.com/owner/repository \
+  --skill one --skill two
+dev-kit catalog add https://github.com/owner/repository --all
+```
+
+GitHub tree URLs are accepted, so a URL such as
+`https://github.com/owner/repository/tree/main/skills` supplies the repository,
+ref, and skills path together. `--all` expands to the skills discovered at that
+exact snapshot; it never writes a wildcard that could silently approve a future
+upstream addition.
+
+The current catalog includes approved snapshots from Emil Kowalski,
+Cloudflare, and Evan Bacon. Inspect them with `dev-kit catalog list` and
+`dev-kit catalog info <source>`.
 
 The refresh resolves refs to exact commits, validates names and paths, rejects
 symlinks and collisions, extracts short descriptions, and updates

@@ -91,6 +91,88 @@ const createFixture = Effect.fn("createVendorTestFixture")(function* () {
 
 describe("approved skill catalog", () => {
   layer(NodeServices.layer)((it) => {
+    it.effect("adds, lists, and removes approved sources without hand-editing JSONC", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const fixture = yield* createFixture();
+        const sourcesPath = path.join(fixture.aggregate, "skill-sources.jsonc");
+        yield* fs.writeFileString(sourcesPath, '{\n  // Approved upstreams.\n  "sources": []\n}\n');
+
+        const added = yield* runDevKit(fixture.aggregate, [
+          "catalog", "add", fixture.upstream,
+          "--all",
+          "--id", "fixture-skills",
+          "--ref", "main",
+          "--repo-dir", fixture.aggregate,
+        ]);
+        assert.strictEqual(added.exitCode, 0, added.output);
+        const manifestText = yield* fs.readFileString(sourcesPath);
+        assert.include(manifestText, "// Approved upstreams.");
+        const manifest = JSON.parse(manifestText.replace("// Approved upstreams.", ""));
+        assert.deepEqual(manifest.sources[0].include, ["one", "two"]);
+        assert.notInclude(manifestText, '"*"');
+        assert.isFalse(yield* fs.exists(path.join(fixture.aggregate, "skills", "one")));
+
+        const listed = yield* runDevKit(fixture.aggregate, [
+          "catalog", "list", "--repo-dir", fixture.aggregate,
+        ]);
+        assert.strictEqual(listed.exitCode, 0, listed.output);
+        assert.match(listed.output, /fixture-skills[\s\S]*2 skills/);
+
+        const beforeRemoval = yield* fs.readFileString(sourcesPath);
+        const unconfirmed = yield* runDevKit(fixture.aggregate, [
+          "catalog", "remove", "two", "--repo-dir", fixture.aggregate,
+        ]);
+        assert.notStrictEqual(unconfirmed.exitCode, 0);
+        assert.match(unconfirmed.output, /requires --yes outside a terminal/);
+        assert.strictEqual(yield* fs.readFileString(sourcesPath), beforeRemoval);
+
+        const removedSkill = yield* runDevKit(fixture.aggregate, [
+          "catalog", "remove", "two", "--yes", "--repo-dir", fixture.aggregate,
+        ]);
+        assert.strictEqual(removedSkill.exitCode, 0, removedSkill.output);
+        const afterSkill = JSON.parse(
+          (yield* fs.readFileString(sourcesPath)).replace("// Approved upstreams.", ""),
+        );
+        assert.deepEqual(afterSkill.sources[0].include, ["one"]);
+
+        const removedSource = yield* runDevKit(fixture.aggregate, [
+          "catalog", "remove", "fixture-skills", "--yes", "--repo-dir", fixture.aggregate,
+        ]);
+        assert.strictEqual(removedSource.exitCode, 0, removedSource.output);
+        const afterSource = JSON.parse(
+          (yield* fs.readFileString(sourcesPath)).replace("// Approved upstreams.", ""),
+        );
+        assert.deepEqual(afterSource.sources, []);
+        const lock = JSON.parse(
+          yield* fs.readFileString(path.join(fixture.aggregate, "skill-sources.lock.json")),
+        );
+        assert.deepEqual(lock.sources, []);
+      }));
+
+    it.effect("requires an explicit approval selection outside a terminal", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const fixture = yield* createFixture();
+        const sourcesPath = path.join(fixture.aggregate, "skill-sources.jsonc");
+        const original = '{\n  "sources": []\n}\n';
+        yield* fs.writeFileString(sourcesPath, original);
+
+        const result = yield* runDevKit(fixture.aggregate, [
+          "catalog", "add", fixture.upstream,
+          "--id", "fixture-skills",
+          "--ref", "main",
+          "--repo-dir", fixture.aggregate,
+        ]);
+
+        assert.notStrictEqual(result.exitCode, 0);
+        assert.match(result.output, /choose skills with --skill <name>, or pass --all/);
+        assert.strictEqual(yield* fs.readFileString(sourcesPath), original);
+        assert.isFalse(yield* fs.exists(path.join(fixture.aggregate, "skill-sources.lock.json")));
+      }));
+
     it.effect("pins source metadata without copying upstream trees into the distro", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;

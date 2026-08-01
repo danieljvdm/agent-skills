@@ -17,7 +17,6 @@ const skillDir = join(root, "skills", "effect-ts");
 const devKitSkillDir = join(root, "skills", "dev-kit");
 const referencesDir = join(skillDir, "references");
 const cli = resolve("src/bin/dev-kit.ts");
-const legacyCli = resolve("bin/agent-skills.mjs");
 const tsx = import.meta.resolve("tsx");
 const cliArgs = ["--import", tsx, cli];
 
@@ -136,8 +135,7 @@ test("ships dev-kit guidance as a directly selectable skill", () => {
     writeManifest(projectDir, ["dev-kit"]);
     const output = runCli(
       [
-        "sync",
-        "--dry-run",
+        "plan",
         "--project-dir",
         projectDir,
         "--manifest",
@@ -155,39 +153,7 @@ test("uses canonical dev-kit package, manifest, and schema names", () => {
   const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
   assert.equal(packageJson.name, "@danieljvdm/dev-kit");
   assert.equal(existsSync(join(root, "dev-kit.example.jsonc")), true);
-  assert.equal(existsSync(join(root, "agent-skills.example.jsonc")), false);
   assert.equal(existsSync(join(root, "schema", "dev-kit.schema.json")), true);
-
-  const legacySchema = JSON.parse(
-    readFileSync(join(root, "schema", "agent-skills.schema.json"), "utf8"),
-  );
-  assert.equal(legacySchema.$ref, "./dev-kit.schema.json");
-});
-
-test("keeps agent-skills sync as a legacy manifest compatibility entrypoint", () => {
-  const projectDir = mkdtempSync(join(tmpdir(), "dev-kit-legacy-sync-test-"));
-  try {
-    writeFileSync(
-      join(projectDir, "agent-skills.jsonc"),
-      `${JSON.stringify({ include: ["dev-kit"] }, null, 2)}\n`,
-    );
-    const output = execFileSync(
-      process.execPath,
-      [
-        "--import",
-        tsx,
-        legacyCli,
-        "sync",
-        "--dry-run",
-        "--project-dir",
-        projectDir,
-      ],
-      { cwd: projectDir, encoding: "utf8", stdio: "pipe" },
-    );
-    assert.match(output, /copy dev-kit -> \.agents\/skills\/dev-kit/);
-  } finally {
-    rmSync(projectDir, { force: true, recursive: true });
-  }
 });
 
 test("the effect family and direct skill id both select only effect-ts", () => {
@@ -197,8 +163,7 @@ test("the effect family and direct skill id both select only effect-ts", () => {
       writeManifest(projectDir, include);
       const output = runCli(
         [
-          "sync",
-          "--dry-run",
+          "plan",
           "--project-dir",
           projectDir,
           "--manifest",
@@ -223,8 +188,7 @@ test("old split Effect skill ids are no longer selectable", () => {
         process.execPath,
         [
           ...cliArgs,
-          "sync",
-          "--dry-run",
+          "plan",
           "--project-dir",
           projectDir,
           "--manifest",

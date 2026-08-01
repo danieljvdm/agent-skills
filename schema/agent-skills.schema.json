@@ -1,7 +1,0 @@
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/danieljvdm/agent-skills/main/schema/agent-skills.schema.json",
-  "title": "Legacy Dev Kit Manifest Alias",
-  "description": "Deprecated schema path. Use dev-kit.schema.json.",
-  "$ref": "./dev-kit.schema.json"
-}

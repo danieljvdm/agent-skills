@@ -10,8 +10,7 @@
   },
   "license": "MIT",
   "bin": {
-    "dev-kit": "./bin/dev-kit.mjs",
-    "agent-skills": "./bin/agent-skills.mjs"
+    "dev-kit": "./bin/dev-kit.mjs"
   },
   "exports": {
     ".": {
@@ -20,7 +19,6 @@
     },
     "./schema": "./schema/dev-kit.schema.json",
     "./schema/dev-kit.schema.json": "./schema/dev-kit.schema.json",
-    "./schema/agent-skills.schema.json": "./schema/agent-skills.schema.json",
     "./schema/skill-sources.schema.json": "./schema/skill-sources.schema.json"
   },
   "files": [
@@ -36,8 +34,6 @@
   "scripts": {
     "prepare": "./bin/dev-kit.mjs tsgo patch",
     "check": "tsc --noEmit",
-    "sync": "./bin/dev-kit.mjs sync",
-    "sync:dry": "./bin/dev-kit.mjs sync --dry-run",
     "plan": "./bin/dev-kit.mjs plan",
     "apply": "./bin/dev-kit.mjs apply",
     "gitignore": "./bin/dev-kit.mjs gitignore",

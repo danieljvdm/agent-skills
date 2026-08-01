@@ -45,12 +45,6 @@ export const DevKitManifestSchema = Schema.Struct({
 
 export type DevKitManifest = typeof DevKitManifestSchema.Type;
 
-/** @deprecated Use DevKitManifestSchema. */
-export const ManifestSchema = DevKitManifestSchema;
-
-/** @deprecated Use DevKitManifest. */
-export type AgentSkillsManifest = DevKitManifest;
-
 export type NormalizedTargetConfig = {
   readonly enabled: boolean;
   readonly mode: SyncMode;

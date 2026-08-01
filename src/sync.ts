@@ -174,7 +174,6 @@ class ApplyRaceError extends Schema.TaggedErrorClass<ApplyRaceError>()("ApplyRac
 
 const SKILL_FAMILIES: SkillCatalog = { effect: ["effect-ts"] };
 export const DEFAULT_MANIFEST = "dev-kit.jsonc";
-export const LEGACY_MANIFEST = "agent-skills.jsonc";
 const DEFAULT_LOCKFILE = "dev-kit.lock.json";
 const DEFAULT_STATE = ".dev-kit/state.json";
 
@@ -851,5 +850,3 @@ export const runProjectSkillPlan = Effect.fn("runProjectSkillPlan")(function* (o
   }
   yield* applyPlannedSkillChanges(replanned);
 });
-
-export const syncProjectSkills = runProjectSkillPlan;

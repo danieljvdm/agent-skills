@@ -6,43 +6,17 @@ import { patchEffectTsgo } from "../effect-tsgo.ts";
 import { patchProjectGitignore } from "../gitignore.ts";
 import {
   DEFAULT_MANIFEST,
-  LEGACY_MANIFEST,
   runProjectSkillPlan,
-  syncProjectSkills,
 } from "../sync.ts";
 import { DEV_KIT_VERSION } from "../tool-metadata.ts";
 import { vendorExternalSkills } from "../vendor.ts";
-
-const legacyInvocation =
-  /(?:^|[/\\])agent-skills(?:\.[^/\\]+)?$/.test(process.argv[1] ?? "");
-const executableName = legacyInvocation ? "agent-skills" : "dev-kit";
-const defaultManifest = legacyInvocation ? LEGACY_MANIFEST : DEFAULT_MANIFEST;
-
-const syncCommand = CliCommand.make(
-  "sync",
-  {
-    dryRun: Flag.boolean("dry-run"),
-    locked: Flag.boolean("locked"),
-    lockfile: Flag.string("lockfile").pipe(Flag.withDefault("dev-kit.lock.json")),
-    manifest: Flag.string("manifest").pipe(Flag.withDefault(defaultManifest)),
-    projectDir: Flag.string("project-dir").pipe(Flag.withDefault(".")),
-  },
-  ({ dryRun, locked, lockfile, manifest, projectDir }) =>
-    syncProjectSkills({
-      dryRun,
-      locked,
-      lockfilePath: lockfile,
-      manifestPath: manifest,
-      projectDir,
-    }),
-).pipe(CliCommand.withDescription("Sync selected portable skills into project-local harness paths."));
 
 const planCommand = CliCommand.make(
   "plan",
   {
     locked: Flag.boolean("locked"),
     lockfile: Flag.string("lockfile").pipe(Flag.withDefault("dev-kit.lock.json")),
-    manifest: Flag.string("manifest").pipe(Flag.withDefault(defaultManifest)),
+    manifest: Flag.string("manifest").pipe(Flag.withDefault(DEFAULT_MANIFEST)),
     projectDir: Flag.string("project-dir").pipe(Flag.withDefault(".")),
   },
   ({ locked, lockfile, manifest, projectDir }) =>
@@ -60,7 +34,7 @@ const applyCommand = CliCommand.make(
   {
     locked: Flag.boolean("locked"),
     lockfile: Flag.string("lockfile").pipe(Flag.withDefault("dev-kit.lock.json")),
-    manifest: Flag.string("manifest").pipe(Flag.withDefault(defaultManifest)),
+    manifest: Flag.string("manifest").pipe(Flag.withDefault(DEFAULT_MANIFEST)),
     projectDir: Flag.string("project-dir").pipe(Flag.withDefault(".")),
   },
   ({ locked, lockfile, manifest, projectDir }) =>
@@ -131,14 +105,13 @@ const vendorCommand = CliCommand.make(
   ),
 );
 
-const command = CliCommand.make(executableName).pipe(
+const command = CliCommand.make("dev-kit").pipe(
   CliCommand.withDescription("Declarative project development toolkit."),
   CliCommand.withSubcommands([
     planCommand,
     applyCommand,
     gitignoreCommand,
     tsgoCommand,
-    syncCommand,
     vendorCommand,
   ] as const),
 );

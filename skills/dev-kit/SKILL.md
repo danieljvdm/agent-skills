@@ -1,6 +1,6 @@
 ---
 name: dev-kit
-description: Dev-kit operations for projects that configure dev-kit.jsonc, sync portable skills, run plan/apply or locked postinstalls, maintain dev-kit.lock.json, resolve ownership conflicts, patch managed ignores, migrate legacy agent-skills inputs, or enable Effect TypeScript-Go.
+description: Dev-kit operations for projects that configure dev-kit.jsonc, sync portable skills, run plan/apply or locked postinstalls, maintain dev-kit.lock.json, resolve ownership conflicts, patch managed ignores, or enable Effect TypeScript-Go.
 ---
 
 # Dev Kit
@@ -24,9 +24,6 @@ resolution, and `.dev-kit/state.json` as local ownership receipts.
    plan reports only unchanged resources and setup tasks.
 5. Use `dev-kit apply --locked` in CI and the package lifecycle. Finish when a
    clean install converges from the committed manifest and lock.
-
-`agent-skills sync` remains a deprecated compatibility alias whose default
-manifest is `agent-skills.jsonc`. Migrate new work to `dev-kit` names.
 
 ## Manifest
 

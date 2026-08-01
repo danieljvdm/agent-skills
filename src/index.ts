@@ -1,11 +1,9 @@
 export {
-  type AgentSkillsManifest,
   type DevKitManifest,
   DevKitManifestSchema,
   type EffectTsgoSetup,
   EffectTsgoSetupSchema,
   type HarnessTarget,
-  ManifestSchema,
   TargetConfigSchema,
 } from "./manifest.ts";
 export {
@@ -44,7 +42,6 @@ export {
   planProjectSkills,
   printSkillPlan,
   runProjectSkillPlan,
-  syncProjectSkills,
   type SkillPlan,
   type SyncOptions,
 } from "./sync.ts";

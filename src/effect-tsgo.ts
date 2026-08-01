@@ -2,6 +2,7 @@ import { Console, Crypto, Effect, Encoding, FileSystem, Path, Schema, Stream } f
 import { ChildProcess } from "effect/unstable/process";
 
 import { acquireProjectProcessLock } from "./project-process-lock.ts";
+import { isTypeScriptPackageName } from "./typescript-package-name.ts";
 
 export const EFFECT_TSGO_VERSION = "0.24.3";
 export const EFFECT_TSGO_TYPESCRIPT_VERSION = "7.0.2";
@@ -51,6 +52,15 @@ export class EffectTsgoPatchCommandError extends Schema.TaggedErrorClass<EffectT
     return this.output.length > 0
       ? `${this.command} exited with code ${this.exitCode}: ${this.output}`
       : `${this.command} exited with code ${this.exitCode}`;
+  }
+}
+
+export class InvalidEffectTsgoPackageNameError extends Schema.TaggedErrorClass<InvalidEffectTsgoPackageNameError>()(
+  "InvalidEffectTsgoPackageNameError",
+  { packageName: Schema.String },
+) {
+  override get message() {
+    return `invalid native TypeScript package name: ${this.packageName}`;
   }
 }
 
@@ -162,6 +172,9 @@ export const planEffectTsgoPatch = Effect.fn("planEffectTsgoPatch")(function* (
   const path = yield* Path.Path;
   const projectDir = yield* fs.realPath(path.resolve(options.projectDir ?? "."));
   const typescriptPackage = options.typescriptPackage ?? "typescript";
+  if (!isTypeScriptPackageName(typescriptPackage)) {
+    return yield* new InvalidEffectTsgoPackageNameError({ packageName: typescriptPackage });
+  }
   const effectTsgoVersion = yield* readExactPackageVersion(
     projectDir,
     "@effect/tsgo",

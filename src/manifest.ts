@@ -1,5 +1,7 @@
 import { Schema } from "effect";
 
+import { TYPESCRIPT_PACKAGE_NAME_PATTERN } from "./typescript-package-name.ts";
+
 export type HarnessTarget = "agents" | "claude" | "opencode";
 
 export const SyncMode = Schema.Literals(["copy", "symlink"]);
@@ -16,7 +18,9 @@ export type TargetConfig = typeof TargetConfigSchema.Type;
 export const EffectTsgoSetupSchema = Schema.Struct({
   enabled: Schema.optional(Schema.Boolean),
   force: Schema.optional(Schema.Boolean),
-  typescriptPackage: Schema.optional(Schema.String),
+  typescriptPackage: Schema.optional(
+    Schema.String.check(Schema.isPattern(TYPESCRIPT_PACKAGE_NAME_PATTERN)),
+  ),
 });
 
 export type EffectTsgoSetup = typeof EffectTsgoSetupSchema.Type;

@@ -13,10 +13,22 @@ export const ManagedSkillOutputSchema = Schema.Struct({
 });
 export type ManagedSkillOutput = typeof ManagedSkillOutputSchema.Type;
 
+export const EffectTsgoLockSchema = Schema.Struct({
+  effectTsgoVersion: Schema.String,
+  typescriptPackage: Schema.String,
+  typescriptVersion: Schema.String,
+});
+export type EffectTsgoLock = typeof EffectTsgoLockSchema.Type;
+
 export const DevKitLockSchema = Schema.Struct({
   version: Schema.Literal(1),
   toolVersion: Schema.String,
   manifestDigest: DigestSchema,
+  setup: Schema.optional(
+    Schema.Struct({
+      effectTsgo: Schema.optional(EffectTsgoLockSchema),
+    }),
+  ),
   outputs: Schema.Array(ManagedSkillOutputSchema),
 });
 export type DevKitLock = typeof DevKitLockSchema.Type;

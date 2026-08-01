@@ -167,10 +167,24 @@ test("one manifest-driven apply runs the Effect tsgo setup task exactly once", (
     assert.equal(applied.status, 0, applied.stderr);
     assert.equal(readFileSync(marker, "utf8"), "1");
 
+    const lockPath = join(projectDir, "dev-kit.lock.json");
+    const lock = JSON.parse(readFileSync(lockPath, "utf8"));
+    assert.deepEqual(lock.setup.effectTsgo, {
+      effectTsgoVersion: EFFECT_TSGO_VERSION,
+      typescriptPackage: "typescript",
+      typescriptVersion: EFFECT_TSGO_TYPESCRIPT_VERSION,
+    });
+
     const postinstall = runCli(projectDir, ["apply", "--locked"]);
     assert.equal(postinstall.status, 0, postinstall.stderr);
     assert.match(postinstall.stdout, /unchanged effect-tsgo@0\.24\.3/);
     assert.equal(readFileSync(marker, "utf8"), "1");
+
+    lock.setup.effectTsgo.effectTsgoVersion = "0.0.0";
+    writeFileSync(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
+    const mismatched = runCli(projectDir, ["apply", "--locked"]);
+    assert.notEqual(mismatched.status, 0);
+    assert.match(mismatched.stderr, /manifest or packaged skills differ/);
   } finally {
     rmSync(projectDir, { force: true, recursive: true });
   }
@@ -280,6 +294,51 @@ test("locked apply rejects manifest drift without cleanup", () => {
     assert.equal(JSON.parse(readFileSync(join(projectDir, "dev-kit.lock.json"), "utf8")).outputs.length, 1);
   } finally {
     rmSync(projectDir, { force: true, recursive: true });
+  }
+});
+
+test("locked apply migrates local ownership state from a previously applied lock", () => {
+  const projectDir = createProject();
+  const nextProjectDir = createProject();
+  try {
+    assert.equal(runCli(projectDir, ["apply"]).status, 0);
+    writeManifest(projectDir, { agentsEnabled: false });
+
+    writeManifest(nextProjectDir, { agentsEnabled: false });
+    assert.equal(runCli(nextProjectDir, ["apply"]).status, 0);
+    cpSync(
+      join(nextProjectDir, "dev-kit.lock.json"),
+      join(projectDir, "dev-kit.lock.json"),
+    );
+
+    const result = runCli(projectDir, ["apply", "--locked"]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /remove skill:effect-ts@agents/);
+    assert.equal(existsSync(join(projectDir, ".agents", "skills", "effect-ts")), false);
+    assert.deepEqual(
+      JSON.parse(readFileSync(join(projectDir, ".dev-kit", "state.json"), "utf8")).outputs,
+      [],
+    );
+  } finally {
+    rmSync(projectDir, { force: true, recursive: true });
+    rmSync(nextProjectDir, { force: true, recursive: true });
+  }
+});
+
+test("apply rejects lockfile paths that overlap toolkit metadata or managed outputs", () => {
+  for (const lockfile of [
+    ".dev-kit/state.json",
+    ".agents/skills/effect-ts/dev-kit.lock.json",
+  ]) {
+    const projectDir = createProject();
+    try {
+      const result = runCli(projectDir, ["apply", "--lockfile", lockfile]);
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /overlaps/);
+      assert.equal(existsSync(join(projectDir, ".agents")), false);
+    } finally {
+      rmSync(projectDir, { force: true, recursive: true });
+    }
   }
 });
 

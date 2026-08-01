@@ -81,9 +81,9 @@ agent-skills sync --dry-run
 ```
 
 `plan` is read-only. `apply` writes only destinations selected by the manifest,
-then records the resolved output digests in `dev-kit.lock.json` and local
-ownership receipts in `.dev-kit/state.json`. Commit `dev-kit.lock.json`; do not
-commit `.dev-kit/`.
+then records the resolved output digests and setup-tool versions in
+`dev-kit.lock.json`, with local ownership receipts in `.dev-kit/state.json`.
+Commit `dev-kit.lock.json`; do not commit `.dev-kit/`.
 
 An existing destination is never adopted merely because it currently matches.
 It must either have a matching local ownership receipt or exactly match a

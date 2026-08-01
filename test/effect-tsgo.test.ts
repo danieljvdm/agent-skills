@@ -111,5 +111,32 @@ describe("Effect tsgo patch", () => {
           "@typescript/native",
         ]);
       }));
+
+    it.effect("rejects package names that can escape node_modules", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const projectDir = yield* fs.makeTempDirectoryScoped({
+          prefix: "dev-kit-tsgo-test-",
+        });
+
+        for (const packageName of [
+          "../typescript",
+          "@scope/../../typescript",
+          "@scope/name/extra",
+          "/typescript",
+          "typescript\\..\\escape",
+          "@scope/",
+          "@scope",
+          "",
+        ]) {
+          const error = yield* Effect.flip(
+            planEffectTsgoPatch({ projectDir, typescriptPackage: packageName }),
+          );
+          assert.strictEqual(error._tag, "InvalidEffectTsgoPackageNameError");
+          if (error._tag === "InvalidEffectTsgoPackageNameError") {
+            assert.strictEqual(error.packageName, packageName);
+          }
+        }
+      }));
   });
 });

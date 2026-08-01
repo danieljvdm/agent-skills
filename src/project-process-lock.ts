@@ -1,5 +1,9 @@
 import { Cause, Crypto, DateTime, Effect, FileSystem, Path, Schema } from "effect";
 
+import { DEV_KIT_VERSION } from "./tool-metadata.ts";
+
+export const PROJECT_PROCESS_LOCK_PATH = ".dev-kit/apply.lock";
+
 export class ProjectAlreadyLockedError extends Schema.TaggedErrorClass<ProjectAlreadyLockedError>()(
   "ProjectAlreadyLockedError",
   { path: Schema.String },
@@ -15,15 +19,15 @@ export const acquireProjectProcessLock = Effect.fn("acquireProjectProcessLock")(
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const crypto = yield* Crypto.Crypto;
-  const stateDir = path.join(projectDir, ".dev-kit");
-  const lockDir = path.join(stateDir, "apply.lock");
+  const lockDir = path.join(projectDir, ...PROJECT_PROCESS_LOCK_PATH.split("/"));
+  const stateDir = path.dirname(lockDir);
   const ownerPath = path.join(lockDir, "owner.json");
   const token = yield* crypto.randomUUIDv7;
   const startedAt = DateTime.formatIso(yield* DateTime.now);
   const ownerContents = `${JSON.stringify(
     {
       version: 1,
-      toolVersion: "0.1.0",
+      toolVersion: DEV_KIT_VERSION,
       token,
       startedAt,
     },

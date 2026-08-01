@@ -71,6 +71,7 @@
         "typescriptPackage": {
           "description": "Project-local native TypeScript package or alias for effect-tsgo to patch.",
           "type": "string",
+          "pattern": "^(?:[a-z0-9][a-z0-9._-]*|@[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*)$",
           "default": "typescript"
         }
       }

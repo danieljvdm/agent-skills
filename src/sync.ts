@@ -22,9 +22,13 @@ import {
   type ManagedSkillOutput,
   type OwnershipReceipt,
 } from "./project-state.ts";
-import { acquireProjectProcessLock } from "./project-process-lock.ts";
+import {
+  acquireProjectProcessLock,
+  PROJECT_PROCESS_LOCK_PATH,
+} from "./project-process-lock.ts";
 import { observeSymbolicLink } from "./node-symbolic-link.ts";
 import { SkillSourcesLockSchema } from "./source-manifest.ts";
+import { DEV_KIT_VERSION } from "./tool-metadata.ts";
 
 export type SyncOptions = {
   readonly manifestPath?: string;
@@ -172,7 +176,6 @@ const SKILL_FAMILIES: SkillCatalog = { effect: ["effect-ts"] };
 const DEFAULT_MANIFEST = "agent-skills.jsonc";
 const DEFAULT_LOCKFILE = "dev-kit.lock.json";
 const DEFAULT_STATE = ".dev-kit/state.json";
-const TOOL_VERSION = "0.1.0";
 
 const resolvePackageRoot = Effect.fn("resolvePackageRoot")(function* () {
   const path = yield* Path.Path;
@@ -304,9 +307,6 @@ const expandSelection = (
 const portablePath = (path: Path.Path, value: string): string =>
   path.sep === "/" ? value : value.split(path.sep).join("/");
 
-const nativePath = (path: Path.Path, value: string): string =>
-  path.sep === "/" ? value : value.split("/").join(path.sep);
-
 const resolveManagedPath = Effect.fn("resolveManagedPath")(function* (
   projectDir: string,
   candidate: string,
@@ -335,6 +335,39 @@ const resolveManagedPath = Effect.fn("resolveManagedPath")(function* (
     }
   }
   return { absolute, relative: portablePath(path, relative) } satisfies ManagedPath;
+});
+
+const pathsOverlap = (left: string, right: string): boolean =>
+  left === right || left.startsWith(`${right}/`) || right.startsWith(`${left}/`);
+
+const validateReservedPaths = Effect.fn("validateReservedPaths")(function* (
+  projectDir: string,
+  reserved: ReadonlyArray<{ readonly label: string; readonly path: string }>,
+  outputs: ReadonlyArray<Pick<ManagedSkillOutput | OwnershipReceipt, "path">>,
+) {
+  const outputPaths = new Set<string>();
+  for (const output of outputs) {
+    outputPaths.add((yield* resolveManagedPath(projectDir, output.path)).relative);
+  }
+
+  for (let index = 0; index < reserved.length; index += 1) {
+    const current = reserved[index];
+    if (current === undefined) continue;
+    for (const other of reserved.slice(index + 1)) {
+      if (pathsOverlap(current.path, other.path)) {
+        return yield* new InvalidProjectStateError({
+          message: `${current.label} path ${current.path} overlaps ${other.label} path ${other.path}`,
+        });
+      }
+    }
+    for (const outputPath of outputPaths) {
+      if (pathsOverlap(current.path, outputPath)) {
+        return yield* new InvalidProjectStateError({
+          message: `${current.label} path ${current.path} overlaps managed output ${outputPath}`,
+        });
+      }
+    }
+  }
 });
 
 const outputIdentity = (output: Pick<ManagedSkillOutput, "resourceId" | "path" | "mode" | "kind" | "digest">) =>
@@ -467,16 +500,6 @@ const planDesiredOutputs = Effect.fn("planDesiredSkillOutputs")(function* (
   if (currentLock) yield* validateInventory(projectDir, currentLock.outputs, "dev-kit lock");
   if (currentState) yield* validateInventory(projectDir, currentState.outputs, "applied state");
   yield* validateCrossInventoryPaths(projectDir, [...desired, ...(currentState?.outputs ?? [])]);
-  if (currentState) {
-    if (!currentLock) {
-      return yield* new InvalidProjectStateError({ message: "applied state exists without dev-kit.lock.json" });
-    }
-    const actualLockDigest = yield* digestText(canonicalLock(currentLock));
-    if (currentState.appliedLockDigest !== actualLockDigest) {
-      return yield* new InvalidProjectStateError({ message: "applied state does not match dev-kit.lock.json" });
-    }
-  }
-
   const lockById = new Map(currentLock?.outputs.map((output) => [output.resourceId, output]) ?? []);
   const receiptsById = new Map(currentState?.outputs.map((output) => [output.resourceId, output]) ?? []);
   const desiredKeys = new Set(desired.map((output) => `${output.resourceId}\0${output.path}`));
@@ -545,6 +568,7 @@ const planDesiredOutputs = Effect.fn("planDesiredSkillOutputs")(function* (
 const lockedPlanMatches = (current: DevKitLock, next: DevKitLock): boolean =>
   current.toolVersion === next.toolVersion &&
   current.manifestDigest === next.manifestDigest &&
+  JSON.stringify(current.setup) === JSON.stringify(next.setup) &&
   current.outputs.length === next.outputs.length &&
   current.outputs.every((output, index) => {
     const nextOutput = next.outputs[index];
@@ -566,6 +590,7 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
   const manifestManaged = yield* resolveManagedPath(projectDir, options.manifestPath ?? DEFAULT_MANIFEST);
   const lockManaged = yield* resolveManagedPath(projectDir, options.lockfilePath ?? DEFAULT_LOCKFILE);
   const stateManaged = yield* resolveManagedPath(projectDir, options.statePath ?? DEFAULT_STATE);
+  const processLockManaged = yield* resolveManagedPath(projectDir, PROJECT_PROCESS_LOCK_PATH);
   const packageRoot = yield* resolvePackageRoot();
   const manifest = normalizeManifest(yield* readManifest(manifestManaged.absolute));
   const effectTsgo = manifest.setup.effectTsgo.enabled
@@ -590,8 +615,19 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
   const desired = yield* buildDesiredOutputs(projectDir, packageRoot, selectedSkills, manifest.targets);
   const nextLock: DevKitLock = {
     version: 1,
-    toolVersion: TOOL_VERSION,
+    toolVersion: DEV_KIT_VERSION,
     manifestDigest: yield* digestText(JSON.stringify(manifest)),
+    setup: {
+      ...(effectTsgo === undefined
+        ? {}
+        : {
+            effectTsgo: {
+              effectTsgoVersion: effectTsgo.effectTsgoVersion,
+              typescriptPackage: effectTsgo.typescriptPackage,
+              typescriptVersion: effectTsgo.typescriptVersion,
+            },
+          }),
+    },
     outputs: desired.map(({ resourceId, path: outputPath, skill, target, mode, kind, digest }) => ({
       resourceId,
       path: outputPath,
@@ -602,8 +638,23 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
       digest,
     })),
   };
+  const reservedPaths = [
+    { label: "manifest", path: manifestManaged.relative },
+    { label: "lockfile", path: lockManaged.relative },
+    { label: "state", path: stateManaged.relative },
+    { label: "process lock", path: processLockManaged.relative },
+  ];
+  yield* validateReservedPaths(projectDir, reservedPaths, desired);
   const currentLock = yield* readOptionalStructuredFile(lockManaged.absolute, DevKitLockSchema);
   const currentState = yield* readOptionalStructuredFile(stateManaged.absolute, AppliedStateSchema);
+  yield* validateReservedPaths(
+    projectDir,
+    reservedPaths,
+    [
+      ...(currentLock?.outputs ?? []),
+      ...(currentState?.outputs ?? []),
+    ],
+  );
   if (options.locked) {
     if (!currentLock) {
       return yield* new LockedPlanMismatchError({ message: "dev-kit.lock.json is required with --locked" });

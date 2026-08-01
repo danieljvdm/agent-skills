@@ -21,6 +21,7 @@ export {
   EFFECT_TSGO_TYPESCRIPT_VERSION,
   EFFECT_TSGO_VERSION,
   EffectTsgoDependencyError,
+  InvalidEffectTsgoPackageNameError,
   type EffectTsgoPatchOptions,
   type EffectTsgoPatchPlan,
   EffectTsgoPatchCommandError,
@@ -48,10 +49,12 @@ export {
 export {
   AppliedStateSchema,
   DevKitLockSchema,
+  EffectTsgoLockSchema,
   ManagedSkillOutputSchema,
   OwnershipReceiptSchema,
   type AppliedState,
   type DevKitLock,
+  type EffectTsgoLock,
   type ManagedSkillOutput,
   type OwnershipReceipt,
 } from "./project-state.ts";

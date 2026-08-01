@@ -14,18 +14,18 @@ collection of unrelated postinstall scripts. It can:
 
 ## Quick start
 
-Install Dev Kit from GitHub:
+Install the published Dev Kit package:
 
 ```bash
-bun add -d github:danieljvdm/agent-skills
+bun add -d @danieljvdm/dev-kit
 ```
 
 Initialize the project, browse the approved catalog, and add skills:
 
 ```bash
-bunx dev-kit init
-bunx dev-kit list --all
-bunx dev-kit add dev-kit effect
+bun x dev-kit init
+bun x dev-kit list --all
+bun x dev-kit add dev-kit effect
 ```
 
 `add` updates `dev-kit.jsonc` and applies the selection immediately. The
@@ -49,8 +49,8 @@ or use `--no-apply` to edit the manifest without syncing yet.
 For review-first workflows, edit the manifest or pass `--no-apply`, then:
 
 ```bash
-bunx dev-kit plan
-bunx dev-kit apply
+bun x dev-kit plan
+bun x dev-kit apply
 ```
 
 Commit the generated `dev-kit.lock.json`, then use locked mode in your package
@@ -135,7 +135,13 @@ tool versions. A project-local process lock also prevents concurrent applies.
 ```jsonc
 {
   "$schema": "./node_modules/@danieljvdm/dev-kit/schema/dev-kit.schema.json",
-  "include": ["dev-kit", "effect", "emilkowalski-skills"],
+  "include": [
+    "dev-kit",
+    "effect",
+    "cloudflare-skills",
+    "serve-sim",
+    "emilkowalski-skills"
+  ],
   "exclude": ["animation-vocabulary"],
   "targets": {
     "agents": { "enabled": true, "mode": "copy" },
@@ -147,7 +153,10 @@ tool versions. A project-local process lock also prevents concurrent applies.
 
 - `dev-kit` installs guidance for operating the toolkit itself.
 - `effect` expands to the consolidated `effect-ts` skill.
-- An approved source ID selects every skill from that catalog source.
+- `cloudflare-skills` and `emilkowalski-skills` select every skill approved from
+  those catalog sources.
+- `serve-sim` selects the approved Evan Bacon simulator skill directly.
+- Any approved source ID selects every skill from that catalog source.
 - An individual catalog skill can be selected directly.
 
 Dev Kit reserves `.repos/<source-id>` for project-local source checkouts. Run
@@ -196,7 +205,7 @@ Pin the compatible packages in the consuming project:
 ```jsonc
 {
   "devDependencies": {
-    "@danieljvdm/dev-kit": "github:danieljvdm/agent-skills",
+    "@danieljvdm/dev-kit": "0.2.0",
     "@effect/tsgo": "0.24.3",
     "typescript": "7.0.2"
   }

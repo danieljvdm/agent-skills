@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/danieljvdm/agent-skills/main/schema/agent-skills.schema.json",
-  "title": "Agent Skills Manifest",
-  "description": "Project-local opt-in manifest for syncing portable agent skills into harness discovery paths.",
+  "$id": "https://raw.githubusercontent.com/danieljvdm/agent-skills/main/schema/dev-kit.schema.json",
+  "title": "Dev Kit Manifest",
+  "description": "Project-local desired state for portable skills and explicit dev-kit setup tasks.",
   "type": "object",
   "additionalProperties": false,
   "properties": {

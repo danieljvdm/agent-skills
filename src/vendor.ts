@@ -740,7 +740,7 @@ export const vendorExternalSkills = Effect.fn("vendorExternalSkills")(function* 
 
   const tempDir = yield* fs.makeTempDirectoryScoped({
     directory: repoDir,
-    prefix: ".agent-skills-vendor-",
+    prefix: ".dev-kit-vendor-",
   });
   const prepared = yield* Effect.forEach(
     manifest.sources,

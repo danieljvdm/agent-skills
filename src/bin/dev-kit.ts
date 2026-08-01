@@ -4,34 +4,19 @@ import { Console, Effect } from "effect";
 
 import { patchEffectTsgo } from "../effect-tsgo.ts";
 import { patchProjectGitignore } from "../gitignore.ts";
-import { runProjectSkillPlan, syncProjectSkills } from "../sync.ts";
+import {
+  DEFAULT_MANIFEST,
+  runProjectSkillPlan,
+} from "../sync.ts";
+import { DEV_KIT_VERSION } from "../tool-metadata.ts";
 import { vendorExternalSkills } from "../vendor.ts";
-
-const syncCommand = CliCommand.make(
-  "sync",
-  {
-    dryRun: Flag.boolean("dry-run"),
-    locked: Flag.boolean("locked"),
-    lockfile: Flag.string("lockfile").pipe(Flag.withDefault("dev-kit.lock.json")),
-    manifest: Flag.string("manifest").pipe(Flag.withDefault("agent-skills.jsonc")),
-    projectDir: Flag.string("project-dir").pipe(Flag.withDefault(".")),
-  },
-  ({ dryRun, locked, lockfile, manifest, projectDir }) =>
-    syncProjectSkills({
-      dryRun,
-      locked,
-      lockfilePath: lockfile,
-      manifestPath: manifest,
-      projectDir,
-    }),
-).pipe(CliCommand.withDescription("Sync selected agent skills into project-local harness paths."));
 
 const planCommand = CliCommand.make(
   "plan",
   {
     locked: Flag.boolean("locked"),
     lockfile: Flag.string("lockfile").pipe(Flag.withDefault("dev-kit.lock.json")),
-    manifest: Flag.string("manifest").pipe(Flag.withDefault("agent-skills.jsonc")),
+    manifest: Flag.string("manifest").pipe(Flag.withDefault(DEFAULT_MANIFEST)),
     projectDir: Flag.string("project-dir").pipe(Flag.withDefault(".")),
   },
   ({ locked, lockfile, manifest, projectDir }) =>
@@ -49,7 +34,7 @@ const applyCommand = CliCommand.make(
   {
     locked: Flag.boolean("locked"),
     lockfile: Flag.string("lockfile").pipe(Flag.withDefault("dev-kit.lock.json")),
-    manifest: Flag.string("manifest").pipe(Flag.withDefault("agent-skills.jsonc")),
+    manifest: Flag.string("manifest").pipe(Flag.withDefault(DEFAULT_MANIFEST)),
     projectDir: Flag.string("project-dir").pipe(Flag.withDefault(".")),
   },
   ({ locked, lockfile, manifest, projectDir }) =>
@@ -120,21 +105,18 @@ const vendorCommand = CliCommand.make(
   ),
 );
 
-const executableName = process.argv[1]?.endsWith("dev-kit.mjs") ? "dev-kit" : "agent-skills";
-
-const command = CliCommand.make(executableName).pipe(
+const command = CliCommand.make("dev-kit").pipe(
   CliCommand.withDescription("Declarative project development toolkit."),
   CliCommand.withSubcommands([
     planCommand,
     applyCommand,
     gitignoreCommand,
     tsgoCommand,
-    syncCommand,
     vendorCommand,
   ] as const),
 );
 
-const program = CliCommand.run(command, { version: "0.1.0" }).pipe(
+const program = CliCommand.run(command, { version: DEV_KIT_VERSION }).pipe(
   Effect.catch((error) =>
     Console.error(error instanceof Error ? error.message : String(error)).pipe(
       Effect.andThen(Effect.fail(error)),

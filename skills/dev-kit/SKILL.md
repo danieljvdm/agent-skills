@@ -1,19 +1,19 @@
 ---
 name: dev-kit
-description: Dev-kit operations for projects that configure agent-skills.jsonc, sync portable skills, run plan/apply or locked postinstalls, maintain dev-kit.lock.json, resolve ownership conflicts, patch managed ignores, or enable Effect TypeScript-Go.
+description: Dev-kit operations for projects that configure dev-kit.jsonc, sync portable skills, run plan/apply or locked postinstalls, maintain dev-kit.lock.json, resolve ownership conflicts, patch managed ignores, or enable Effect TypeScript-Go.
 ---
 
 # Dev Kit
 
-Treat `agent-skills.jsonc` as desired state, `dev-kit.lock.json` as the committed
+Treat `dev-kit.jsonc` as desired state, `dev-kit.lock.json` as the committed
 resolution, and `.dev-kit/state.json` as local ownership receipts.
 
 ## Apply loop
 
-1. Establish the Git root. Read `agent-skills.jsonc`, `dev-kit.lock.json` when
+1. Establish the Git root. Read `dev-kit.jsonc`, `dev-kit.lock.json` when
    present, `package.json`, and the configured target paths. Finish with the
    intended skill selection, targets, and setup tasks identified.
-2. Update `agent-skills.jsonc`. Preserve JSONC comments and validate against the
+2. Update `dev-kit.jsonc`. Preserve JSONC comments and validate against the
    package schema. Finish when every desired resource is represented once.
 3. Run `dev-kit plan`. Use `--manifest`, `--project-dir`, or `--lockfile` when
    the project overrides their defaults. Planning is read-only; inspect every
@@ -25,8 +25,6 @@ resolution, and `.dev-kit/state.json` as local ownership receipts.
 5. Use `dev-kit apply --locked` in CI and the package lifecycle. Finish when a
    clean install converges from the committed manifest and lock.
 
-`agent-skills sync` remains a compatibility alias for `dev-kit apply`.
-
 ## Manifest
 
 Use skill names or family names in `include`; subtract selections with
@@ -35,7 +33,7 @@ toolkit procedure.
 
 ```jsonc
 {
-  "$schema": "./node_modules/@danieljvdm/agent-skills/schema/agent-skills.schema.json",
+  "$schema": "./node_modules/@danieljvdm/dev-kit/schema/dev-kit.schema.json",
   "include": ["dev-kit", "effect"],
   "exclude": [],
   "targets": {

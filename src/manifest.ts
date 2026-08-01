@@ -25,7 +25,7 @@ export const EffectTsgoSetupSchema = Schema.Struct({
 
 export type EffectTsgoSetup = typeof EffectTsgoSetupSchema.Type;
 
-export const ManifestSchema = Schema.Struct({
+export const DevKitManifestSchema = Schema.Struct({
   $schema: Schema.optional(Schema.String),
   include: Schema.Array(Schema.String),
   exclude: Schema.optional(Schema.Array(Schema.String)),
@@ -43,7 +43,7 @@ export const ManifestSchema = Schema.Struct({
   ),
 });
 
-export type AgentSkillsManifest = typeof ManifestSchema.Type;
+export type DevKitManifest = typeof DevKitManifestSchema.Type;
 
 export type NormalizedTargetConfig = {
   readonly enabled: boolean;
@@ -76,7 +76,7 @@ const DEFAULT_TARGETS: Readonly<Record<HarnessTarget, NormalizedTargetConfig>> =
   opencode: { enabled: false, mode: "symlink", path: DEFAULT_TARGET_PATHS.opencode },
 };
 
-export const normalizeManifest = (manifest: AgentSkillsManifest): NormalizedManifest => {
+export const normalizeManifest = (manifest: DevKitManifest): NormalizedManifest => {
   const targets = {
     ...DEFAULT_TARGETS,
   };

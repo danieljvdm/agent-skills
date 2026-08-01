@@ -1,21 +1,30 @@
-# Agent Skills
+# Dev Kit
 
-Portable agent skills plus a project-local sync CLI. This repository is the
-distribution boundary: projects install skills from here even when some of
-them are maintained elsewhere.
+Portable agent skills and reproducible project setup, managed from one manifest.
 
-## Install
+Dev Kit gives every project the same development conventions without requiring a
+collection of unrelated postinstall scripts. It can:
+
+- install selected skills for Codex, Claude, and OpenCode;
+- run explicit setup tasks such as Effect TypeScript-Go patching;
+- preview changes before writing them;
+- lock resolved outputs for reproducible installs; and
+- detect ownership conflicts without overwriting user files.
+
+## Quick start
+
+Install Dev Kit from GitHub:
 
 ```bash
 bun add -d github:danieljvdm/agent-skills
 ```
 
-Create `agent-skills.jsonc` in a project:
+Create `dev-kit.jsonc`:
 
 ```jsonc
 {
-  "$schema": "./node_modules/@danieljvdm/agent-skills/schema/agent-skills.schema.json",
-  "include": ["dev-kit", "effect", "emilkowalski-skills"],
+  "$schema": "./node_modules/@danieljvdm/dev-kit/schema/dev-kit.schema.json",
+  "include": ["dev-kit", "effect"],
   "targets": {
     "agents": { "enabled": true, "mode": "copy" },
     "claude": { "enabled": true, "mode": "symlink" }
@@ -23,26 +32,70 @@ Create `agent-skills.jsonc` in a project:
 }
 ```
 
-Preview and apply selected skills:
+Preview and apply the configuration:
 
 ```bash
 bunx dev-kit plan
 bunx dev-kit apply
 ```
 
-`agent-skills sync` remains available as a compatibility alias for
-`dev-kit apply`.
-
-## Manifest
-
-`agent-skills.jsonc` is intentionally project-local. A repo opts into only the
-skills it wants:
+Commit the generated `dev-kit.lock.json`, then use locked mode in your package
+lifecycle:
 
 ```jsonc
 {
-  "$schema": "./node_modules/@danieljvdm/agent-skills/schema/agent-skills.schema.json",
-  "include": ["dev-kit", "effect"],
-  "exclude": [],
+  "scripts": {
+    "postinstall": "dev-kit apply --locked"
+  }
+}
+```
+
+That single postinstall applies every task enabled in `dev-kit.jsonc`.
+
+## Commands
+
+| Command | Purpose |
+| --- | --- |
+| `dev-kit plan` | Preview project changes without writing files. |
+| `dev-kit apply` | Apply the manifest and update `dev-kit.lock.json`. |
+| `dev-kit apply --locked` | Reproduce the committed lock or fail on drift. |
+| `dev-kit gitignore` | Add `.repos/` and `.dev-kit/` to `.gitignore`. |
+| `dev-kit tsgo patch` | Validate and patch Effect TypeScript-Go directly. |
+| `dev-kit vendor` | Update this repository's pinned external skills. |
+
+Options vary by command and include `--dry-run`, `--manifest`, `--lockfile`,
+and `--project-dir`. Run any command with `--help` for its complete usage.
+
+## How it works
+
+Dev Kit uses three project-local files:
+
+| Path | Role | Commit it? |
+| --- | --- | --- |
+| `dev-kit.jsonc` | Desired skills, targets, and setup tasks. | Yes |
+| `dev-kit.lock.json` | Resolved content digests and setup-tool versions. | Yes |
+| `.dev-kit/state.json` | Local ownership receipts used during apply and cleanup. | No |
+
+Skills are copied into `.agents/skills` by default. Other harness targets can
+copy or symlink those project-local skills.
+
+Dev Kit only changes paths represented by the manifest. Existing unknown files,
+modified managed files, and unsafe symlink paths are reported as conflicts and
+left untouched. Cleanup removes only unchanged outputs with a matching local
+ownership receipt.
+
+Locked mode rejects changes to the manifest, packaged skill content, or setup
+tool versions. A project-local process lock also prevents concurrent applies.
+
+## Manifest
+
+`include` accepts individual skill names and skill families:
+
+```jsonc
+{
+  "$schema": "./node_modules/@danieljvdm/dev-kit/schema/dev-kit.schema.json",
+  "include": ["dev-kit", "effect", "emilkowalski-skills"],
+  "exclude": ["animation-vocabulary"],
   "targets": {
     "agents": { "enabled": true, "mode": "copy" },
     "claude": { "enabled": true, "mode": "symlink" },
@@ -51,70 +104,21 @@ skills it wants:
 }
 ```
 
-`include` accepts family names or individual skill names. The first family is
-`effect`, which expands to the consolidated `effect-ts` skill. Its focused
-references cover core Effect, schemas, errors, services and layers,
-observability, retries, schedules, SQL, testing, HTTP boundaries, service
-audits, type safety, and Effect-powered CLI tooling. Vendored source ids are
-families too, so `emilkowalski-skills` expands to every skill imported from that
-source. A project can instead select an individual imported skill, such as
-`animation-vocabulary`.
+- `dev-kit` installs guidance for operating the toolkit itself.
+- `effect` expands to the consolidated `effect-ts` skill.
+- A vendored source ID selects all skills imported from that source.
+- An individual imported skill can be selected directly.
 
-Include `dev-kit` to give project agents the toolkit's apply, lock, ownership,
-conflict, gitignore, and Effect TypeScript-Go procedure.
-
-By default, the sync command copies selected skills into `.agents/skills`.
-Symlink targets, such as `.claude/skills`, point at those project-local copies.
-
-## Commands
-
-```bash
-dev-kit plan
-dev-kit apply
-dev-kit apply --locked
-dev-kit gitignore
-dev-kit gitignore --dry-run
-dev-kit tsgo patch --dry-run
-dev-kit tsgo patch
-dev-kit apply --manifest agent-skills.jsonc --project-dir .
-
-# compatibility commands
-agent-skills sync
-agent-skills sync --dry-run
-```
-
-`plan` is read-only. `apply` writes only destinations selected by the manifest,
-then records the resolved output digests and setup-tool versions in
-`dev-kit.lock.json`, with local ownership receipts in `.dev-kit/state.json`.
-Commit `dev-kit.lock.json`; do not commit `.dev-kit/`.
-
-An existing destination is never adopted merely because it currently matches.
-It must either have a matching local ownership receipt or exactly match a
-committed lockfile entry. Modified owned outputs and unknown destinations are
-reported as conflicts and preserved. Cleanup follows the same rule: dev-kit
-removes only outputs that its local receipt owns and that still have their
-recorded digest.
-
-Use `--locked` in CI or postinstall automation. It refuses to apply when the
-manifest or packaged skill content differs from `dev-kit.lock.json`. Apply also
-uses a project-local process lock at `.dev-kit/apply.lock` to prevent concurrent
-writes.
-
-Dev-kit reserves `.repos/<source-id>` as the canonical location for
-project-local source checkouts. It does not use `repos/`. Run
-`dev-kit gitignore` to idempotently add `.repos/` and the local `.dev-kit/`
-state directory to the project `.gitignore`; use `--dry-run` to preview the
-patch. Existing lines are preserved, and symlinked `.gitignore` files are
-refused rather than followed.
+Dev Kit reserves `.repos/<source-id>` for project-local source checkouts. Run
+`dev-kit gitignore` to add `.repos/` and `.dev-kit/` to the project ignore file.
+The patch is idempotent, preserves existing lines, and refuses symlinked
+`.gitignore` files.
 
 ## Effect TypeScript-Go
 
-This repository and toolkit pin `@effect/tsgo` and its commit-compatible native
-TypeScript release together. Enable the task in the same manifest that selects
-skills:
+Enable Effect TypeScript-Go in the same manifest:
 
 ```jsonc
-// agent-skills.jsonc
 {
   "include": ["effect"],
   "setup": {
@@ -123,15 +127,12 @@ skills:
 }
 ```
 
-The consuming project has one lifecycle hook for every configured dev-kit task,
-not one hook per tool. After generating and committing `dev-kit.lock.json`, use:
+Pin the compatible packages in the consuming project:
 
 ```jsonc
-// package.json
 {
-  "scripts": { "postinstall": "dev-kit apply --locked" },
   "devDependencies": {
-    "@danieljvdm/agent-skills": "github:danieljvdm/agent-skills",
+    "@danieljvdm/dev-kit": "github:danieljvdm/agent-skills",
     "@effect/tsgo": "0.24.3",
     "typescript": "7.0.2"
   }
@@ -139,7 +140,6 @@ not one hook per tool. After generating and committing `dev-kit.lock.json`, use:
 ```
 
 ```jsonc
-// tsconfig.json
 {
   "$schema": "./node_modules/@effect/tsgo/schema.json",
   "compilerOptions": {
@@ -148,24 +148,19 @@ not one hook per tool. After generating and committing `dev-kit.lock.json`, use:
 }
 ```
 
-`dev-kit plan` now previews the setup task, and `dev-kit apply` runs it together
-with the rest of the manifest. The task uses only the project-local
-`effect-tsgo` binary, validates both exact version pins, and patches the native
-TypeScript compiler under `node_modules`. It never downloads dependencies and
-skips an installation that is already patched, so repeated applies converge.
+`dev-kit apply` validates both exact version pins and patches the project-local
+native TypeScript compiler. It does not download dependencies and skips an
+installation that is already patched. Use `dev-kit tsgo patch --dry-run` when
+troubleshooting the task directly.
 
-`dev-kit tsgo patch` remains available for focused troubleshooting, with
-`--dry-run` for validation. The upstream `--force` escape hatch is exposed but
-intentionally opt-in because it can select a binary built from a different
-TypeScript commit.
+Package and tsconfig edits remain explicit until Dev Kit can safely own parts
+of shared JSONC files.
 
-Package and tsconfig edits are documented explicitly for now. They will move
-into the manifest once dev-kit has contribution-level ownership for shared JSONC
-files; treating either shared file as wholly owned would make cleanup unsafe.
+## Vendored skills
 
-## External sources
-
-Declare upstream collections once in `skill-sources.jsonc`:
+This repository can distribute skills maintained elsewhere without contacting
+their source repositories during downstream installs. Sources are declared in
+`skill-sources.jsonc`:
 
 ```jsonc
 {
@@ -177,46 +172,27 @@ Declare upstream collections once in `skill-sources.jsonc`:
       "ref": "main",
       "skillsPath": "skills",
       "include": ["*"],
-      "licensePath": "LICENSE",
-      "stripFrontmatter": ["disable-model-invocation"]
+      "licensePath": "LICENSE"
     }
   ]
 }
 ```
 
-Then update the vendored catalog:
+Update or reproduce the vendored catalog with:
 
 ```bash
 bun run vendor
-git diff
-```
-
-`vendor` resolves each branch or tag to a commit, validates the selected skill
-folders, rejects name collisions, copies them into `skills/`, copies declared
-licenses into `third-party/`, and records the exact commits in
-`skill-sources.lock.json`. Commit the manifest, lockfile, vendored skills, and
-licenses together.
-
-`stripFrontmatter` is an explicit compatibility transform for upstream metadata
-that a local harness does not accept. The Emil source uses it because Codex
-does not recognize `disable-model-invocation`; the affected descriptions still
-say that those skills require explicit invocation.
-
-Use explicit names in `include` when new upstream skills should require an
-opt-in review. Use `["*"]` when every skill in the collection should be picked
-up on the next update.
-
-To reproduce the locked snapshot without advancing upstream refs:
-
-```bash
 bun run vendor:locked
 ```
 
-Locked mode also requires every output-affecting source setting to match the
-lockfile, so changing selection, paths, licenses, or transforms requires a
-normal `bun run vendor` update.
+`vendor` resolves refs to commits, validates selected skills, rejects name
+collisions, copies declared licenses, and updates `skill-sources.lock.json`.
+Review and commit the manifest, lockfile, skills, and licenses together.
 
-Downstream `agent-skills sync` never contacts the external repositories. It
-only copies from this package, keeping installs centralized and reproducible.
-Review vendored diffs before committing: skills are instructions your agents
-will execute.
+## Development
+
+```bash
+bun install
+bun run check
+vitest run --config vitest.config.ts
+```

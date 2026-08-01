@@ -1,6 +1,6 @@
 ---
 name: update-deps
-description: Update or audit dependencies in this agent-skills/dev-kit repository with compatibility-aware handling for the Effect v4 package family, @effect/vitest and Vitest, @effect/tsgo and its commit-matched native TypeScript compiler, Bun, and ordinary npm packages. Use when asked to update, refresh, audit, check, or pin dependency versions, regenerate bun.lock, refresh local upstream source checkouts, or resolve dependency/toolchain drift in this repository.
+description: Update or audit dependencies in this dev-kit repository with compatibility-aware handling for the Effect v4 package family, @effect/vitest and Vitest, @effect/tsgo and its commit-matched native TypeScript compiler, Bun, and ordinary npm packages. Use when asked to update, refresh, audit, check, or pin dependency versions, regenerate bun.lock, refresh local upstream source checkouts, or resolve dependency/toolchain drift in this repository.
 ---
 
 # Update Dependencies

@@ -2,7 +2,7 @@ import { parse as parseJsonc, printParseErrorCode, type ParseError } from "jsonc
 import { Cause, Console, Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
 
-import { ManifestSchema, normalizeManifest } from "./manifest.ts";
+import { DevKitManifestSchema, normalizeManifest } from "./manifest.ts";
 import {
   applyEffectTsgoPatchPlan,
   planEffectTsgoPatch,
@@ -173,7 +173,7 @@ class ApplyRaceError extends Schema.TaggedErrorClass<ApplyRaceError>()("ApplyRac
 }
 
 const SKILL_FAMILIES: SkillCatalog = { effect: ["effect-ts"] };
-const DEFAULT_MANIFEST = "agent-skills.jsonc";
+export const DEFAULT_MANIFEST = "dev-kit.jsonc";
 const DEFAULT_LOCKFILE = "dev-kit.lock.json";
 const DEFAULT_STATE = ".dev-kit/state.json";
 
@@ -230,7 +230,7 @@ const readManifest = Effect.fn("readManifest")(function* (manifestPath: string) 
     return yield* new ManifestNotFoundError({ path: manifestPath });
   }
   const raw = yield* fs.readFileString(manifestPath);
-  return yield* parseStructuredFile(manifestPath, raw, ManifestSchema);
+  return yield* parseStructuredFile(manifestPath, raw, DevKitManifestSchema);
 });
 
 const readOptionalStructuredFile = Effect.fn("readOptionalStructuredFile")(function* <A>(
@@ -850,5 +850,3 @@ export const runProjectSkillPlan = Effect.fn("runProjectSkillPlan")(function* (o
   }
   yield* applyPlannedSkillChanges(replanned);
 });
-
-export const syncProjectSkills = runProjectSkillPlan;

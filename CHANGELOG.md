@@ -1,5 +1,13 @@
 # @danieljvdm/dev-kit
 
+## 0.2.2
+
+### Patch Changes
+
+- 3180d85: Regenerate the dogfood lock whenever Changesets bumps the package version. Guide
+  consumers toward individually relevant external skills, show source provenance
+  while browsing, and warn when source-family shorthand selects an entire source.
+
 ## 0.2.1
 
 ### Patch Changes

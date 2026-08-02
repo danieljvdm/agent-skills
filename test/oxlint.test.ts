@@ -12,7 +12,11 @@ describe("recommended Oxlint config", () => {
     expect(recommendedOxlintConfig.plugins).toEqual(["import", "react", "vitest"]);
     expect(recommendedOxlintConfig.rules["react/rules-of-hooks"]).toBe("error");
     expect(recommendedOxlintConfig.rules["typescript/switch-exhaustiveness-check"]).toBe("error");
+    expect(recommendedOxlintConfig.rules["typescript/no-floating-promises"]).toBe("off");
     expect(recommendedOxlintConfig.rules["vitest/no-standalone-expect"]).toBe("off");
+    expect(recommendedOxlintConfig.overrides[0]?.rules["typescript/no-non-null-assertion"]).toBe(
+      "off",
+    );
   });
 
   it("keeps the JavaScript runtime export aligned with the typed source", () => {

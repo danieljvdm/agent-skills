@@ -21,8 +21,12 @@ export const recommendedOxlintConfig = {
     "react/exhaustive-deps": "error",
     "react/rules-of-hooks": "error",
     "typescript/consistent-type-imports": "error",
+    "typescript/no-floating-promises": "off",
     "typescript/no-explicit-any": "error",
+    "typescript/no-misused-spread": "off",
     "typescript/no-non-null-assertion": "error",
+    "typescript/require-array-sort-compare": "off",
+    "typescript/restrict-template-expressions": "off",
     "typescript/switch-exhaustiveness-check": "error",
     "unicorn/prefer-node-protocol": "error",
     "vitest/no-focused-tests": "error",
@@ -30,6 +34,14 @@ export const recommendedOxlintConfig = {
     "vitest/no-standalone-expect": "off",
     "vitest/valid-expect": "error",
   },
+  overrides: [
+    {
+      files: ["**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}"],
+      rules: {
+        "typescript/no-non-null-assertion": "off",
+      },
+    },
+  ],
 } satisfies OxlintConfig;
 
 export type RecommendedOxlintConfig = typeof recommendedOxlintConfig;

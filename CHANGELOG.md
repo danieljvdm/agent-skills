@@ -1,5 +1,11 @@
 # @danieljvdm/dev-kit
 
+## 0.3.0
+
+### Minor Changes
+
+- 736aa78: Add a typed, composable recommended Oxlint preset for Vite+ projects.
+
 ## 0.2.3
 
 ### Patch Changes

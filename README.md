@@ -34,7 +34,10 @@ source boundaries, and CI workflows. It should compare that concrete capability
 inventory with catalog descriptions and select the narrowest useful set. Broad
 umbrella skills and source families belong only when their full breadth is
 intentional; explicit creative or advisory requests remain valid even without a
-mechanical dependency signal.
+mechanical dependency signal. Treat lazy reference folders inside one skill as
+progressive-disclosure content, not as separately triggered skills; a repository
+using several covered products may reasonably select that umbrella while still
+excluding unrelated top-level skills.
 
 Search and inspect candidates, then add the matching skills individually:
 

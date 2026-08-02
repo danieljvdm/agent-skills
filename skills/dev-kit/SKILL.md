@@ -36,7 +36,11 @@ stores explicit skill names and exact commit/content digests.
    generic umbrella when they cover the repository's work. Select an umbrella
    or external source family only when its full breadth is intentionally useful;
    never select one merely because one member or product matches. Explain any
-   uncertain inclusion before applying it.
+   uncertain inclusion before applying it. Distinguish separately triggered
+   skills from lazy `references/` bundled inside one skill: unused reference
+   folders cost repository space but are not loaded into agent context unless
+   the skill routes to them. A multi-product repository can therefore justify
+   an umbrella while still excluding unrelated top-level skills.
 4. Update `dev-kit.jsonc`. Preserve JSONC comments and validate against the
    package schema. Finish with each desired resource represented once and every
    external selection supported by repository evidence or an explicit request.

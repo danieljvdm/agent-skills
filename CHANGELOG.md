@@ -1,5 +1,12 @@
 # @danieljvdm/dev-kit
 
+## 0.2.3
+
+### Patch Changes
+
+- 835fb15: Teach project agents to derive a capability inventory from repository evidence
+  and choose focused skills instead of generic umbrellas or whole source families.
+
 ## 0.2.2
 
 ### Patch Changes

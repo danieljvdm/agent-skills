@@ -28,10 +28,15 @@ bun x dev-kit list --all
 bun x dev-kit add dev-kit effect
 ```
 
-Before adding external skills, scan the repository's agent instructions,
-package and lock files, framework or tool configuration, and CI workflows for
-the capabilities it actually uses. Search and inspect candidates using those
-signals, then add the matching skills individually:
+Before adding external skills, have the agent inspect repository instructions,
+workspace dependencies, framework and tool configuration, representative
+source boundaries, and CI workflows. It should compare that concrete capability
+inventory with catalog descriptions and select the narrowest useful set. Broad
+umbrella skills and source families belong only when their full breadth is
+intentional; explicit creative or advisory requests remain valid even without a
+mechanical dependency signal.
+
+Search and inspect candidates, then add the matching skills individually:
 
 ```bash
 bun x dev-kit search cloudflare

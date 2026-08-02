@@ -21,23 +21,33 @@ stores explicit skill names and exact commit/content digests.
 
 ## Apply loop
 
-1. Establish the Git root. Read project agent instructions, `dev-kit.jsonc`,
-   `dev-kit.lock.json` when present, package and lock files, framework or tool
-   configuration, CI workflows, and the configured target paths. Derive the
-   capabilities the project actually uses from those signals.
-2. Use `dev-kit search <terms>` and `dev-kit info <skill>` to inspect matching
-   catalog entries. Prefer individual external skills; select an external
-   source family only when every approved skill from it applies. Update
-   `dev-kit.jsonc`, preserve JSONC comments, and validate against the package
-   schema. Finish with each desired resource represented once.
-3. Run `dev-kit plan`. Use `--manifest`, `--project-dir`, or `--lockfile` when
+1. Establish the Git root. Read project agent instructions, the current
+   manifest and lock, package and workspace manifests, framework and tool
+   configuration, representative source boundaries, and CI workflows. Build a
+   concrete inventory of the platforms, frameworks, tools, and workflows the
+   repository actually uses; do not infer capabilities from a product or
+   company name alone.
+2. Run `dev-kit list --all`, then use `dev-kit search <terms>` and `dev-kit info
+   <skill>` for each capability in the inventory. Compare every candidate's
+   trigger description with concrete repository evidence. Keep explicitly
+   requested creative or advisory skills even when they have no mechanical
+   dependency signal.
+3. Choose the narrowest useful set. Prefer focused external skills over a
+   generic umbrella when they cover the repository's work. Select an umbrella
+   or external source family only when its full breadth is intentionally useful;
+   never select one merely because one member or product matches. Explain any
+   uncertain inclusion before applying it.
+4. Update `dev-kit.jsonc`. Preserve JSONC comments and validate against the
+   package schema. Finish with each desired resource represented once and every
+   external selection supported by repository evidence or an explicit request.
+5. Run `dev-kit plan`. Use `--manifest`, `--project-dir`, or `--lockfile` when
    the project overrides their defaults. Planning is read-only; inspect every
    create, update, remove, adoption, and conflict before proceeding. Finish
    when the plan contains only intended actions and understood conflicts.
-4. Resolve conflicts, then run `dev-kit apply`. Commit the manifest and
+6. Resolve conflicts, then run `dev-kit apply`. Commit the manifest and
    regenerated `dev-kit.lock.json`; keep `.dev-kit/` local. Finish when a second
    plan reports only unchanged resources and setup tasks.
-5. Use `dev-kit apply --locked` in CI and the package lifecycle. Finish when a
+7. Use `dev-kit apply --locked` in CI and the package lifecycle. Finish when a
    clean install converges from the committed manifest and lock.
 
 ## Manifest

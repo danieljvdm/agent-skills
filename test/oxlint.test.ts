@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { recommendedOxlintConfig } from "@danieljvdm/dev-kit/oxlint";
+import { recommendedOxlintConfig as packagedOxlintConfig } from "@danieljvdm/dev-kit/oxlint";
+
+import { recommendedOxlintConfig as sourceOxlintConfig } from "../src/oxlint.ts";
+
+const recommendedOxlintConfig = packagedOxlintConfig;
 
 describe("recommended Oxlint config", () => {
   it("enables the Vite+ plugins and type-aware rules", () => {
@@ -9,5 +13,9 @@ describe("recommended Oxlint config", () => {
     expect(recommendedOxlintConfig.rules["react/rules-of-hooks"]).toBe("error");
     expect(recommendedOxlintConfig.rules["typescript/switch-exhaustiveness-check"]).toBe("error");
     expect(recommendedOxlintConfig.rules["vitest/no-standalone-expect"]).toBe("off");
+  });
+
+  it("keeps the JavaScript runtime export aligned with the typed source", () => {
+    expect(packagedOxlintConfig).toEqual(sourceOxlintConfig);
   });
 });

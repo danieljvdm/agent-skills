@@ -22,7 +22,7 @@
     "./schema/skill-sources.schema.json": "./schema/skill-sources.schema.json",
     "./oxlint": {
       "types": "./src/oxlint.ts",
-      "default": "./src/oxlint.ts"
+      "default": "./src/oxlint.js"
     }
   },
   "files": [

@@ -1,5 +1,11 @@
 # @danieljvdm/dev-kit
 
+## 0.3.1
+
+### Patch Changes
+
+- deb451c: Ship the Oxlint preset as JavaScript at runtime so Vite+ can load it from node_modules.
+
 ## 0.3.0
 
 ### Minor Changes

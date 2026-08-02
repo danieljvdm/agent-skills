@@ -87,7 +87,7 @@ describe("shipped skills", () => {
 
         const routedReferences = [
           ...skill.matchAll(/`\.\/references\/([^`]+\.md)`/g),
-        ].map((match) => match[1]!);
+        ].flatMap((match) => match[1] === undefined ? [] : [match[1]]);
         const uniqueRoutedReferences = new Set(routedReferences);
 
         assert.isNotEmpty(routedReferences);
@@ -112,8 +112,10 @@ describe("shipped skills", () => {
           for (const match of markdown.matchAll(
             /\]\((?!https?:|#)([^)]+\.md)(?:#[^)]+)?\)/g,
           )) {
+            const linkedReference = match[1];
+            if (linkedReference === undefined) continue;
             assert.isTrue(
-              yield* fs.exists(path.resolve(referencesDir, match[1]!)),
+              yield* fs.exists(path.resolve(referencesDir, linkedReference)),
               `${reference} links to missing file: ${match[1]}`,
             );
           }
@@ -128,7 +130,8 @@ describe("shipped skills", () => {
         const packageJson = JSON.parse(
           yield* fs.readFileString(path.join(root, "package.json")),
         ) as { dependencies: Record<string, string> };
-        const effectVersion = packageJson.dependencies.effect!;
+        const effectVersion = packageJson.dependencies.effect;
+        if (effectVersion === undefined) assert.fail("effect dependency is missing");
 
         assert.isString(effectVersion);
         assert.strictEqual(packageJson.dependencies["@effect/platform-node"], effectVersion);

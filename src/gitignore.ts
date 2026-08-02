@@ -1,4 +1,4 @@
-import { Cause, Effect, FileSystem, Path, PlatformError, Schema } from "effect";
+import { Cause, Effect, FileSystem, Path, type PlatformError, Schema } from "effect";
 
 import { printStatus } from "./cli-ui.ts";
 import { observeSymbolicLink } from "./node-symbolic-link.ts";

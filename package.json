@@ -6,7 +6,7 @@
   "description": "Declarative project development toolkit with portable agent skills.",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/danieljvdm/agent-skills.git"
+    "url": "git+https://github.com/danieljvdm/dev-kit.git"
   },
   "license": "MIT",
   "bin": {

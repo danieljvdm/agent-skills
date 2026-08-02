@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/danieljvdm/agent-skills/main/schema/dev-kit.schema.json",
+  "$id": "https://raw.githubusercontent.com/danieljvdm/dev-kit/main/schema/dev-kit.schema.json",
   "title": "Dev Kit Manifest",
   "description": "Project-local desired state for portable skills and explicit dev-kit setup tasks.",
   "type": "object",

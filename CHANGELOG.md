@@ -1,5 +1,11 @@
 # @danieljvdm/dev-kit
 
+## 0.3.2
+
+### Patch Changes
+
+- 17950fe: Keep the recommended type-aware preset focused by disabling incidental default warnings and allowing test assertions to use non-null narrowing.
+
 ## 0.3.1
 
 ### Patch Changes

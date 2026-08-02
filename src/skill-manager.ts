@@ -154,7 +154,8 @@ const writeArray = Effect.fn("writeManifestArray")(function* (
   let next = raw;
   const retained = [...current];
   for (let index = current.length - 1; index >= 0; index -= 1) {
-    if (!values.includes(current[index]!)) {
+    const currentValue = current[index];
+    if (currentValue !== undefined && !values.includes(currentValue)) {
       next = applyEdits(next, modify(next, [property, index], undefined, {
         formattingOptions: { insertSpaces: true, tabSize: 2 },
       }));

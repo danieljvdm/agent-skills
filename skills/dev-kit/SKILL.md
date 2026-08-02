@@ -156,10 +156,34 @@ dependencies; `dev-kit apply` patches once and then converges.
 Use `dev-kit tsgo patch --dry-run` for focused diagnosis. Use `--force` only
 after the user accepts a potentially commit-incompatible TypeScript binary.
 
+## Oxlint preset for Vite+
+
+For Vite+ projects, compose the package's typed recommended Oxlint preset with
+project-specific lint configuration:
+
+```ts
+import { recommendedOxlintConfig } from "@danieljvdm/dev-kit/oxlint";
+import { defineConfig } from "vite-plus";
+
+export default defineConfig({
+  lint: {
+    extends: [recommendedOxlintConfig],
+    rules: {
+      // Project-specific rules apply after the shared preset.
+    },
+  },
+});
+```
+
+Use `lint.extends` instead of spreading the object so Vite+ composes nested
+rule maps correctly. Keep repository-specific path conventions and
+platform-specific accessibility rules in the consuming project.
+
 ## Current boundary
 
 Manage skill outputs, the `setup.effectSource` checkout, and the explicit
 `setup.effectTsgo` task. Edit shared `package.json` and `tsconfig.json`
-contributions deliberately. Treat named bundles, Oxlint/Oxfmt presets, and
-broader setup tasks as future manifest capabilities until the installed CLI
-exposes them.
+contributions deliberately. The Oxlint preset is a composable package export,
+not a manifest-managed output. Treat named bundles, Oxfmt presets, and broader
+setup tasks as future manifest capabilities until the installed CLI exposes
+them.

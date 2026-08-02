@@ -63,15 +63,15 @@ describe("remote catalog resolution", () => {
         assert.deepEqual(catalog.families["test-source"], ["remote-skill"]);
         const sources = yield* resolveSkillSources(packageRoot, projectDir, ["remote-skill"]);
         const materialized = sources.get("remote-skill");
-        assert.isDefined(materialized);
-        const document = yield* fs.readFileString(path.join(materialized!.path, "SKILL.md"));
+        if (materialized === undefined) assert.fail("remote-skill was not materialized");
+        const document = yield* fs.readFileString(path.join(materialized.path, "SKILL.md"));
         assert.include(document, "Hello.");
         assert.notInclude(document, "disable-model-invocation");
-        assert.include(materialized!.path, path.join(projectDir, ".dev-kit", "cache"));
-        assert.strictEqual(materialized!.catalog?.resolved, resolved);
+        assert.include(materialized.path, path.join(projectDir, ".dev-kit", "cache"));
+        assert.strictEqual(materialized.catalog?.resolved, resolved);
         assert.isFalse(yield* fs.exists(path.join(packageRoot, "skills", "remote-skill")));
 
-        yield* fs.writeFileString(path.join(materialized!.path, "SKILL.md"), "tampered\n");
+        yield* fs.writeFileString(path.join(materialized.path, "SKILL.md"), "tampered\n");
         const error = yield* Effect.flip(
           resolveSkillSources(packageRoot, projectDir, ["remote-skill"]),
         );

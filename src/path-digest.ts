@@ -1,4 +1,4 @@
-import { Crypto, Effect, Encoding, FileSystem, Path, PlatformError, Schema } from "effect";
+import { Crypto, Effect, Encoding, FileSystem, Path, type PlatformError, Schema } from "effect";
 
 import { observeSymbolicLink } from "./node-symbolic-link.ts";
 

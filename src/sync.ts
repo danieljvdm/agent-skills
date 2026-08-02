@@ -284,7 +284,6 @@ const resolveManagedPath = Effect.fn("resolveManagedPath")(function* (
   projectDir: string,
   candidate: string,
 ) {
-  const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   if (candidate.length === 0 || path.isAbsolute(candidate)) {
     return yield* new UnsafeManagedPathError({ path: candidate, reason: "must be a non-empty project-relative path" });

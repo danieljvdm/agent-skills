@@ -309,6 +309,28 @@ transforms, and installs the result through the ownership-safe sync path. Normal
 installs never float to a newer upstream commit; only a reviewed catalog refresh
 changes what is approved.
 
+## Oxlint preset for Vite+
+
+Dev Kit exports a typed, composable set of high-signal Oxlint rules for Vite+
+projects:
+
+```ts
+import { recommendedOxlintConfig } from "@danieljvdm/dev-kit/oxlint";
+import { defineConfig } from "vite-plus";
+
+export default defineConfig({
+  lint: {
+    extends: [recommendedOxlintConfig],
+    rules: {
+      // Add repository-specific rules here.
+    },
+  },
+});
+```
+
+Use `lint.extends` rather than a shallow object spread so Vite+ composes the
+nested plugin and rule configuration correctly.
+
 ## Development
 
 ```bash

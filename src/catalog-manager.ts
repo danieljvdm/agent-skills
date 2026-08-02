@@ -216,7 +216,10 @@ export const addCatalogSource = Effect.fn("addCatalogSource")(function* (
   const existingIndex = byId >= 0 ? byId : byRepository;
   let next = state.sources.raw;
   if (existingIndex >= 0) {
-    const existing = sources[existingIndex]!;
+    const existing = sources[existingIndex];
+    if (existing === undefined) {
+      return yield* new CatalogManagerError({ message: "catalog source index is out of bounds" });
+    }
     const approved = state.lock?.value.sources.find((source) => source.id === existing.id)?.skills ?? [];
     const currentInclude = existing.include.includes("*") ? approved : existing.include;
     const include = [...new Set([...currentInclude, ...selection.include])].sort();

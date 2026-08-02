@@ -1,4 +1,4 @@
-import { Effect, FileSystem, PlatformError } from "effect";
+import { Effect, FileSystem, type PlatformError } from "effect";
 
 export type SymbolicLinkObservation =
   | { readonly kind: "missing" | "not-symlink" }

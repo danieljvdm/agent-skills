@@ -109,6 +109,14 @@ const inferSourceId = (repository: string): string => {
   return tail.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 };
 
+const containsControlCharacter = (value: string): boolean => {
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    if (code <= 0x1f || code === 0x7f) return true;
+  }
+  return false;
+};
+
 const normalizeRepositoryLocator = (
   repository: string,
 ): Effect.Effect<{
@@ -116,7 +124,7 @@ const normalizeRepositoryLocator = (
   readonly ref?: string;
   readonly skillsPath?: string;
 }, InvalidSourceError> => {
-  if (/[\u0000-\u001f\u007f]/.test(repository)) {
+  if (containsControlCharacter(repository)) {
     return Effect.fail(new InvalidSourceError({ source: repository, reason: "repository contains control characters" }));
   }
   try {
@@ -126,9 +134,9 @@ const normalizeRepositoryLocator = (
     }
     if (url.hostname.toLowerCase() !== "github.com") return Effect.succeed({ repository });
     const segments = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
-    if (segments.length < 2) return Effect.succeed({ repository });
-    const owner = segments[0]!;
-    const name = segments[1]!.replace(/\.git$/i, "");
+    const [owner, rawName] = segments;
+    if (owner === undefined || rawName === undefined) return Effect.succeed({ repository });
+    const name = rawName.replace(/\.git$/i, "");
     const normalized = `https://github.com/${owner}/${name}.git`;
     if (segments[2] === "tree" && segments[3]) {
       return Effect.succeed({
@@ -389,13 +397,20 @@ const prepareSource = Effect.fn("prepareSkillSource")(function* (
   yield* fs.makeDirectory(checkoutDir, { recursive: true });
   yield* runCommand(checkoutDir, "git", ["init", "--quiet"]);
   yield* runCommand(checkoutDir, "git", ["remote", "add", "origin", source.repository]);
+  const fetchRef = useLock ? lockedSource?.resolved : source.ref;
+  if (fetchRef === undefined) {
+    return yield* new InvalidSourceError({
+      source: source.id,
+      reason: "no matching lockfile entry; run catalog refresh without --locked first",
+    });
+  }
   yield* runCommand(checkoutDir, "git", [
     "fetch",
     "--quiet",
     "--depth",
     "1",
     "origin",
-    useLock ? lockedSource!.resolved : source.ref,
+    fetchRef,
   ]);
   yield* runCommand(checkoutDir, "git", ["checkout", "--quiet", "--detach", "FETCH_HEAD"]);
   const resolved = yield* runCommand(checkoutDir, "git", ["rev-parse", "HEAD"]);

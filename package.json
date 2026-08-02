@@ -19,7 +19,11 @@
     },
     "./schema": "./schema/dev-kit.schema.json",
     "./schema/dev-kit.schema.json": "./schema/dev-kit.schema.json",
-    "./schema/skill-sources.schema.json": "./schema/skill-sources.schema.json"
+    "./schema/skill-sources.schema.json": "./schema/skill-sources.schema.json",
+    "./oxlint": {
+      "types": "./src/oxlint.ts",
+      "default": "./src/oxlint.ts"
+    }
   },
   "files": [
     "dev-kit.example.jsonc",
@@ -36,7 +40,8 @@
     "changeset": "changeset",
     "version-packages": "changeset version && ./bin/dev-kit.mjs apply",
     "release": "changeset publish",
-    "check": "tsc --noEmit",
+    "check": "tsc --noEmit && vp lint",
+    "lint": "vp lint",
     "plan": "./bin/dev-kit.mjs plan",
     "apply": "./bin/dev-kit.mjs apply",
     "gitignore": "./bin/dev-kit.mjs gitignore",
@@ -60,7 +65,16 @@
     "@effect/vitest": "4.0.0-beta.102",
     "@types/node": "25.9.1",
     "typescript": "7.0.2",
+    "vite-plus": "0.2.6",
     "vitest": "4.1.10"
+  },
+  "peerDependencies": {
+    "vite-plus": ">=0.2.6 <0.3.0"
+  },
+  "peerDependenciesMeta": {
+    "vite-plus": {
+      "optional": true
+    }
   },
   "engines": {
     "node": ">=22.12.0"

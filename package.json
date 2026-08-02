@@ -34,7 +34,7 @@
     "prepare": "./bin/dev-kit.mjs apply --locked",
     "dev-kit": "./bin/dev-kit.mjs",
     "changeset": "changeset",
-    "version-packages": "changeset version",
+    "version-packages": "changeset version && ./bin/dev-kit.mjs apply",
     "release": "changeset publish",
     "check": "tsc --noEmit",
     "plan": "./bin/dev-kit.mjs plan",

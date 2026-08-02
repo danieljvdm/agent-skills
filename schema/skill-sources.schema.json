@@ -23,7 +23,7 @@
       "additionalProperties": false,
       "properties": {
         "id": {
-          "description": "Unique source id. It also becomes a family name in project manifests.",
+          "description": "Unique source id. It also becomes broad family shorthand that selects every approved source skill in project manifests.",
           "type": "string",
           "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
         },

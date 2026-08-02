@@ -1,6 +1,6 @@
 {
   "$schema": "./schema/dev-kit.schema.json",
-  "include": ["dev-kit", "effect", "emilkowalski-skills"],
+  "include": ["dev-kit", "effect"],
   "setup": {
     "effectSource": { "enabled": true },
     "effectTsgo": { "enabled": true }

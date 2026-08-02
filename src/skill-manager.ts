@@ -226,6 +226,16 @@ export const addSkills = Effect.fn("addManagedSkills")(function* (
       message: `unknown skill${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}. Try \`dev-kit search ${unknown[0]}\`.`,
     });
   }
+  for (const source of catalog.lock?.sources ?? []) {
+    if (!names.includes(source.id)) continue;
+    yield* printStatus(
+      "info",
+      `Source family ${source.id} selects all ${source.skills.length} approved skills`,
+    );
+    yield* printDetail(
+      `Prefer individual skill names unless every skill applies. Inspect with: dev-kit search ${source.id}`,
+    );
+  }
   const include = [...new Set([...current.manifest.include, ...names])];
   const exclude = (current.manifest.exclude ?? []).filter((name) => !names.includes(name));
   yield* writeArray(current.manifestPath, current.raw, "include", include);
@@ -294,7 +304,8 @@ export const listSkills = Effect.fn("listManagedSkills")(function* (
   for (const skill of visible) {
     const marker = selected.has(skill.name) ? "✓" : " ";
     const origin = skill.bundled ? "built in" : skill.source;
-    yield* printLine(`${marker} ${skill.name}  ${summary(skill.description, origin)}`);
+    const provenance = skill.bundled ? "" : ` [${skill.source}]`;
+    yield* printLine(`${marker} ${skill.name}${provenance}  ${summary(skill.description, origin)}`);
   }
   yield* printLine();
   yield* printLine(`${selected.size} selected · ${catalog.skills.length} approved`);

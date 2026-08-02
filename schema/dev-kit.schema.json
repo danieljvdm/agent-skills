@@ -10,7 +10,7 @@
       "type": "string"
     },
     "include": {
-      "description": "Skill names or family names to sync. External source ids are available as family names.",
+      "description": "Skill names or family names to sync. Prefer individually relevant external skills; an external source id selects every approved skill from that source.",
       "type": "array",
       "items": {
         "type": "string",

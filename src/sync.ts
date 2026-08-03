@@ -26,10 +26,8 @@ import {
   observePath,
   type ObservedPath,
 } from "./path-digest.ts";
-import {
-  isPackageSkillSelector,
-  resolvePackageSkillSelector,
-} from "./package-skill-source.ts";
+import { resolvePackageSkillSelector } from "./package-skill-source.ts";
+import { parseSkillSelector } from "./skill-selector.ts";
 import {
   AppliedStateSchema,
   DevKitLockSchema,
@@ -281,7 +279,7 @@ const expandSelection = (
   for (const name of include) {
     if (skillFamilies[name]) {
       for (const skill of skillFamilies[name]) selected.add(skill);
-    } else if (availableSkills.includes(name) || isPackageSkillSelector(name)) {
+    } else if (availableSkills.includes(name) || parseSkillSelector(name)?.type === "package") {
       selected.add(name);
     } else {
       return Effect.fail(new UnknownSkillOrFamilyError({ name, known }));
@@ -656,33 +654,23 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
   const catalogBySelector = new Map(catalog.skills.map((skill) => [skill.selector, skill]));
   const sourceBySkill = yield* withSpinner(
     "Resolving selected skills",
-    resolveSkillSources(packageRoot, projectDir, selectedSelectors, options.dryRun !== true),
+    resolveSkillSources(
+      packageRoot,
+      projectDir,
+      catalog,
+      selectedSelectors,
+      options.dryRun !== true,
+    ),
   );
   const selectedSkills: Array<CatalogSkill> = [];
   for (const selector of selectedSelectors) {
     const catalogSkill = catalogBySelector.get(selector);
-    if (catalogSkill !== undefined) {
-      selectedSkills.push(catalogSkill);
-      continue;
-    }
-    const resolved = sourceBySkill.get(selector);
-    if (resolved?.catalog !== undefined && "package" in resolved.catalog) {
-      selectedSkills.push({
-        name: resolved.catalog.skill,
-        selector,
-        description: "",
-        source: resolved.catalog.package,
-        bundled: false,
-        package: {
-          name: resolved.catalog.package,
-          version: resolved.catalog.version,
-        },
+    if (catalogSkill === undefined) {
+      return yield* new InvalidProjectStateError({
+        message: `selected skill is unavailable: ${selector}`,
       });
-      continue;
     }
-    return yield* new InvalidProjectStateError({
-      message: `selected skill is unavailable: ${selector}`,
-    });
+    selectedSkills.push(catalogSkill);
   }
   const desired = yield* buildDesiredOutputs(
     projectDir,

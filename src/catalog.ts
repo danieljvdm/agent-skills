@@ -6,7 +6,6 @@ import { observePath, type Digest } from "./path-digest.ts";
 import {
   discoverPackageSkills,
   resolvePackageSkillSelector,
-  type PackageSkillDiagnostic,
 } from "./package-skill-source.ts";
 import {
   SkillSourcesLockSchema,
@@ -29,7 +28,6 @@ export type CatalogSkill = {
 export type SkillCatalog = {
   readonly skills: ReadonlyArray<CatalogSkill>;
   readonly families: Readonly<Record<string, ReadonlyArray<string>>>;
-  readonly diagnostics: ReadonlyArray<PackageSkillDiagnostic>;
   readonly lock?: SkillSourcesLock;
 };
 
@@ -106,7 +104,7 @@ const readDescription = Effect.fn("readSkillDescription")(function* (skillPath: 
 
 export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
   packageRoot: string,
-  projectDir?: string,
+  projectDir: string,
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -138,9 +136,7 @@ export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
       });
     }
   }
-  const discovery = projectDir === undefined
-    ? { candidates: [], diagnostics: [] }
-    : yield* discoverPackageSkills(projectDir);
+  const discovery = yield* discoverPackageSkills(projectDir);
   for (const candidate of discovery.candidates) {
     skills.push({
       name: candidate.name,
@@ -177,7 +173,6 @@ export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
   return {
     skills: skills.sort((left, right) => left.selector.localeCompare(right.selector)),
     families,
-    diagnostics: discovery.diagnostics,
     ...(lock ? { lock } : {}),
   } satisfies SkillCatalog;
 });
@@ -269,11 +264,11 @@ const materializeSource = Effect.fn("materializeCatalogSource")(function* (
 export const resolveSkillSources = Effect.fn("resolveSkillSources")(function* (
   packageRoot: string,
   projectDir: string,
+  catalog: SkillCatalog,
   selected: ReadonlyArray<string>,
   cache = true,
 ) {
   const path = yield* Path.Path;
-  const catalog = yield* loadSkillCatalog(packageRoot, projectDir);
   const sources = new Map<string, ResolvedSkillSource>();
   for (const skill of catalog.skills.filter((skill) => skill.bundled)) {
     if (selected.includes(skill.selector)) {

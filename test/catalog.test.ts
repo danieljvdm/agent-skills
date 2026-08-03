@@ -59,9 +59,14 @@ describe("remote catalog resolution", () => {
           }, null, 2)}\n`,
         );
 
-        const catalog = yield* loadSkillCatalog(packageRoot);
+        const catalog = yield* loadSkillCatalog(packageRoot, projectDir);
         assert.deepEqual(catalog.families["test-source"], ["remote-skill"]);
-        const sources = yield* resolveSkillSources(packageRoot, projectDir, ["remote-skill"]);
+        const sources = yield* resolveSkillSources(
+          packageRoot,
+          projectDir,
+          catalog,
+          ["remote-skill"],
+        );
         const materialized = sources.get("remote-skill");
         if (materialized === undefined) assert.fail("remote-skill was not materialized");
         const document = yield* fs.readFileString(path.join(materialized.path, "SKILL.md"));
@@ -76,7 +81,7 @@ describe("remote catalog resolution", () => {
 
         yield* fs.writeFileString(path.join(materialized.path, "SKILL.md"), "tampered\n");
         const error = yield* Effect.flip(
-          resolveSkillSources(packageRoot, projectDir, ["remote-skill"]),
+          resolveSkillSources(packageRoot, projectDir, catalog, ["remote-skill"]),
         );
         assert.match(error.message, /does not match the approved catalog/);
       }));
@@ -112,6 +117,7 @@ describe("remote catalog resolution", () => {
         const resolved = yield* resolveSkillSources(
           packageRoot,
           projectDir,
+          catalog,
           ["@scope/tools#package-skill"],
         );
         const skill = resolved.get("@scope/tools#package-skill");

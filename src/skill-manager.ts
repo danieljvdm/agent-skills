@@ -194,8 +194,8 @@ const displayValue = (value: string): string =>
     return code <= 31 || (code >= 127 && code <= 159) ? " " : character;
   }).join("").replace(/\s+/g, " ").trim();
 
-const summary = (description: string, fallback: string): string => {
-  const text = displayValue(description || fallback);
+const summary = (description: string, defaultDescription: string): string => {
+  const text = displayValue(description || defaultDescription);
   const firstSentence = text.match(/^.*?[.!?](?:\s|$)/)?.[0]?.trim() ?? text;
   return firstSentence.length > 96 ? `${firstSentence.slice(0, 93).trimEnd()}…` : firstSentence;
 };
@@ -330,7 +330,7 @@ export const listSkills = Effect.fn("listManagedSkills")(function* (
 
 export const showSkill = Effect.fn("showCatalogSkill")(function* (
   name: string,
-  options: ManagerOptions = {},
+  options: ManagerOptions,
 ) {
   const paths = yield* resolvePaths(options);
   const catalog = yield* loadSkillCatalog(yield* packageRoot(), paths.projectDir);

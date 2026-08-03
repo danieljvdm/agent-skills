@@ -52,25 +52,6 @@ export {
   type SkillSourcesManifest,
 } from "./source-manifest.ts";
 export {
-  discoverPackageSkills,
-  isPackageSkillSelector,
-  PackageSkillSourceError,
-  resolvePackageSkillSelector,
-  type DiscoveredPackageSkill,
-  type PackageSkillDiagnostic,
-} from "./package-skill-source.ts";
-export {
-  formatSkillSelector,
-  isSkillName,
-  isSkillSelector,
-  parseSkillSelector,
-  SKILL_NAME_PATTERN,
-  SKILL_SELECTOR_PATTERN,
-  type PackageSkillSelector,
-  type SkillSelector,
-  type StaticSkillSelector,
-} from "./skill-selector.ts";
-export {
   planProjectSkills,
   printSkillPlan,
   runProjectSkillPlan,

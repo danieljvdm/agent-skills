@@ -1,9 +1,7 @@
 import { assert, describe, it } from "@effect/vitest";
 
 import {
-  formatSkillSelector,
   isSkillName,
-  isSkillSelector,
   parseSkillSelector,
 } from "../src/skill-selector.ts";
 
@@ -20,14 +18,10 @@ describe("skill selectors", () => {
       package: "@tanstack/react-start",
       skill: "tanstack-router",
     });
-    assert.strictEqual(
-      formatSkillSelector({ type: "package", package: "@tanstack/react-start", skill: "tanstack-router" }),
-      "@tanstack/react-start#tanstack-router",
-    );
   });
 
   it("accepts only immediate lowercase-hyphen skill names", () => {
-    for (const name of ["a", "ai-core", "v2-skill"]) {
+    for (const name of ["a", "ai-core", "versioned-skill"]) {
       assert.isTrue(isSkillName(name));
     }
     for (const name of ["", "AI-core", "ai_core", "ai/core", "ai--core", "-ai", "ai-"]) {
@@ -52,7 +46,6 @@ describe("skill selectors", () => {
       "tanstack#router ",
     ]) {
       assert.strictEqual(parseSkillSelector(selector), undefined, selector);
-      assert.isFalse(isSkillSelector(selector), selector);
     }
   });
 });

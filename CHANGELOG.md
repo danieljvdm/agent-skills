@@ -1,5 +1,11 @@
 # @danieljvdm/dev-kit
 
+## 0.4.0
+
+### Minor Changes
+
+- 2864a3c: Add canonical Oxlint and Oxfmt configurations that work with both standalone Oxc tools and Vite+, and publish Egte's reusable Effect lint rules as a shared Oxlint JavaScript plugin.
+
 ## 0.3.3
 
 ### Patch Changes

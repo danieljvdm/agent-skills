@@ -21,19 +21,22 @@ import {
   type EffectTsgoPatchPlan,
 } from "./effect-tsgo.ts";
 import {
+  digestFileContent,
   digestSymlinkTarget,
   digestText,
   observePath,
   type ObservedPath,
 } from "./path-digest.ts";
 import { resolvePackageSkillSelector } from "./package-skill-source.ts";
+import { readDirectDependencyNames } from "./project-package.ts";
 import { parseSkillSelector } from "./skill-selector.ts";
 import {
   AppliedStateSchema,
   DevKitLockSchema,
   type AppliedState,
   type DevKitLock,
-  type ManagedInstructionOutput,
+  type ManagedAgentInstructionsOutput,
+  type ManagedClaudeInstructionsOutput,
   type ManagedOutput,
   type ManagedSkillOutput,
   type OwnershipReceipt,
@@ -76,12 +79,20 @@ type DesiredSkillOutput =
       readonly linkTarget: string;
     });
 
-type DesiredInstructionOutput = ManagedInstructionOutput & {
+type DesiredAgentInstructionsOutput = ManagedAgentInstructionsOutput & {
+  readonly content: string;
+  readonly destination: string;
+};
+
+type DesiredClaudeInstructionsOutput = ManagedClaudeInstructionsOutput & {
   readonly destination: string;
   readonly linkTarget: string;
 };
 
-type DesiredOutput = DesiredSkillOutput | DesiredInstructionOutput;
+type DesiredOutput =
+  | DesiredSkillOutput
+  | DesiredAgentInstructionsOutput
+  | DesiredClaudeInstructionsOutput;
 
 type SkillPlanAction =
   | {
@@ -200,6 +211,8 @@ const SKILL_FAMILIES: SkillCatalog = { effect: ["effect-ts"] };
 export const DEFAULT_MANIFEST = "dev-kit.jsonc";
 const DEFAULT_LOCKFILE = "dev-kit.lock.json";
 const DEFAULT_STATE = ".dev-kit/state.json";
+const AGENT_INSTRUCTIONS_TEMPLATE = "templates/AGENTS.md";
+const DEV_KIT_SKILL_PATH_PLACEHOLDER = "{{DEV_KIT_SKILL_PATH}}";
 
 const resolvePackageRoot = Effect.fn("resolvePackageRoot")(function* () {
   const path = yield* Path.Path;
@@ -421,7 +434,51 @@ const validateCrossInventoryPaths = Effect.fn("validateCrossInventoryPaths")(fun
   }
 });
 
+const renderAgentInstructions = Effect.fn("renderAgentInstructions")(function* (
+  packageRoot: string,
+  projectDir: string,
+  sourceBySkill: ReadonlyMap<string, ResolvedSkillSource>,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const templatePath = path.join(packageRoot, AGENT_INSTRUCTIONS_TEMPLATE);
+  if ((yield* observePath(templatePath)).kind !== "file") {
+    return yield* new InvalidProjectStateError({
+      message: `dev-kit agent instructions template is not a regular file: ${AGENT_INSTRUCTIONS_TEMPLATE}`,
+    });
+  }
+  const template = yield* fs.readFileString(templatePath);
+  if (!template.includes(DEV_KIT_SKILL_PATH_PLACEHOLDER)) {
+    return yield* new InvalidProjectStateError({
+      message: `dev-kit agent instructions template is missing ${DEV_KIT_SKILL_PATH_PLACEHOLDER}`,
+    });
+  }
+
+  const devKitSkill = sourceBySkill.get("dev-kit");
+  const devKitSkillPath = devKitSkill === undefined
+    ? "node_modules/@danieljvdm/dev-kit/skills/dev-kit/SKILL.md"
+    : portablePath(
+        path,
+        path.relative(
+          projectDir,
+          path.join(devKitSkill.linkPath ?? devKitSkill.path, "SKILL.md"),
+        ),
+      );
+  const sections = [template.replaceAll(DEV_KIT_SKILL_PATH_PLACEHOLDER, devKitSkillPath).trimEnd()];
+  if ((yield* readDirectDependencyNames(projectDir)).includes("vite-plus")) {
+    const vitePlusTemplate = path.join(projectDir, "node_modules", "vite-plus", "AGENTS.md");
+    if ((yield* observePath(vitePlusTemplate)).kind !== "file") {
+      return yield* new InvalidProjectStateError({
+        message: "Vite+ is a direct dependency but its agent instructions are not a regular file: node_modules/vite-plus/AGENTS.md",
+      });
+    }
+    sections.push((yield* fs.readFileString(vitePlusTemplate)).trim());
+  }
+  return `${sections.join("\n\n")}\n`;
+});
+
 const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
+  packageRoot: string,
   projectDir: string,
   sourceBySkill: ReadonlyMap<string, ResolvedSkillSource>,
   skills: ReadonlyArray<CatalogSkill>,
@@ -430,10 +487,26 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
 ) {
   const path = yield* Path.Path;
   const outputs: Array<DesiredOutput> = [];
+  if (setup.agentInstructions.enabled) {
+    const managed = yield* resolveManagedPath(projectDir, "AGENTS.md");
+    const content = yield* renderAgentInstructions(packageRoot, projectDir, sourceBySkill);
+    outputs.push({
+      resourceId: "setup:agent-instructions",
+      path: managed.relative,
+      sourcePath: AGENT_INSTRUCTIONS_TEMPLATE,
+      mode: "copy",
+      kind: "file",
+      digest: yield* digestFileContent(content),
+      destination: managed.absolute,
+      content,
+    });
+  }
   if (setup.claudeInstructions.enabled) {
     const source = yield* resolveManagedPath(projectDir, "AGENTS.md");
-    const sourceObservation = yield* observePath(source.absolute);
-    if (sourceObservation.kind !== "file") {
+    const sourceObservation = setup.agentInstructions.enabled
+      ? undefined
+      : yield* observePath(source.absolute);
+    if (!setup.agentInstructions.enabled && sourceObservation?.kind !== "file") {
       return yield* new InvalidProjectStateError({
         message: "Claude instructions source is not a regular file: AGENTS.md",
       });
@@ -673,6 +746,7 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
     selectedSkills.push(catalogSkill);
   }
   const desired = yield* buildDesiredOutputs(
+    packageRoot,
     projectDir,
     sourceBySkill,
     selectedSkills,
@@ -705,27 +779,38 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
             },
           }),
     },
-    outputs: desired.map((output): ManagedOutput =>
-      "skill" in output
-        ? {
-            resourceId: output.resourceId,
-            path: output.path,
-            skill: output.skill,
-            target: output.target,
-            mode: output.mode,
-            kind: output.kind,
-            digest: output.digest,
-            ...(output.catalog ? { catalog: output.catalog } : {}),
-          }
-        : {
-            resourceId: output.resourceId,
-            path: output.path,
-            sourcePath: output.sourcePath,
-            mode: output.mode,
-            kind: output.kind,
-            digest: output.digest,
-          },
-    ),
+    outputs: desired.map((output): ManagedOutput => {
+      if ("skill" in output) {
+        return {
+          resourceId: output.resourceId,
+          path: output.path,
+          skill: output.skill,
+          target: output.target,
+          mode: output.mode,
+          kind: output.kind,
+          digest: output.digest,
+          ...(output.catalog ? { catalog: output.catalog } : {}),
+        };
+      }
+      if (output.resourceId === "setup:agent-instructions") {
+        return {
+          resourceId: output.resourceId,
+          path: output.path,
+          sourcePath: output.sourcePath,
+          mode: output.mode,
+          kind: output.kind,
+          digest: output.digest,
+        };
+      }
+      return {
+        resourceId: output.resourceId,
+        path: output.path,
+        sourcePath: output.sourcePath,
+        mode: output.mode,
+        kind: output.kind,
+        digest: output.digest,
+      };
+    }),
   };
   const reservedPaths = [
     { label: "manifest", path: manifestManaged.relative },
@@ -739,6 +824,17 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
   yield* validateReservedPaths(projectDir, reservedPaths, desired);
   const currentLock = yield* readOptionalStructuredFile(lockManaged.absolute, DevKitLockSchema);
   const currentState = yield* readOptionalStructuredFile(stateManaged.absolute, AppliedStateSchema);
+  if (
+    manifest.setup.claudeInstructions.enabled &&
+    !manifest.setup.agentInstructions.enabled &&
+    currentState?.outputs.some(
+      (output) => output.resourceId === "setup:agent-instructions",
+    )
+  ) {
+    return yield* new InvalidProjectStateError({
+      message: "cannot disable agentInstructions while claudeInstructions still links to its AGENTS.md wrapper",
+    });
+  }
   yield* validateReservedPaths(
     projectDir,
     reservedPaths,
@@ -898,12 +994,16 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
     const staged = path.join(stageDir, String(stageIndex++));
     yield* fs.makeDirectory(path.dirname(staged), { recursive: true });
     if (action.desired.mode === "copy") {
-      yield* fs.copy(action.desired.source, staged, { overwrite: true });
-      const symbolicLink = yield* findNestedSymbolicLink(staged);
-      if (symbolicLink !== undefined) {
-        return yield* new InvalidProjectStateError({
-          message: `staged skill contains a symlink: ${action.desired.path}`,
-        });
+      if (action.desired.kind === "file") {
+        yield* fs.writeFileString(staged, action.desired.content, { mode: 0o644 });
+      } else {
+        yield* fs.copy(action.desired.source, staged, { overwrite: true });
+        const symbolicLink = yield* findNestedSymbolicLink(staged);
+        if (symbolicLink !== undefined) {
+          return yield* new InvalidProjectStateError({
+            message: `staged skill contains a symlink: ${action.desired.path}`,
+          });
+        }
       }
     } else {
       yield* fs.symlink(action.desired.linkTarget, staged);

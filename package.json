@@ -40,7 +40,8 @@
     "skills/",
     "skill-sources.jsonc",
     "skill-sources.lock.json",
-    "src/"
+    "src/",
+    "templates/"
   ],
   "scripts": {
     "prepare": "./bin/dev-kit.mjs apply --locked",

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "toolVersion": "0.5.0",
-  "manifestDigest": "sha256:ccf5a2f3f76f4a2990305dc468bc7fc8f94fa9996c79a07feac33216f0b3923f",
+  "manifestDigest": "sha256:95e7c13e4f77cbbbc3fb710798d2b94228da26e9fe9c6ed9b1dc0a61c9c49b5b",
   "setup": {
     "effectSource": {
       "packageName": "effect",
@@ -16,5 +16,22 @@
       "typescriptVersion": "7.0.2"
     }
   },
-  "outputs": []
+  "outputs": [
+    {
+      "resourceId": "setup:agent-instructions",
+      "path": "AGENTS.md",
+      "sourcePath": "templates/AGENTS.md",
+      "mode": "copy",
+      "kind": "file",
+      "digest": "sha256:6b3920049027898fd10ba62a8c78045812c21397a1649cf67a253a8f6ddb0950"
+    },
+    {
+      "resourceId": "setup:claude-instructions",
+      "path": "CLAUDE.md",
+      "sourcePath": "AGENTS.md",
+      "mode": "symlink",
+      "kind": "symlink",
+      "digest": "sha256:07728883f9dfed017a4810db4ea26e3248d1e603ce8b085ec87953359caae216"
+    }
+  ]
 }

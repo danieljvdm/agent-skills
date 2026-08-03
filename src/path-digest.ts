@@ -135,6 +135,13 @@ export const digestText = Effect.fn("digestText")(function* (value: string) {
   return yield* digestFrames(["text-v1", value]);
 });
 
+export const digestFileContent = Effect.fn("digestFileContent")(function* (
+  value: string,
+  mode = 0o644,
+) {
+  return yield* digestFrames(["file-v1", String(mode), value]);
+});
+
 export const digestSymlinkTarget = Effect.fn("digestSymlinkTarget")(function* (target: string) {
   return yield* digestFrames(["symlink-v1", target]);
 });

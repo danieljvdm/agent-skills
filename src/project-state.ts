@@ -29,7 +29,17 @@ export const ManagedSkillOutputSchema = Schema.Struct({
 });
 export type ManagedSkillOutput = typeof ManagedSkillOutputSchema.Type;
 
-export const ManagedInstructionOutputSchema = Schema.Struct({
+export const ManagedAgentInstructionsOutputSchema = Schema.Struct({
+  resourceId: Schema.Literal("setup:agent-instructions"),
+  path: Schema.String,
+  sourcePath: Schema.String,
+  mode: Schema.Literal("copy"),
+  kind: Schema.Literal("file"),
+  digest: DigestSchema,
+});
+export type ManagedAgentInstructionsOutput = typeof ManagedAgentInstructionsOutputSchema.Type;
+
+export const ManagedClaudeInstructionsOutputSchema = Schema.Struct({
   resourceId: Schema.Literal("setup:claude-instructions"),
   path: Schema.String,
   sourcePath: Schema.String,
@@ -37,6 +47,12 @@ export const ManagedInstructionOutputSchema = Schema.Struct({
   kind: Schema.Literal("symlink"),
   digest: DigestSchema,
 });
+export type ManagedClaudeInstructionsOutput = typeof ManagedClaudeInstructionsOutputSchema.Type;
+
+export const ManagedInstructionOutputSchema = Schema.Union([
+  ManagedAgentInstructionsOutputSchema,
+  ManagedClaudeInstructionsOutputSchema,
+]);
 export type ManagedInstructionOutput = typeof ManagedInstructionOutputSchema.Type;
 
 export const ManagedOutputSchema = Schema.Union([
@@ -79,7 +95,7 @@ export const OwnershipReceiptSchema = Schema.Struct({
   resourceId: Schema.String,
   path: Schema.String,
   mode: Schema.Literals(["copy", "symlink"]),
-  kind: Schema.Literals(["directory", "symlink"]),
+  kind: Schema.Literals(["file", "directory", "symlink"]),
   digest: DigestSchema,
 });
 export type OwnershipReceipt = typeof OwnershipReceiptSchema.Type;

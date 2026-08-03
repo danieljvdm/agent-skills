@@ -2,6 +2,7 @@
   "$schema": "./schema/dev-kit.schema.json",
   "include": ["dev-kit", "effect"],
   "setup": {
+    "agentInstructions": { "enabled": true },
     "claudeInstructions": { "enabled": true },
     "effectSource": { "enabled": true },
     "effectTsgo": { "enabled": true }

@@ -1,6 +1,7 @@
 import { Effect, FileSystem, Path, Result, Schema } from "effect";
 
 import { observeSymbolicLink } from "./node-symbolic-link.ts";
+import { readDirectDependencyNames } from "./project-package.ts";
 import { isSkillName, parseSkillSelector } from "./skill-selector.ts";
 import { isTypeScriptPackageName } from "./typescript-package-name.ts";
 
@@ -23,13 +24,6 @@ export type DiscoveredPackageSkill = {
   readonly path: string;
   readonly linkPath: string;
 };
-
-const ProjectPackageSchema = Schema.fromJsonString(Schema.Struct({
-  dependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
-  devDependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
-  optionalDependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
-  peerDependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
-}));
 
 const PackageMetadataSchema = Schema.fromJsonString(Schema.Struct({
   name: Schema.String,
@@ -112,22 +106,6 @@ const rejectNestedSymlinks = Effect.fn("rejectPackageSkillSymlinks")(function* (
       Effect.mapError(() => new PackageSkillSourceError({ message: `could not read package skill: ${current}` })),
     )) pending.push(path.join(current, entry));
   }
-});
-
-const readDirectDependencyNames = Effect.fn("readDirectPackageSkillDependencyNames")(function* (projectDir: string) {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  const manifestPath = path.join(projectDir, "package.json");
-  const manifest = yield* fs.readFileString(manifestPath).pipe(
-    Effect.flatMap(Schema.decodeUnknownEffect(ProjectPackageSchema)),
-    Effect.mapError(() => new PackageSkillSourceError({ message: `invalid project package.json: ${manifestPath}` })),
-  );
-  return [...new Set([
-    ...Object.keys(manifest.dependencies ?? {}),
-    ...Object.keys(manifest.devDependencies ?? {}),
-    ...Object.keys(manifest.optionalDependencies ?? {}),
-    ...Object.keys(manifest.peerDependencies ?? {}),
-  ])].sort();
 });
 
 type InstalledPackageSkills = {

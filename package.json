@@ -1,6 +1,6 @@
 {
   "name": "@danieljvdm/dev-kit",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "private": false,
   "type": "module",
   "description": "Declarative project development toolkit with portable agent skills.",

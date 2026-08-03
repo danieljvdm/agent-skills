@@ -1,4 +1,6 @@
 export {
+  type ClaudeInstructionsSetup,
+  ClaudeInstructionsSetupSchema,
   type DevKitManifest,
   DevKitManifestSchema,
   type EffectSourceSetup,
@@ -61,12 +63,16 @@ export {
   DevKitLockSchema,
   EffectSourceLockSchema,
   EffectTsgoLockSchema,
+  ManagedInstructionOutputSchema,
+  ManagedOutputSchema,
   ManagedSkillOutputSchema,
   OwnershipReceiptSchema,
   type AppliedState,
   type DevKitLock,
   type EffectSourceLock,
   type EffectTsgoLock,
+  type ManagedInstructionOutput,
+  type ManagedOutput,
   type ManagedSkillOutput,
   type OwnershipReceipt,
 } from "./project-state.ts";

@@ -36,12 +36,19 @@ export const EffectSourceSetupSchema = Schema.Struct({
 
 export type EffectSourceSetup = typeof EffectSourceSetupSchema.Type;
 
+export const ClaudeInstructionsSetupSchema = Schema.Struct({
+  enabled: Schema.optional(Schema.Boolean),
+});
+
+export type ClaudeInstructionsSetup = typeof ClaudeInstructionsSetupSchema.Type;
+
 export const DevKitManifestSchema = Schema.Struct({
   $schema: Schema.optional(Schema.String),
   include: Schema.Array(Schema.String),
   exclude: Schema.optional(Schema.Array(Schema.String)),
   setup: Schema.optional(
     Schema.Struct({
+      claudeInstructions: Schema.optional(ClaudeInstructionsSetupSchema),
       effectSource: Schema.optional(EffectSourceSetupSchema),
       effectTsgo: Schema.optional(EffectTsgoSetupSchema),
     }),
@@ -67,6 +74,9 @@ export type NormalizedManifest = {
   readonly include: ReadonlyArray<string>;
   readonly exclude: ReadonlyArray<string>;
   readonly setup: {
+    readonly claudeInstructions: {
+      readonly enabled: boolean;
+    };
     readonly effectSource: {
       readonly enabled: boolean;
       readonly packageName: string;
@@ -114,6 +124,9 @@ export const normalizeManifest = (manifest: DevKitManifest): NormalizedManifest 
     exclude: manifest.exclude ?? [],
     include: manifest.include,
     setup: {
+      claudeInstructions: {
+        enabled: manifest.setup?.claudeInstructions?.enabled ?? false,
+      },
       effectSource: {
         enabled: manifest.setup?.effectSource?.enabled ?? false,
         packageName: manifest.setup?.effectSource?.packageName ?? "effect",

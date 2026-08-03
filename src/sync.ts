@@ -26,6 +26,8 @@ import {
   DevKitLockSchema,
   type AppliedState,
   type DevKitLock,
+  type ManagedInstructionOutput,
+  type ManagedOutput,
   type ManagedSkillOutput,
   type OwnershipReceipt,
 } from "./project-state.ts";
@@ -67,10 +69,17 @@ type DesiredSkillOutput =
       readonly linkTarget: string;
     });
 
+type DesiredInstructionOutput = ManagedInstructionOutput & {
+  readonly destination: string;
+  readonly linkTarget: string;
+};
+
+type DesiredOutput = DesiredSkillOutput | DesiredInstructionOutput;
+
 type SkillPlanAction =
   | {
       readonly action: "create" | "update";
-      readonly desired: DesiredSkillOutput;
+      readonly desired: DesiredOutput;
       readonly observed: ObservedPath;
     }
   | {
@@ -81,7 +90,7 @@ type SkillPlanAction =
     }
   | {
       readonly action: "unchanged";
-      readonly desired: DesiredSkillOutput;
+      readonly desired: DesiredOutput;
       readonly observed: ObservedPath;
       readonly adopted: boolean;
     }
@@ -315,7 +324,7 @@ const pathsOverlap = (left: string, right: string): boolean =>
 const validateReservedPaths = Effect.fn("validateReservedPaths")(function* (
   projectDir: string,
   reserved: ReadonlyArray<{ readonly label: string; readonly path: string }>,
-  outputs: ReadonlyArray<Pick<ManagedSkillOutput | OwnershipReceipt, "path">>,
+  outputs: ReadonlyArray<Pick<ManagedOutput | OwnershipReceipt, "path">>,
 ) {
   const outputPaths = new Set<string>();
   for (const output of outputs) {
@@ -342,19 +351,21 @@ const validateReservedPaths = Effect.fn("validateReservedPaths")(function* (
   }
 });
 
-const outputIdentity = (output: Pick<ManagedSkillOutput, "resourceId" | "path" | "mode" | "kind" | "digest" | "catalog">) =>
+const outputIdentity = (output: ManagedOutput) =>
   JSON.stringify({
     resourceId: output.resourceId,
     path: output.path,
     mode: output.mode,
     kind: output.kind,
     digest: output.digest,
-    catalog: output.catalog,
+    ...("skill" in output
+      ? { skill: output.skill, target: output.target, catalog: output.catalog }
+      : { sourcePath: output.sourcePath }),
   });
 
 const validateInventory = Effect.fn("validateManagedInventory")(function* (
   projectDir: string,
-  outputs: ReadonlyArray<ManagedSkillOutput | OwnershipReceipt>,
+  outputs: ReadonlyArray<ManagedOutput | OwnershipReceipt>,
   label: string,
 ) {
   const ids = new Set<string>();
@@ -384,7 +395,7 @@ const validateInventory = Effect.fn("validateManagedInventory")(function* (
 
 const validateCrossInventoryPaths = Effect.fn("validateCrossInventoryPaths")(function* (
   projectDir: string,
-  outputs: ReadonlyArray<Pick<ManagedSkillOutput | OwnershipReceipt, "path">>,
+  outputs: ReadonlyArray<Pick<ManagedOutput | OwnershipReceipt, "path">>,
 ) {
   const uniquePaths = new Set<string>();
   for (const output of outputs) {
@@ -407,10 +418,32 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
   projectDir: string,
   sourceBySkill: ReadonlyMap<string, ResolvedSkillSource>,
   skills: ReadonlyArray<string>,
+  setup: ReturnType<typeof normalizeManifest>["setup"],
   targets: ReturnType<typeof normalizeManifest>["targets"],
 ) {
   const path = yield* Path.Path;
-  const outputs: Array<DesiredSkillOutput> = [];
+  const outputs: Array<DesiredOutput> = [];
+  if (setup.claudeInstructions.enabled) {
+    const source = yield* resolveManagedPath(projectDir, "AGENTS.md");
+    const sourceObservation = yield* observePath(source.absolute);
+    if (sourceObservation.kind !== "file") {
+      return yield* new InvalidProjectStateError({
+        message: "Claude instructions source is not a regular file: AGENTS.md",
+      });
+    }
+    const managed = yield* resolveManagedPath(projectDir, "CLAUDE.md");
+    const linkTarget = path.relative(path.dirname(managed.absolute), source.absolute);
+    outputs.push({
+      resourceId: "setup:claude-instructions",
+      path: managed.relative,
+      sourcePath: source.relative,
+      mode: "symlink",
+      kind: "symlink",
+      digest: yield* digestSymlinkTarget(linkTarget),
+      destination: managed.absolute,
+      linkTarget,
+    });
+  }
   const agentsTarget = targets.agents;
   for (const skill of skills) {
     const resolvedSource = sourceBySkill.get(skill);
@@ -471,7 +504,7 @@ const canonicalState = (state: AppliedState): string => `${JSON.stringify(state,
 
 const planDesiredOutputs = Effect.fn("planDesiredSkillOutputs")(function* (
   projectDir: string,
-  desired: ReadonlyArray<DesiredSkillOutput>,
+  desired: ReadonlyArray<DesiredOutput>,
   currentLock: DevKitLock | undefined,
   currentState: AppliedState | undefined,
   nextLock: DevKitLock,
@@ -604,7 +637,13 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
     "Fetching selected skills",
     resolveSkillSources(packageRoot, projectDir, selectedSkills, options.dryRun !== true),
   );
-  const desired = yield* buildDesiredOutputs(projectDir, sourceBySkill, selectedSkills, manifest.targets);
+  const desired = yield* buildDesiredOutputs(
+    projectDir,
+    sourceBySkill,
+    selectedSkills,
+    manifest.setup,
+    manifest.targets,
+  );
   const nextLock: DevKitLock = {
     version: 1,
     toolVersion: DEV_KIT_VERSION,
@@ -631,16 +670,27 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
             },
           }),
     },
-    outputs: desired.map(({ resourceId, path: outputPath, skill, target, mode, kind, digest, catalog }) => ({
-      resourceId,
-      path: outputPath,
-      skill,
-      target,
-      mode,
-      kind,
-      digest,
-      ...(catalog ? { catalog } : {}),
-    })),
+    outputs: desired.map((output): ManagedOutput =>
+      "skill" in output
+        ? {
+            resourceId: output.resourceId,
+            path: output.path,
+            skill: output.skill,
+            target: output.target,
+            mode: output.mode,
+            kind: output.kind,
+            digest: output.digest,
+            ...(output.catalog ? { catalog: output.catalog } : {}),
+          }
+        : {
+            resourceId: output.resourceId,
+            path: output.path,
+            sourcePath: output.sourcePath,
+            mode: output.mode,
+            kind: output.kind,
+            digest: output.digest,
+          },
+    ),
   };
   const reservedPaths = [
     { label: "manifest", path: manifestManaged.relative },
@@ -692,7 +742,10 @@ const formatAction = (action: SkillPlanAction): string => {
   const verb = action.desired.mode === "copy" ? "copy" : "link";
   const adoption = action.action === "unchanged" && action.adopted ? " (adopt)" : "";
   const marker = action.action === "create" ? "+" : action.action === "update" ? "~" : "=";
-  return `${marker} ${verb} ${action.desired.skill} → ${action.desired.path}${adoption}`;
+  const source = "skill" in action.desired
+    ? action.desired.skill
+    : action.desired.sourcePath;
+  return `${marker} ${verb} ${source} → ${action.desired.path}${adoption}`;
 };
 
 const operationalChangeCount = (plan: SkillPlan): number =>

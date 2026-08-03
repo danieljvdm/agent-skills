@@ -67,6 +67,9 @@ skill as `dev-kit` when project agents should carry the toolkit procedure.
   "$schema": "./node_modules/@danieljvdm/dev-kit/schema/dev-kit.schema.json",
   "include": ["dev-kit", "effect"],
   "exclude": [],
+  "setup": {
+    "claudeInstructions": { "enabled": true }
+  },
   "targets": {
     "agents": { "enabled": true, "mode": "copy" },
     "claude": { "enabled": true, "mode": "symlink" },
@@ -79,6 +82,12 @@ Prefer a copied `.agents/skills` target as the project-local source of truth;
 use symlinks for additional harness discovery paths. Keep every target path
 project-relative and separate from the manifest, lock, state, and process-lock
 paths.
+
+Enable `setup.claudeInstructions` when Claude Code should consume the same
+project-root instructions as Codex. It manages `CLAUDE.md` as a relative
+symlink to an existing `AGENTS.md`. Preserve any conflicting `CLAUDE.md`; when
+disabled, dev-kit removes only an unchanged link recorded in local ownership
+state.
 
 ## Ownership and conflicts
 
@@ -195,8 +204,9 @@ in the consuming project.
 
 ## Current boundary
 
-Manage skill outputs, the `setup.effectSource` checkout, and the explicit
-`setup.effectTsgo` task. Edit shared `package.json` and `tsconfig.json`
+Manage skill outputs, the `setup.claudeInstructions` link, the
+`setup.effectSource` checkout, and the explicit `setup.effectTsgo` task. Edit
+shared `package.json` and `tsconfig.json`
 contributions deliberately. The Oxlint and Oxfmt configurations are composable
 package exports, not manifest-managed outputs. Treat broader setup tasks as
 future manifest capabilities until the installed CLI exposes them.

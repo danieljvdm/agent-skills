@@ -162,6 +162,9 @@ tool versions. A project-local process lock also prevents concurrent applies.
     "serve-sim"
   ],
   "exclude": ["animation-vocabulary"],
+  "setup": {
+    "claudeInstructions": { "enabled": true }
+  },
   "targets": {
     "agents": { "enabled": true, "mode": "copy" },
     "claude": { "enabled": true, "mode": "symlink" },
@@ -182,6 +185,25 @@ Dev Kit reserves `.repos/<source-id>` for project-local source checkouts. Run
 `dev-kit gitignore` to add `.repos/` and `.dev-kit/` to the project ignore file.
 The patch is idempotent, preserves existing lines, and refuses symlinked
 `.gitignore` files.
+
+## Claude instructions
+
+Enable a portable Claude Code instruction bridge in the manifest:
+
+```jsonc
+{
+  "include": [],
+  "setup": {
+    "claudeInstructions": { "enabled": true }
+  }
+}
+```
+
+`dev-kit apply` requires a project-root `AGENTS.md`, then manages
+`CLAUDE.md` as the relative symlink `CLAUDE.md → AGENTS.md`. The link is
+recorded in the lockfile and local ownership state. Dev Kit refuses to replace
+an unowned `CLAUDE.md` and removes the link when the task is disabled only if
+the owned link is unchanged.
 
 ## Effect source checkout
 

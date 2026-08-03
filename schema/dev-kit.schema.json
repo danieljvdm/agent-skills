@@ -34,6 +34,9 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "claudeInstructions": {
+          "$ref": "#/$defs/claudeInstructionsSetup"
+        },
         "effectSource": {
           "$ref": "#/$defs/effectSourceSetup"
         },
@@ -58,6 +61,17 @@
   },
   "required": ["include"],
   "$defs": {
+    "claudeInstructionsSetup": {
+      "description": "Manage CLAUDE.md as a relative symlink to the project-root AGENTS.md file.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
     "effectSourceSetup": {
       "type": "object",
       "additionalProperties": false,

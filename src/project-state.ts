@@ -20,6 +20,22 @@ export const ManagedSkillOutputSchema = Schema.Struct({
 });
 export type ManagedSkillOutput = typeof ManagedSkillOutputSchema.Type;
 
+export const ManagedInstructionOutputSchema = Schema.Struct({
+  resourceId: Schema.Literal("setup:claude-instructions"),
+  path: Schema.String,
+  sourcePath: Schema.String,
+  mode: Schema.Literal("symlink"),
+  kind: Schema.Literal("symlink"),
+  digest: DigestSchema,
+});
+export type ManagedInstructionOutput = typeof ManagedInstructionOutputSchema.Type;
+
+export const ManagedOutputSchema = Schema.Union([
+  ManagedSkillOutputSchema,
+  ManagedInstructionOutputSchema,
+]);
+export type ManagedOutput = typeof ManagedOutputSchema.Type;
+
 export const EffectTsgoLockSchema = Schema.Struct({
   effectTsgoVersion: Schema.String,
   typescriptPackage: Schema.String,
@@ -46,7 +62,7 @@ export const DevKitLockSchema = Schema.Struct({
       effectTsgo: Schema.optional(EffectTsgoLockSchema),
     }),
   ),
-  outputs: Schema.Array(ManagedSkillOutputSchema),
+  outputs: Schema.Array(ManagedOutputSchema),
 });
 export type DevKitLock = typeof DevKitLockSchema.Type;
 

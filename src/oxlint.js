@@ -8,6 +8,12 @@ export const recommendedOxlintConfig = {
   options: {
     typeAware: true,
   },
+  jsPlugins: [
+    {
+      name: "effect",
+      specifier: "@danieljvdm/dev-kit/oxlint-plugin-effect",
+    },
+  ],
   plugins: ["import", "react", "vitest"],
   rules: {
     eqeqeq: "error",

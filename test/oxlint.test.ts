@@ -9,6 +9,12 @@ const recommendedOxlintConfig = packagedOxlintConfig;
 describe("recommended Oxlint config", () => {
   it("enables the Vite+ plugins and type-aware rules", () => {
     expect(recommendedOxlintConfig.options).toEqual({ typeAware: true });
+    expect(recommendedOxlintConfig.jsPlugins).toEqual([
+      {
+        name: "effect",
+        specifier: "@danieljvdm/dev-kit/oxlint-plugin-effect",
+      },
+    ]);
     expect(recommendedOxlintConfig.plugins).toEqual(["import", "react", "vitest"]);
     expect(recommendedOxlintConfig.rules["react/rules-of-hooks"]).toBe("error");
     expect(recommendedOxlintConfig.rules["typescript/switch-exhaustiveness-check"]).toBe("error");

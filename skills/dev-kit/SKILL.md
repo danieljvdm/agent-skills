@@ -156,16 +156,19 @@ dependencies; `dev-kit apply` patches once and then converges.
 Use `dev-kit tsgo patch --dry-run` for focused diagnosis. Use `--force` only
 after the user accepts a potentially commit-incompatible TypeScript binary.
 
-## Oxlint preset for Vite+
+## Oxlint and Oxfmt configurations
 
-For Vite+ projects, compose the package's typed recommended Oxlint preset with
-project-specific lint configuration:
+Use Dev Kit's canonical Oxlint and Oxfmt objects in Vite+ projects:
 
 ```ts
 import { recommendedOxlintConfig } from "@danieljvdm/dev-kit/oxlint";
+import { recommendedOxfmtConfig } from "@danieljvdm/dev-kit/oxfmt";
 import { defineConfig } from "vite-plus";
 
 export default defineConfig({
+  fmt: {
+    ...recommendedOxfmtConfig,
+  },
   lint: {
     extends: [recommendedOxlintConfig],
     rules: {
@@ -176,14 +179,24 @@ export default defineConfig({
 ```
 
 Use `lint.extends` instead of spreading the object so Vite+ composes nested
-rule maps correctly. Keep repository-specific path conventions and
-platform-specific accessibility rules in the consuming project.
+rule maps correctly. Oxfmt has no inheritance mechanism, so spread its object
+before project-local options. Standalone `oxlint.config.ts` uses the same
+`extends: [recommendedOxlintConfig]`; standalone `oxfmt.config.ts` spreads the
+same `recommendedOxfmtConfig`.
+
+The Oxlint preset registers Dev Kit's shared Effect plugin as `effect`, but
+does not enable its scope-sensitive rules globally. Effect projects should
+enable rules such as `effect/no-effect-run`, `effect/no-unsafe-promise`, and
+`effect/no-untyped-throw` only in Effect-owned code, with explicit exceptions
+for tests and host boundaries. The stricter `effect/no-async-workflow`,
+`effect/no-promise-atom-mode`, and `effect/no-sync-boundary-decode` rules also
+need consumer-owned scopes. Keep repository-specific paths and platform rules
+in the consuming project.
 
 ## Current boundary
 
 Manage skill outputs, the `setup.effectSource` checkout, and the explicit
 `setup.effectTsgo` task. Edit shared `package.json` and `tsconfig.json`
-contributions deliberately. The Oxlint preset is a composable package export,
-not a manifest-managed output. Treat named bundles, Oxfmt presets, and broader
-setup tasks as future manifest capabilities until the installed CLI exposes
-them.
+contributions deliberately. The Oxlint and Oxfmt configurations are composable
+package exports, not manifest-managed outputs. Treat broader setup tasks as
+future manifest capabilities until the installed CLI exposes them.

@@ -1,6 +1,6 @@
 ---
 name: dev-kit
-description: Dev-kit operations for projects that configure dev-kit.jsonc, sync portable skills, run plan/apply or locked postinstalls, maintain dev-kit.lock.json, resolve ownership conflicts, patch managed ignores, or enable Effect TypeScript-Go.
+description: Dev-kit operations for projects that configure dev-kit.jsonc, sync portable skills, run plan/apply or automatic postinstalls, perform locked CI checks, maintain dev-kit.lock.json, resolve ownership conflicts, patch managed ignores, or enable Effect TypeScript-Go.
 ---
 
 # Dev Kit
@@ -51,8 +51,12 @@ stores explicit skill names and exact commit/content digests.
 6. Resolve conflicts, then run `dev-kit apply`. Commit the manifest and
    regenerated `dev-kit.lock.json`; keep `.dev-kit/` local. Finish when a second
    plan reports only unchanged resources and setup tasks.
-7. Use `dev-kit apply --locked` in CI and the package lifecycle. Finish when a
-   clean install converges from the committed manifest and lock.
+7. Use `dev-kit apply` in the package lifecycle so intentional dependency
+   upgrades regenerate owned outputs and `dev-kit.lock.json`. For strict CI,
+   either disable lifecycle scripts before `dev-kit apply --locked`, or run the
+   normal lifecycle and require the tracked working tree to remain clean. Never
+   run an unlocked apply before locked verification. Finish when a clean install
+   converges from the committed manifest and lock.
 
 ## Manifest
 
@@ -118,10 +122,16 @@ For one lifecycle entry point, configure:
 ```jsonc
 {
   "scripts": {
-    "postinstall": "dev-kit apply --locked"
+    "postinstall": "dev-kit apply"
   }
 }
 ```
+
+This intentionally refreshes the committed lock and owned outputs when the
+package manager installs a new Dev Kit or selected package-skill version.
+Review and commit those changes with the dependency update. Keep
+`dev-kit apply --locked` as a verification command, not the normal local
+lifecycle; in CI, run it only before any unlocked apply.
 
 ## Effect source checkout
 

@@ -73,18 +73,33 @@ bun x dev-kit plan
 bun x dev-kit apply
 ```
 
-Commit the generated `dev-kit.lock.json`, then use locked mode in your package
-lifecycle:
+Commit the generated `dev-kit.lock.json`, then let the package lifecycle
+converge owned outputs automatically when installed packages change:
 
 ```jsonc
 {
   "scripts": {
-    "postinstall": "dev-kit apply --locked"
+    "postinstall": "dev-kit apply"
   }
 }
 ```
 
-That single postinstall applies every task enabled in `dev-kit.jsonc`.
+That single postinstall applies every task enabled in `dev-kit.jsonc` and
+regenerates `dev-kit.lock.json` when an intentional package upgrade changes a
+bundled or package-provided skill. Ownership and conflict checks still prevent
+unreviewed overwrites.
+
+Keep strict verification in CI. Either install with lifecycle scripts disabled
+before running locked mode:
+
+```bash
+bun install --ignore-scripts
+bun x dev-kit apply --locked
+```
+
+Or allow the normal postinstall and fail CI when it leaves tracked changes.
+Do not run an unlocked apply before a locked verification because that would
+regenerate the drift being checked.
 
 This repository dogfoods the same flow with its committed `dev-kit.jsonc` and
 `dev-kit.lock.json`. From this source checkout, invoke the local CLI with:

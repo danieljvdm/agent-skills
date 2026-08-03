@@ -1,5 +1,15 @@
 # @danieljvdm/dev-kit
 
+## 0.5.0
+
+### Minor Changes
+
+- c484992: Add a manifest-managed `CLAUDE.md` symlink to project-root `AGENTS.md` with lockfile ownership and conflict-safe cleanup.
+- f57b12d: Discover Intent-style skills in installed direct dependencies and expose them
+  through package-qualified selectors. Package skills remain browse-only until
+  the user explicitly adds one, and selected package versions and content are
+  recorded in the project lock.
+
 ## 0.4.0
 
 ### Minor Changes

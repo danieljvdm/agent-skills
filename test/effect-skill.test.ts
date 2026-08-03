@@ -169,6 +169,8 @@ describe("shipped skills", () => {
 
         assert.match(skill, /^---\nname: dev-kit\ndescription: /);
         assert.notMatch(skill, /TODO/);
+        assert.match(skill, /"postinstall": "dev-kit apply"/);
+        assert.notMatch(skill, /"postinstall": "dev-kit apply --locked"/);
         assert.isTrue(
           yield* fs.exists(path.join(devKitSkillDir, "agents", "openai.yaml")),
         );

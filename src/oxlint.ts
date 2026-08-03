@@ -1,15 +1,22 @@
-import type { OxlintConfig } from "vite-plus/lint";
+import type { OxlintConfig } from "oxlint";
 
 /**
- * High-signal Oxlint defaults for TypeScript projects using Vite+.
+ * High-signal Oxlint defaults for TypeScript projects.
  *
- * Extend this object from `lint.extends` so project-local plugins, rules, and
- * overrides compose without losing nested configuration.
+ * Extend this object from standalone Oxlint's `extends`, or from Vite+'s
+ * `lint.extends`, so project-local plugins, rules, and overrides compose
+ * without losing nested configuration.
  */
 export const recommendedOxlintConfig = {
   options: {
     typeAware: true,
   },
+  jsPlugins: [
+    {
+      name: "effect",
+      specifier: "@danieljvdm/dev-kit/oxlint-plugin-effect",
+    },
+  ],
   plugins: ["import", "react", "vitest"],
   rules: {
     eqeqeq: "error",

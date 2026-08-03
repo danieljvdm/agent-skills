@@ -309,16 +309,21 @@ transforms, and installs the result through the ownership-safe sync path. Normal
 installs never float to a newer upstream commit; only a reviewed catalog refresh
 changes what is approved.
 
-## Oxlint preset for Vite+
+## Oxlint and Oxfmt configurations
 
-Dev Kit exports a typed, composable set of high-signal Oxlint rules for Vite+
-projects:
+Dev Kit exports one typed Oxlint ruleset and one typed Oxfmt configuration for
+both standalone Oxc projects and Vite+ projects. A Vite+ project composes them
+in `vite.config.ts`:
 
 ```ts
 import { recommendedOxlintConfig } from "@danieljvdm/dev-kit/oxlint";
+import { recommendedOxfmtConfig } from "@danieljvdm/dev-kit/oxfmt";
 import { defineConfig } from "vite-plus";
 
 export default defineConfig({
+  fmt: {
+    ...recommendedOxfmtConfig,
+  },
   lint: {
     extends: [recommendedOxlintConfig],
     rules: {
@@ -329,7 +334,38 @@ export default defineConfig({
 ```
 
 Use `lint.extends` rather than a shallow object spread so Vite+ composes the
-nested plugin and rule configuration correctly.
+nested plugin and rule configuration correctly. Oxfmt has no `extends`, so
+spread its configuration before project-local formatter options.
+
+Standalone projects import the same objects from their native config files:
+
+```ts
+// oxlint.config.ts
+import { recommendedOxlintConfig } from "@danieljvdm/dev-kit/oxlint";
+import { defineConfig } from "oxlint";
+
+export default defineConfig({
+  extends: [recommendedOxlintConfig],
+});
+```
+
+```ts
+// oxfmt.config.ts
+import { recommendedOxfmtConfig } from "@danieljvdm/dev-kit/oxfmt";
+import { defineConfig } from "oxfmt";
+
+export default defineConfig({
+  ...recommendedOxfmtConfig,
+});
+```
+
+The Oxlint preset also registers the shared `effect` JavaScript plugin. Effect
+projects opt into its rules in path-specific overrides, for example
+`effect/no-effect-run`, `effect/no-unsafe-promise`, and
+`effect/no-untyped-throw`. The package exports the plugin directly from
+`@danieljvdm/dev-kit/oxlint-plugin-effect` for configurations that do not
+extend the recommended preset. Strict workflow, Atom, and boundary rules remain
+consumer-scoped because application and host boundaries differ by repository.
 
 ## Development
 

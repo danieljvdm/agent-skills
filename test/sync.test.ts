@@ -10,6 +10,7 @@ import { repositoryRoot, runDevKit } from "./test-platform.ts";
 
 type ManifestOptions = {
   readonly agentsEnabled?: boolean;
+  readonly claudeInstructionsEnabled?: boolean;
   readonly claudeEnabled?: boolean;
   readonly effectTsgoEnabled?: boolean;
 };
@@ -25,8 +26,17 @@ const writeManifest = Effect.fn("writeSyncTestManifest")(function* (
     `${JSON.stringify(
       {
         include: ["effect"],
-        ...(options.effectTsgoEnabled
-          ? { setup: { effectTsgo: { enabled: true } } }
+        ...(options.effectTsgoEnabled || options.claudeInstructionsEnabled
+          ? {
+              setup: {
+                ...(options.claudeInstructionsEnabled
+                  ? { claudeInstructions: { enabled: true } }
+                  : {}),
+                ...(options.effectTsgoEnabled
+                  ? { effectTsgo: { enabled: true } }
+                  : {}),
+              },
+            }
           : {}),
         targets: {
           agents: { enabled: options.agentsEnabled ?? true, mode: "copy" },
@@ -346,6 +356,141 @@ describe("project apply", () => {
             path.join(projectDir, ".agents", "skills", "effect-ts"),
           ),
         );
+      }));
+
+    it.effect("manages a portable CLAUDE.md link to AGENTS.md", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const projectDir = yield* createProject();
+        yield* fs.writeFileString(path.join(projectDir, "AGENTS.md"), "# Instructions\n");
+        yield* writeManifest(projectDir, { claudeInstructionsEnabled: true });
+
+        const planned = yield* runDevKit(projectDir, ["plan", "--project-dir", projectDir]);
+        assert.strictEqual(planned.exitCode, 0, planned.output);
+        assert.match(planned.output, /\+ link AGENTS\.md → CLAUDE\.md/);
+        assert.isFalse(yield* fs.exists(path.join(projectDir, "CLAUDE.md")));
+
+        const applied = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+        assert.strictEqual(applied.exitCode, 0, applied.output);
+        assert.strictEqual(yield* fs.readLink(path.join(projectDir, "CLAUDE.md")), "AGENTS.md");
+        const lockPath = path.join(projectDir, "dev-kit.lock.json");
+        const statePath = path.join(projectDir, ".dev-kit", "state.json");
+        const firstLock = yield* fs.readFileString(lockPath);
+        const firstState = yield* fs.readFileString(statePath);
+        const instructionOutput = JSON.parse(firstLock).outputs.find(
+          (output: { resourceId: string }) => output.resourceId === "setup:claude-instructions",
+        );
+        assert.deepEqual(instructionOutput, {
+          resourceId: "setup:claude-instructions",
+          path: "CLAUDE.md",
+          sourcePath: "AGENTS.md",
+          mode: "symlink",
+          kind: "symlink",
+          digest: instructionOutput.digest,
+        });
+
+        const converged = yield* runDevKit(projectDir, [
+          "apply",
+          "--locked",
+          "--project-dir",
+          projectDir,
+        ]);
+        assert.strictEqual(converged.exitCode, 0, converged.output);
+        assert.match(converged.output, /Dev kit up to date/);
+        assert.strictEqual(yield* fs.readFileString(lockPath), firstLock);
+        assert.strictEqual(yield* fs.readFileString(statePath), firstState);
+      }));
+
+    it.effect("requires AGENTS.md before managing Claude instructions", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const projectDir = yield* createProject();
+        yield* writeManifest(projectDir, { claudeInstructionsEnabled: true });
+
+        const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
+        assert.notStrictEqual(result.exitCode, 0);
+        assert.match(result.output, /source is not a regular file: AGENTS\.md/);
+        assert.isFalse(yield* fs.exists(path.join(projectDir, "CLAUDE.md")));
+        assert.isFalse(yield* fs.exists(path.join(projectDir, "dev-kit.lock.json")));
+      }));
+
+    it.effect("preserves an unowned CLAUDE.md", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const projectDir = yield* createProject();
+        yield* fs.writeFileString(path.join(projectDir, "AGENTS.md"), "agents\n");
+        yield* fs.writeFileString(path.join(projectDir, "CLAUDE.md"), "claude\n");
+        yield* writeManifest(projectDir, { claudeInstructionsEnabled: true });
+
+        const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
+        assert.notStrictEqual(result.exitCode, 0);
+        assert.match(result.output, /CLAUDE\.md: destination exists but is not owned/);
+        assert.strictEqual(yield* fs.readFileString(path.join(projectDir, "CLAUDE.md")), "claude\n");
+      }));
+
+    it.effect("does not adopt an unowned exact Claude instructions link", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const projectDir = yield* createProject();
+        yield* fs.writeFileString(path.join(projectDir, "AGENTS.md"), "agents\n");
+        yield* fs.symlink("AGENTS.md", path.join(projectDir, "CLAUDE.md"));
+        yield* writeManifest(projectDir, { claudeInstructionsEnabled: true });
+
+        const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
+        assert.notStrictEqual(result.exitCode, 0);
+        assert.match(result.output, /CLAUDE\.md: destination exists but is not owned/);
+        assert.strictEqual(yield* fs.readLink(path.join(projectDir, "CLAUDE.md")), "AGENTS.md");
+      }));
+
+    it.effect("removes only an unchanged owned Claude instructions link", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const projectDir = yield* createProject();
+        yield* fs.writeFileString(path.join(projectDir, "AGENTS.md"), "agents\n");
+        yield* writeManifest(projectDir, { claudeInstructionsEnabled: true });
+        assert.strictEqual(
+          (yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir])).exitCode,
+          0,
+        );
+
+        yield* writeManifest(projectDir);
+        const planned = yield* runDevKit(projectDir, ["plan", "--project-dir", projectDir]);
+        assert.strictEqual(planned.exitCode, 0, planned.output);
+        assert.match(planned.output, /− setup:claude-instructions → CLAUDE\.md/);
+        const removed = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
+        assert.strictEqual(removed.exitCode, 0, removed.output);
+        assert.isFalse(yield* fs.exists(path.join(projectDir, "CLAUDE.md")));
+      }));
+
+    it.effect("preserves a modified owned Claude instructions link", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const projectDir = yield* createProject();
+        yield* fs.writeFileString(path.join(projectDir, "AGENTS.md"), "agents\n");
+        yield* writeManifest(projectDir, { claudeInstructionsEnabled: true });
+        assert.strictEqual(
+          (yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir])).exitCode,
+          0,
+        );
+        yield* fs.remove(path.join(projectDir, "CLAUDE.md"));
+        yield* fs.symlink("OTHER.md", path.join(projectDir, "CLAUDE.md"));
+        yield* writeManifest(projectDir);
+
+        const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
+        assert.notStrictEqual(result.exitCode, 0);
+        assert.match(result.output, /CLAUDE\.md: stale owned destination was modified/);
+        assert.strictEqual(yield* fs.readLink(path.join(projectDir, "CLAUDE.md")), "OTHER.md");
       }));
 
     it.effect("rejects manifest drift in locked mode without cleanup", () =>

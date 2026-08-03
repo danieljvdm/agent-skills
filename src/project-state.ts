@@ -9,9 +9,9 @@ export const CatalogProvenanceSchema = Schema.Union([
     resolved: Schema.String,
   }),
   Schema.Struct({
-    source: Schema.String,
     package: Schema.String,
     version: Schema.String,
+    skill: Schema.String,
     digest: DigestSchema,
   }),
 ]);

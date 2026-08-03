@@ -46,19 +46,30 @@ export {
   type ExternalSkillSource,
   LockedSkillSourceSchema,
   type LockedSkillSource,
-  LockedPackageSkillSourceSchema,
-  type LockedPackageSkillSource,
-  PackageSkillSourceSchema,
-  type PackageSkillSource,
   SkillSourcesLockSchema,
   type SkillSourcesLock,
   SkillSourcesManifestSchema,
   type SkillSourcesManifest,
 } from "./source-manifest.ts";
 export {
+  discoverPackageSkills,
+  isPackageSkillSelector,
   PackageSkillSourceError,
-  resolvePackageSkillSource,
+  resolvePackageSkillSelector,
+  type DiscoveredPackageSkill,
+  type PackageSkillDiagnostic,
 } from "./package-skill-source.ts";
+export {
+  formatSkillSelector,
+  isSkillName,
+  isSkillSelector,
+  parseSkillSelector,
+  SKILL_NAME_PATTERN,
+  SKILL_SELECTOR_PATTERN,
+  type PackageSkillSelector,
+  type SkillSelector,
+  type StaticSkillSelector,
+} from "./skill-selector.ts";
 export {
   planProjectSkills,
   printSkillPlan,

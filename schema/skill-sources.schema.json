@@ -14,13 +14,6 @@
       "items": {
         "$ref": "#/$defs/source"
       }
-    },
-    "packages": {
-      "description": "Installed npm packages whose approved skill names form catalog families.",
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/package"
-      }
     }
   },
   "required": ["sources"],
@@ -85,43 +78,6 @@
         }
       },
       "required": ["id", "repository", "ref", "skillsPath", "include"]
-    },
-    "package": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "id": {
-          "description": "Unique source id. It also becomes broad family shorthand that selects every approved package skill in project manifests.",
-          "type": "string",
-          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
-        },
-        "package": {
-          "description": "Installed npm package name.",
-          "type": "string",
-          "minLength": 1
-        },
-        "skillsPath": {
-          "description": "Package-relative directory containing skill folders.",
-          "type": "string",
-          "minLength": 1
-        },
-        "include": {
-          "description": "Explicit approved skill names. Wildcards are not allowed for package sources.",
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
-          },
-          "uniqueItems": true,
-          "minItems": 1
-        },
-        "descriptions": {
-          "description": "Optional reviewed descriptions keyed by approved skill name.",
-          "type": "object",
-          "additionalProperties": { "type": "string" }
-        }
-      },
-      "required": ["id", "package", "skillsPath", "include"]
     }
   }
 }

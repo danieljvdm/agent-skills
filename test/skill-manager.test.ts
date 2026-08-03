@@ -96,6 +96,71 @@ describe("skill management UX", () => {
         );
       }));
 
+    it.effect("browses installed package skills without selecting or installing them", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const projectDir = yield* fs.makeTempDirectoryScoped({ prefix: "dev-kit-package-list-" });
+        const packageRoot = path.join(projectDir, "node_modules", "@tanstack", "ai");
+        yield* fs.makeDirectory(path.join(packageRoot, "skills", "ai-core"), { recursive: true });
+        yield* fs.writeFileString(
+          path.join(projectDir, "package.json"),
+          '{"dependencies":{"@tanstack/ai":"1.2.3"}}\n',
+        );
+        yield* fs.writeFileString(
+          path.join(packageRoot, "package.json"),
+          '{"name":"@tanstack/ai","version":"1.2.3","intent":{"version":1,"repo":"https://github.com/TanStack/ai","docs":"https://tanstack.com/ai"}}\n',
+        );
+        yield* fs.writeFileString(
+          path.join(packageRoot, "skills", "ai-core", "SKILL.md"),
+          "---\nname: ai-core\ndescription: Build streaming AI chat.\n---\n",
+        );
+
+        const listed = yield* runDevKit(projectDir, ["list", "--all", "--project-dir", projectDir]);
+        assert.strictEqual(listed.exitCode, 0, listed.output);
+        assert.match(listed.output, /@tanstack\/ai#ai-core \[installed 1\.2\.3\]/);
+        assert.isFalse(yield* fs.exists(path.join(projectDir, "dev-kit.jsonc")));
+        assert.isFalse(yield* fs.exists(path.join(projectDir, "dev-kit.lock.json")));
+        assert.isFalse(yield* fs.exists(path.join(projectDir, ".agents")));
+
+        const searched = yield* runDevKit(projectDir, [
+          "search", "streaming", "--project-dir", projectDir,
+        ]);
+        assert.strictEqual(searched.exitCode, 0, searched.output);
+        assert.match(searched.output, /@tanstack\/ai#ai-core/);
+
+        const info = yield* runDevKit(projectDir, [
+          "info", "@tanstack/ai#ai-core", "--project-dir", projectDir,
+        ]);
+        assert.strictEqual(info.exitCode, 0, info.output);
+        assert.match(info.output, /Source: installed package/);
+        assert.match(info.output, /Version: 1\.2\.3/);
+
+        const added = yield* runDevKit(projectDir, [
+          "add", "@tanstack/ai#ai-core", "--no-apply", "--project-dir", projectDir,
+        ]);
+        assert.strictEqual(added.exitCode, 0, added.output);
+        assert.include(
+          yield* fs.readFileString(path.join(projectDir, "dev-kit.jsonc")),
+          '"@tanstack/ai#ai-core"',
+        );
+        assert.isFalse(yield* fs.exists(path.join(projectDir, ".agents")));
+
+        yield* fs.remove(packageRoot, { recursive: true });
+        const unavailable = yield* runDevKit(projectDir, ["list", "--project-dir", projectDir]);
+        assert.strictEqual(unavailable.exitCode, 0, unavailable.output);
+        assert.match(unavailable.output, /! @tanstack\/ai#ai-core \[unavailable\]/);
+
+        const removed = yield* runDevKit(projectDir, [
+          "remove", "@tanstack/ai#ai-core", "--no-apply", "--project-dir", projectDir,
+        ]);
+        assert.strictEqual(removed.exitCode, 0, removed.output);
+        assert.notInclude(
+          yield* fs.readFileString(path.join(projectDir, "dev-kit.jsonc")),
+          '"@tanstack/ai#ai-core"',
+        );
+      }));
+
     it.effect("keeps custom manifests inside the project and renders a relative schema path", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;

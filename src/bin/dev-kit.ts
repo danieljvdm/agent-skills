@@ -57,7 +57,7 @@ const addCommand = CliCommand.make(
     skills.length === 0
       ? chooseSkillsToAdd({ apply: !noApply, manifestPath: manifest, projectDir })
       : addSkills(skills, { apply: !noApply, manifestPath: manifest, projectDir }),
-).pipe(CliCommand.withDescription("Select and install one or more approved skills."));
+).pipe(CliCommand.withDescription("Select and install one or more available skills."));
 
 const removeCommand = CliCommand.make(
   "remove",
@@ -89,13 +89,13 @@ const searchCommand = CliCommand.make(
   { query: Argument.string("query").pipe(Argument.variadic({ min: 1 })), ...projectFlags },
   ({ query, manifest, projectDir }) =>
     listSkills({ all: true, query: query.join(" "), manifestPath: manifest, projectDir }),
-).pipe(CliCommand.withDescription("Search approved skill names and descriptions."));
+).pipe(CliCommand.withDescription("Search available skill names and descriptions."));
 
 const infoCommand = CliCommand.make(
   "info",
-  { skill: Argument.string("skill") },
-  ({ skill }) => showSkill(skill),
-).pipe(CliCommand.withDescription("Show provenance and details for an approved skill."));
+  { skill: Argument.string("skill"), ...projectFlags },
+  ({ skill, manifest, projectDir }) => showSkill(skill, { manifestPath: manifest, projectDir }),
+).pipe(CliCommand.withDescription("Show provenance and details for an available skill."));
 
 const planCommand = CliCommand.make(
   "plan",

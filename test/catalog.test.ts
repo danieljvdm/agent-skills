@@ -81,7 +81,7 @@ describe("remote catalog resolution", () => {
         assert.match(error.message, /does not match the approved catalog/);
       }));
 
-    it.effect("resolves approved skills from the consumer's installed package version", () =>
+    it.effect("discovers and resolves skills from a direct installed dependency", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
@@ -95,35 +95,26 @@ describe("remote catalog resolution", () => {
         });
         yield* fs.writeFileString(
           path.join(installed, "package.json"),
-          '{"name":"@scope/tools","version":"2.3.4"}\n',
+          '{"name":"@scope/tools","version":"2.3.4","repository":{"type":"git","url":"https://example.test/tools.git"}}\n',
+        );
+        yield* fs.writeFileString(
+          path.join(projectDir, "package.json"),
+          '{"dependencies":{"@scope/tools":"2.3.4"}}\n',
         );
         yield* fs.writeFileString(
           path.join(installed, "skills", "package-skill", "SKILL.md"),
           "---\nname: package-skill\ndescription: Installed package skill.\n---\n\nHello.\n",
         );
-        yield* fs.writeFileString(
-          path.join(packageRoot, "skill-sources.lock.json"),
-          `${JSON.stringify({
-            version: 1,
-            sources: [],
-            packages: [{
-              id: "package-tools",
-              package: "@scope/tools",
-              skillsPath: "skills",
-              skills: ["package-skill"],
-              descriptions: { "package-skill": "Installed package skill." },
-            }],
-          }, null, 2)}\n`,
-        );
-
-        const catalog = yield* loadSkillCatalog(packageRoot);
-        assert.deepEqual(catalog.families["package-tools"], ["package-skill"]);
+        const catalog = yield* loadSkillCatalog(packageRoot, projectDir);
+        assert.deepEqual(catalog.skills.map((skill) => skill.selector), [
+          "@scope/tools#package-skill",
+        ]);
         const resolved = yield* resolveSkillSources(
           packageRoot,
           projectDir,
-          ["package-skill"],
+          ["@scope/tools#package-skill"],
         );
-        const skill = resolved.get("package-skill");
+        const skill = resolved.get("@scope/tools#package-skill");
         if (skill === undefined) assert.fail("package skill was not resolved");
         assert.strictEqual(
           skill.path,
@@ -136,9 +127,9 @@ describe("remote catalog resolution", () => {
         if (skill.catalog === undefined || !("package" in skill.catalog)) {
           assert.fail("package catalog provenance was not recorded");
         }
-        assert.strictEqual(skill.catalog.source, "package-tools");
         assert.strictEqual(skill.catalog.package, "@scope/tools");
         assert.strictEqual(skill.catalog.version, "2.3.4");
+        assert.strictEqual(skill.catalog.skill, "package-skill");
         assert.match(skill.catalog.digest, /^sha256:/);
         assert.isFalse(yield* fs.exists(path.join(projectDir, ".dev-kit", "cache")));
       }));

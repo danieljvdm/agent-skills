@@ -3,7 +3,11 @@ import { Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
 
 import { observePath, type Digest } from "./path-digest.ts";
-import { resolvePackageSkillSource } from "./package-skill-source.ts";
+import {
+  discoverPackageSkills,
+  resolvePackageSkillSelector,
+  type PackageSkillDiagnostic,
+} from "./package-skill-source.ts";
 import {
   SkillSourcesLockSchema,
   type LockedSkillSource,
@@ -12,14 +16,20 @@ import {
 
 export type CatalogSkill = {
   readonly name: string;
+  readonly selector: string;
   readonly description: string;
   readonly source: string;
   readonly bundled: boolean;
+  readonly package?: {
+    readonly name: string;
+    readonly version: string;
+  };
 };
 
 export type SkillCatalog = {
   readonly skills: ReadonlyArray<CatalogSkill>;
   readonly families: Readonly<Record<string, ReadonlyArray<string>>>;
+  readonly diagnostics: ReadonlyArray<PackageSkillDiagnostic>;
   readonly lock?: SkillSourcesLock;
 };
 
@@ -33,9 +43,9 @@ export type ResolvedSkillSource = {
         readonly resolved: string;
       }
     | {
-        readonly source: string;
         readonly package: string;
         readonly version: string;
+        readonly skill: string;
         readonly digest: Digest;
       };
 };
@@ -96,6 +106,7 @@ const readDescription = Effect.fn("readSkillDescription")(function* (skillPath: 
 
 export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
   packageRoot: string,
+  projectDir?: string,
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -107,6 +118,7 @@ export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
       if ((yield* fs.exists(path.join(skillPath, "SKILL.md")))) {
         skills.push({
           name,
+          selector: name,
           description: yield* readDescription(skillPath),
           source: "built-in",
           bundled: true,
@@ -119,34 +131,37 @@ export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
     for (const name of source.skills) {
       skills.push({
         name,
+        selector: name,
         description: source.descriptions?.[name] ?? "",
         source: source.id,
         bundled: false,
       });
     }
   }
-  for (const source of lock?.packages ?? []) {
-    for (const name of source.skills) {
-      skills.push({
-        name,
-        description: source.descriptions?.[name] ?? "",
-        source: source.id,
-        bundled: false,
-      });
-    }
+  const discovery = projectDir === undefined
+    ? { candidates: [], diagnostics: [] }
+    : yield* discoverPackageSkills(projectDir);
+  for (const candidate of discovery.candidates) {
+    skills.push({
+      name: candidate.name,
+      selector: candidate.selector,
+      description: candidate.description,
+      source: candidate.package,
+      bundled: false,
+      package: { name: candidate.package, version: candidate.version },
+    });
   }
   const duplicates = skills.filter(
-    (skill, index) => skills.findIndex((candidate) => candidate.name === skill.name) !== index,
+    (skill, index) => skills.findIndex((candidate) => candidate.selector === skill.selector) !== index,
   );
   if (duplicates.length > 0) {
     return yield* new CatalogError({
-      message: `duplicate catalog skill: ${duplicates[0]?.name ?? "unknown"}`,
+      message: `duplicate catalog skill selector: ${duplicates[0]?.selector ?? "unknown"}`,
     });
   }
-  const externalFamilies = [
-    ...(lock?.sources ?? []).map((source) => [source.id, source.skills] as const),
-    ...(lock?.packages ?? []).map((source) => [source.id, source.skills] as const),
-  ];
+  const externalFamilies = (lock?.sources ?? []).map((source) =>
+    [source.id, source.skills] as const
+  );
   const duplicateFamily = externalFamilies.find(
     ([id], index) => externalFamilies.findIndex(([candidate]) => candidate === id) !== index,
   );
@@ -160,8 +175,9 @@ export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
     ...Object.fromEntries(externalFamilies),
   };
   return {
-    skills: skills.sort((left, right) => left.name.localeCompare(right.name)),
+    skills: skills.sort((left, right) => left.selector.localeCompare(right.selector)),
     families,
+    diagnostics: discovery.diagnostics,
     ...(lock ? { lock } : {}),
   } satisfies SkillCatalog;
 });
@@ -257,11 +273,11 @@ export const resolveSkillSources = Effect.fn("resolveSkillSources")(function* (
   cache = true,
 ) {
   const path = yield* Path.Path;
-  const catalog = yield* loadSkillCatalog(packageRoot);
+  const catalog = yield* loadSkillCatalog(packageRoot, projectDir);
   const sources = new Map<string, ResolvedSkillSource>();
   for (const skill of catalog.skills.filter((skill) => skill.bundled)) {
-    if (selected.includes(skill.name)) {
-      sources.set(skill.name, { path: path.join(packageRoot, "skills", skill.name) });
+    if (selected.includes(skill.selector)) {
+      sources.set(skill.selector, { path: path.join(packageRoot, "skills", skill.name) });
     }
   }
   for (const source of catalog.lock?.sources ?? []) {
@@ -271,31 +287,22 @@ export const resolveSkillSources = Effect.fn("resolveSkillSources")(function* (
       sources.set(name, sourcePath);
     }
   }
-  for (const source of catalog.lock?.packages ?? []) {
-    const wanted = source.skills.filter((skill) => selected.includes(skill));
-    if (wanted.length === 0) continue;
-    for (const [name, resolved] of yield* resolvePackageSkillSource(
-      projectDir,
-      source,
-      wanted,
-    )) {
-      const observation = yield* observePath(resolved.path);
-      if (observation.kind !== "directory") {
-        return yield* new CatalogError({
-          message: `package source ${source.id} is missing skill ${name}`,
-        });
-      }
-      sources.set(name, {
-        path: resolved.path,
-        linkPath: resolved.linkPath,
-        catalog: {
-          source: source.id,
-          package: source.package,
-          version: resolved.version,
-          digest: observation.digest,
-        },
-      });
+  for (const selector of selected.filter((value) => value.includes("#"))) {
+    const resolved = yield* resolvePackageSkillSelector(projectDir, selector);
+    const observation = yield* observePath(resolved.path);
+    if (observation.kind !== "directory") {
+      return yield* new CatalogError({ message: `package skill is missing: ${selector}` });
     }
+    sources.set(selector, {
+      path: resolved.path,
+      linkPath: resolved.linkPath,
+      catalog: {
+        package: resolved.package,
+        version: resolved.version,
+        skill: resolved.name,
+        digest: observation.digest,
+      },
+    });
   }
   return sources;
 });

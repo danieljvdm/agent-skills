@@ -20,7 +20,8 @@ Install the published Dev Kit package:
 bun add -d @danieljvdm/dev-kit
 ```
 
-Initialize the project, browse the approved catalog, and add skills:
+Initialize the project, browse available built-in, approved Git, and installed
+package skills, then add the ones you want:
 
 ```bash
 bun x dev-kit init
@@ -107,7 +108,7 @@ the root package itself.
 | `dev-kit remove <skill...>` | Deselect and uninstall skills safely. |
 | `dev-kit list [--all]` | List selected skills or browse the catalog. |
 | `dev-kit search <words...>` | Search names and descriptions. |
-| `dev-kit info <skill>` | Show description, source, and approved commit. |
+| `dev-kit info <skill>` | Show description and Git or installed-package provenance. |
 | `dev-kit status` | Check whether the project matches its selection. |
 | `dev-kit sync` | Apply the current manifest. |
 | `dev-kit plan` | Preview project changes without writing files. |
@@ -149,7 +150,8 @@ tool versions. A project-local process lock also prevents concurrent applies.
 
 ## Manifest
 
-`include` accepts individual skill names and skill families:
+`include` accepts static skill names, skill families, and explicit
+`<package>#<skill>` selectors:
 
 ```jsonc
 {
@@ -159,7 +161,8 @@ tool versions. A project-local process lock also prevents concurrent applies.
     "effect",
     "workers-best-practices",
     "wrangler",
-    "serve-sim"
+    "serve-sim",
+    "@tanstack/ai#ai-core"
   ],
   "exclude": ["animation-vocabulary"],
   "setup": {
@@ -178,6 +181,8 @@ tool versions. A project-local process lock also prevents concurrent applies.
 - Prefer individual external skills such as `workers-best-practices` and
   `wrangler`, selected after scanning the project for relevant technologies.
 - `serve-sim` selects the approved Evan Bacon simulator skill directly.
+- `@tanstack/ai#ai-core` explicitly selects a skill discovered in that direct
+  project dependency; discovery alone never selects it.
 - An approved source ID is broad shorthand that selects every skill from that
   source. Use it only when the scan confirms that every member applies.
 
@@ -270,11 +275,65 @@ troubleshooting the task directly.
 Package and tsconfig edits remain explicit until Dev Kit can safely own parts
 of shared JSONC files.
 
-## Approved external skills
+## Installed package skills
 
-This repository is an opinionated catalog, not a mirror of every upstream skill
-tree. `skill-sources.jsonc` declares both reviewed Git sources and approved
-package-backed skills:
+Dev Kit generically discovers agent skills bundled by the project's installed
+JavaScript packages. It reads the project's direct dependencies, checks the
+package's Intent v1 discovery metadata (or Intent's repository-metadata
+fallback), then looks for the layout
+`node_modules/<package>/skills/<skill>/SKILL.md`.
+TanStack is one publisher of this layout; no TanStack package names or skill
+paths are hard-coded into Dev Kit.
+
+Discovery is browse-only. These commands show an installed package skill but do
+not select, copy, symlink, lock, or otherwise install it:
+
+```bash
+bun x dev-kit list --all
+bun x dev-kit search tanstack
+bun x dev-kit info @tanstack/ai#ai-core
+```
+
+Selection is explicit and package-qualified:
+
+```bash
+bun x dev-kit add @tanstack/ai#ai-core
+```
+
+That writes `@tanstack/ai#ai-core` to `dev-kit.jsonc` and, unless
+`--no-apply` is passed, installs it through the normal ownership-safe sync
+path. The qualifier prevents ambiguity when two dependencies publish the same
+skill name. Two selected skills that would both write the same destination are
+rejected before any output is changed.
+
+The initial compatibility boundary is intentionally small and deterministic:
+
+- only packages named in the root project's `dependencies`,
+  `devDependencies`, `optionalDependencies`, or `peerDependencies` are
+  scanned;
+- package code is never imported or executed;
+- npm-style and pnpm/workspace symlinks under `node_modules` are supported;
+- Yarn Plug'n'Play and transitive dependency traversal are not scanned; and
+- immediate `skills/<name>/SKILL.md` roots are listed. Nested topic skills and
+  references remain part of that root and are copied with it.
+
+The last rule adapts Intent's routed, nested skill trees to the immediate folder
+and frontmatter-name invariants expected by Agent Skills targets. Dev Kit does
+not rewrite nested names or ask Intent to manage agent configuration.
+
+The project `dev-kit.lock.json` records the selected package name, installed
+version, skill name, and content digest. `apply --locked` therefore rejects
+package-version or skill-content drift. Dev Kit never downloads a missing
+package or substitutes a registry version.
+
+See TanStack's
+[Agent Skills documentation](https://tanstack.com/ai/latest/docs/getting-started/agent-skills)
+for a real package suite that uses this convention.
+
+## Approved external Git skills
+
+This repository remains an opinionated catalog for Git-hosted skills.
+`skill-sources.jsonc` contains only reviewed Git sources:
 
 ```jsonc
 {
@@ -288,40 +347,9 @@ package-backed skills:
       "include": ["*"],
       "licensePath": "LICENSE"
     }
-  ],
-  "packages": [
-    {
-      "id": "tanstack-ai",
-      "package": "@tanstack/ai",
-      "skillsPath": "skills",
-      "include": ["ai-core"],
-      "descriptions": {
-        "ai-core": "TanStack AI core concepts."
-      }
-    }
   ]
 }
 ```
-
-Package-backed skills are an explicit trust decision for both the package and
-the listed top-level skill names. Their content comes from the package version
-installed by the consuming project, rather than a Git checkout. The project
-lock records that resolved package version and the selected skill digests, so
-locked installs reject package or skill-content drift. If a selected package is
-not installed, sync reports the missing package instead of silently fetching a
-substitute.
-
-Some approved companion packages may still be upstream development artifacts
-and not yet be published to the npm registry. Select them only in projects that
-install them from a compatible source.
-
-A package skill root may contain nested `SKILL.md` files and references. Those
-are progressive-disclosure material copied with the selected root; they are not
-separate catalog entries. For example, `ai-core` includes its routed topic
-skills and `ai-persistence` includes its server, store, and adapter recipes.
-This follows TanStack's documented
-[Agent Skills layout](https://tanstack.com/ai/latest/docs/getting-started/agent-skills)
-without asking Intent to manage Dev Kit's agent configuration files.
 
 Maintainers approve a new upstream snapshot with:
 
@@ -330,40 +358,25 @@ bun run catalog:refresh
 bun run catalog:check
 ```
 
-Adding a source does not require editing JSONC:
+Adding a Git source does not require editing JSONC:
 
 ```bash
-# Opens a skill picker in a terminal
 dev-kit catalog add https://github.com/owner/repository
-
-# Explicit and automation-friendly
 dev-kit catalog add https://github.com/owner/repository \
   --skill one --skill two
 dev-kit catalog add https://github.com/owner/repository --all
 ```
 
-GitHub tree URLs are accepted, so a URL such as
-`https://github.com/owner/repository/tree/main/skills` supplies the repository,
-ref, and skills path together. `--all` expands to the skills discovered at that
+GitHub tree URLs are accepted. `--all` expands to the skills found at that
 exact snapshot; it never writes a wildcard that could silently approve a future
-upstream addition.
+upstream addition. Catalog refresh resolves refs to exact commits, validates
+names and paths, rejects symlinks and collisions, extracts descriptions, and
+updates `skill-sources.lock.json`.
 
-The current catalog includes approved snapshots from Emil Kowalski,
-Cloudflare, and Evan Bacon, plus package-backed TanStack AI skills for
-`@tanstack/ai`, persistence, memory, MCP, sandboxing, and Code Mode. Inspect
-them with `dev-kit catalog list` and `dev-kit catalog info <source>`.
-
-The refresh resolves refs to exact commits, validates names and paths, rejects
-symlinks and collisions, extracts short descriptions, and updates
-`skill-sources.lock.json`. It does not copy upstream skill trees into this
-repository.
-
-When a consuming project selects a Git-backed external skill, Dev Kit fetches
-that exact approved commit into the ignored `.dev-kit/cache`, applies declared
-compatibility transforms, and installs the result through the ownership-safe
-sync path. Package-backed selections resolve from the project's installed
-package version instead. Normal Git-source installs never float to a newer
-upstream commit; only a reviewed catalog refresh changes what is approved.
+When a project selects one of these Git-backed skills, Dev Kit fetches the
+approved commit into the ignored `.dev-kit/cache` and installs it through the
+same ownership-safe sync path. Only a reviewed catalog refresh changes the
+approved Git content.
 
 ## Oxlint and Oxfmt configurations
 

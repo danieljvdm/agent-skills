@@ -181,6 +181,7 @@ tool versions. A project-local process lock also prevents concurrent applies.
   ],
   "exclude": ["animation-vocabulary"],
   "setup": {
+    "agentInstructions": { "enabled": true },
     "claudeInstructions": { "enabled": true }
   },
   "targets": {
@@ -206,24 +207,33 @@ Dev Kit reserves `.repos/<source-id>` for project-local source checkouts. Run
 The patch is idempotent, preserves existing lines, and refuses symlinked
 `.gitignore` files.
 
-## Claude instructions
+## Agent instructions
 
-Enable a portable Claude Code instruction bridge in the manifest:
+Enable a managed project-root instruction wrapper and a portable Claude Code
+bridge in the manifest:
 
 ```jsonc
 {
-  "include": [],
+  "include": ["dev-kit"],
   "setup": {
+    "agentInstructions": { "enabled": true },
     "claudeInstructions": { "enabled": true }
   }
 }
 ```
 
-`dev-kit apply` requires a project-root `AGENTS.md`, then manages
-`CLAUDE.md` as the relative symlink `CLAUDE.md → AGENTS.md`. The link is
-recorded in the lockfile and local ownership state. Dev Kit refuses to replace
-an unowned `CLAUDE.md` and removes the link when the task is disabled only if
-the owned link is unchanged.
+`setup.agentInstructions` manages `AGENTS.md` as a generated wrapper with a
+short description of dev-kit and a pointer to the installed `dev-kit` skill.
+When the root `package.json` declares `vite-plus` directly, the wrapper also
+includes Vite+'s installed `node_modules/vite-plus/AGENTS.md` instructions.
+Transitive installations do not opt a project in.
+
+`setup.claudeInstructions` manages `CLAUDE.md` as the relative symlink
+`CLAUDE.md → AGENTS.md`. It can link to the generated wrapper in the same apply,
+or retain the older behavior of linking to an existing regular `AGENTS.md` when
+the wrapper task is disabled. Both outputs are recorded independently in the
+lockfile and local ownership state. Dev Kit refuses to replace unowned files
+and removes only unchanged owned outputs.
 
 ## Effect source checkout
 

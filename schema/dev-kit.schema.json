@@ -34,6 +34,9 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "agentInstructions": {
+          "$ref": "#/$defs/agentInstructionsSetup"
+        },
         "claudeInstructions": {
           "$ref": "#/$defs/claudeInstructionsSetup"
         },
@@ -61,6 +64,17 @@
   },
   "required": ["include"],
   "$defs": {
+    "agentInstructionsSetup": {
+      "description": "Manage a project-root AGENTS.md wrapper with dev-kit guidance and conditional tool instructions.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
     "claudeInstructionsSetup": {
       "description": "Manage CLAUDE.md as a relative symlink to the project-root AGENTS.md file.",
       "type": "object",

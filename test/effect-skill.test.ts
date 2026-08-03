@@ -203,7 +203,6 @@ describe("shipped skills", () => {
         const selfLock = JSON.parse(
           yield* fs.readFileString(path.join(root, "dev-kit.lock.json")),
         );
-
         assert.strictEqual(packageJson.name, "@danieljvdm/dev-kit");
         assert.strictEqual(packageJson.scripts.prepare, "./bin/dev-kit.mjs apply --locked");
         assert.strictEqual(packageJson.scripts["dev-kit"], "./bin/dev-kit.mjs");
@@ -211,7 +210,10 @@ describe("shipped skills", () => {
         assert.isTrue(selfManifest.setup.effectSource.enabled);
         assert.isTrue(selfManifest.setup.effectTsgo.enabled);
         assert.isFalse(selfManifest.targets.agents.enabled);
-        assert.deepEqual(selfLock.outputs, []);
+        assert.deepEqual(
+          selfLock.outputs.map((output: { resourceId: string }) => output.resourceId),
+          ["setup:agent-instructions", "setup:claude-instructions"],
+        );
         assert.strictEqual(selfLock.setup.effectSource.tag, "effect@4.0.0-beta.102");
         assert.isTrue(yield* fs.exists(path.join(root, "dev-kit.example.jsonc")));
         assert.isTrue(

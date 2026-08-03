@@ -72,6 +72,7 @@ skill as `dev-kit` when project agents should carry the toolkit procedure.
   "include": ["dev-kit", "effect"],
   "exclude": [],
   "setup": {
+    "agentInstructions": { "enabled": true },
     "claudeInstructions": { "enabled": true }
   },
   "targets": {
@@ -87,11 +88,14 @@ use symlinks for additional harness discovery paths. Keep every target path
 project-relative and separate from the manifest, lock, state, and process-lock
 paths.
 
+Enable `setup.agentInstructions` to manage a project-root `AGENTS.md` wrapper
+that points agents back to this skill. When `vite-plus` is a declared direct
+dependency, dev-kit includes its installed agent instructions in the wrapper.
 Enable `setup.claudeInstructions` when Claude Code should consume the same
-project-root instructions as Codex. It manages `CLAUDE.md` as a relative
-symlink to an existing `AGENTS.md`. Preserve any conflicting `CLAUDE.md`; when
-disabled, dev-kit removes only an unchanged link recorded in local ownership
-state.
+project-root instructions; it manages `CLAUDE.md` as a relative symlink to the
+wrapper or to an existing regular `AGENTS.md`. Preserve conflicting paths;
+when disabled, dev-kit removes only unchanged outputs recorded in local
+ownership state.
 
 ## Ownership and conflicts
 
@@ -214,7 +218,8 @@ in the consuming project.
 
 ## Current boundary
 
-Manage skill outputs, the `setup.claudeInstructions` link, the
+Manage skill outputs, the `setup.agentInstructions` wrapper, the
+`setup.claudeInstructions` link, the
 `setup.effectSource` checkout, and the explicit `setup.effectTsgo` task. Edit
 shared `package.json` and `tsconfig.json`
 contributions deliberately. The Oxlint and Oxfmt configurations are composable

@@ -2,6 +2,21 @@ import { Schema } from "effect";
 
 import { DigestSchema } from "./path-digest.ts";
 
+export const CatalogProvenanceSchema = Schema.Union([
+  Schema.Struct({
+    source: Schema.String,
+    repository: Schema.String,
+    resolved: Schema.String,
+  }),
+  Schema.Struct({
+    package: Schema.String,
+    version: Schema.String,
+    skill: Schema.String,
+    digest: DigestSchema,
+  }),
+]);
+export type CatalogProvenance = typeof CatalogProvenanceSchema.Type;
+
 export const ManagedSkillOutputSchema = Schema.Struct({
   resourceId: Schema.String,
   path: Schema.String,
@@ -10,13 +25,7 @@ export const ManagedSkillOutputSchema = Schema.Struct({
   mode: Schema.Literals(["copy", "symlink"]),
   kind: Schema.Literals(["directory", "symlink"]),
   digest: DigestSchema,
-  catalog: Schema.optional(
-    Schema.Struct({
-      source: Schema.String,
-      repository: Schema.String,
-      resolved: Schema.String,
-    }),
-  ),
+  catalog: Schema.optional(CatalogProvenanceSchema),
 });
 export type ManagedSkillOutput = typeof ManagedSkillOutputSchema.Type;
 

@@ -60,6 +60,7 @@ export {
 } from "./sync.ts";
 export {
   AppliedStateSchema,
+  CatalogProvenanceSchema,
   DevKitLockSchema,
   EffectSourceLockSchema,
   EffectTsgoLockSchema,
@@ -68,6 +69,7 @@ export {
   ManagedSkillOutputSchema,
   OwnershipReceiptSchema,
   type AppliedState,
+  type CatalogProvenance,
   type DevKitLock,
   type EffectSourceLock,
   type EffectTsgoLock,

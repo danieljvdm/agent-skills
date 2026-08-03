@@ -1,5 +1,6 @@
 import { Schema } from "effect";
 
+import { SKILL_SELECTOR_PATTERN } from "./skill-selector.ts";
 import { TYPESCRIPT_PACKAGE_NAME_PATTERN } from "./typescript-package-name.ts";
 
 export type HarnessTarget = "agents" | "claude" | "opencode";
@@ -44,8 +45,8 @@ export type ClaudeInstructionsSetup = typeof ClaudeInstructionsSetupSchema.Type;
 
 export const DevKitManifestSchema = Schema.Struct({
   $schema: Schema.optional(Schema.String),
-  include: Schema.Array(Schema.String),
-  exclude: Schema.optional(Schema.Array(Schema.String)),
+  include: Schema.Array(Schema.String.check(Schema.isPattern(SKILL_SELECTOR_PATTERN))),
+  exclude: Schema.optional(Schema.Array(Schema.String.check(Schema.isPattern(SKILL_SELECTOR_PATTERN)))),
   setup: Schema.optional(
     Schema.Struct({
       claudeInstructions: Schema.optional(ClaudeInstructionsSetupSchema),

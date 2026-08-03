@@ -2,7 +2,11 @@ import { parse as parseJsonc, type ParseError } from "jsonc-parser";
 import { Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
 
-import { observePath } from "./path-digest.ts";
+import { observePath, type Digest } from "./path-digest.ts";
+import {
+  discoverPackageSkills,
+  resolvePackageSkillSelector,
+} from "./package-skill-source.ts";
 import {
   SkillSourcesLockSchema,
   type LockedSkillSource,
@@ -11,9 +15,14 @@ import {
 
 export type CatalogSkill = {
   readonly name: string;
+  readonly selector: string;
   readonly description: string;
   readonly source: string;
   readonly bundled: boolean;
+  readonly package?: {
+    readonly name: string;
+    readonly version: string;
+  };
 };
 
 export type SkillCatalog = {
@@ -24,11 +33,19 @@ export type SkillCatalog = {
 
 export type ResolvedSkillSource = {
   readonly path: string;
-  readonly catalog?: {
-    readonly source: string;
-    readonly repository: string;
-    readonly resolved: string;
-  };
+  readonly linkPath?: string;
+  readonly catalog?:
+    | {
+        readonly source: string;
+        readonly repository: string;
+        readonly resolved: string;
+      }
+    | {
+        readonly package: string;
+        readonly version: string;
+        readonly skill: string;
+        readonly digest: Digest;
+      };
 };
 
 class CatalogError extends Schema.TaggedErrorClass<CatalogError>()("CatalogError", {
@@ -87,6 +104,7 @@ const readDescription = Effect.fn("readSkillDescription")(function* (skillPath: 
 
 export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
   packageRoot: string,
+  projectDir: string,
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -98,6 +116,7 @@ export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
       if ((yield* fs.exists(path.join(skillPath, "SKILL.md")))) {
         skills.push({
           name,
+          selector: name,
           description: yield* readDescription(skillPath),
           source: "built-in",
           bundled: true,
@@ -110,28 +129,49 @@ export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
     for (const name of source.skills) {
       skills.push({
         name,
+        selector: name,
         description: source.descriptions?.[name] ?? "",
         source: source.id,
         bundled: false,
       });
     }
   }
+  const discovery = yield* discoverPackageSkills(projectDir);
+  for (const candidate of discovery.candidates) {
+    skills.push({
+      name: candidate.name,
+      selector: candidate.selector,
+      description: candidate.description,
+      source: candidate.package,
+      bundled: false,
+      package: { name: candidate.package, version: candidate.version },
+    });
+  }
   const duplicates = skills.filter(
-    (skill, index) => skills.findIndex((candidate) => candidate.name === skill.name) !== index,
+    (skill, index) => skills.findIndex((candidate) => candidate.selector === skill.selector) !== index,
   );
   if (duplicates.length > 0) {
     return yield* new CatalogError({
-      message: `duplicate catalog skill: ${duplicates[0]?.name ?? "unknown"}`,
+      message: `duplicate catalog skill selector: ${duplicates[0]?.selector ?? "unknown"}`,
+    });
+  }
+  const externalFamilies = (lock?.sources ?? []).map((source) =>
+    [source.id, source.skills] as const
+  );
+  const duplicateFamily = externalFamilies.find(
+    ([id], index) => externalFamilies.findIndex(([candidate]) => candidate === id) !== index,
+  );
+  if (duplicateFamily !== undefined) {
+    return yield* new CatalogError({
+      message: `duplicate catalog family: ${duplicateFamily[0]}`,
     });
   }
   const families: Readonly<Record<string, ReadonlyArray<string>>> = {
     effect: ["effect-ts"],
-    ...Object.fromEntries(
-      (lock?.sources ?? []).map((source) => [source.id, source.skills]),
-    ),
+    ...Object.fromEntries(externalFamilies),
   };
   return {
-    skills: skills.sort((left, right) => left.name.localeCompare(right.name)),
+    skills: skills.sort((left, right) => left.selector.localeCompare(right.selector)),
     families,
     ...(lock ? { lock } : {}),
   } satisfies SkillCatalog;
@@ -224,15 +264,15 @@ const materializeSource = Effect.fn("materializeCatalogSource")(function* (
 export const resolveSkillSources = Effect.fn("resolveSkillSources")(function* (
   packageRoot: string,
   projectDir: string,
+  catalog: SkillCatalog,
   selected: ReadonlyArray<string>,
   cache = true,
 ) {
   const path = yield* Path.Path;
-  const catalog = yield* loadSkillCatalog(packageRoot);
   const sources = new Map<string, ResolvedSkillSource>();
   for (const skill of catalog.skills.filter((skill) => skill.bundled)) {
-    if (selected.includes(skill.name)) {
-      sources.set(skill.name, { path: path.join(packageRoot, "skills", skill.name) });
+    if (selected.includes(skill.selector)) {
+      sources.set(skill.selector, { path: path.join(packageRoot, "skills", skill.name) });
     }
   }
   for (const source of catalog.lock?.sources ?? []) {
@@ -241,6 +281,23 @@ export const resolveSkillSources = Effect.fn("resolveSkillSources")(function* (
     for (const [name, sourcePath] of yield* materializeSource(projectDir, source, wanted, cache)) {
       sources.set(name, sourcePath);
     }
+  }
+  for (const selector of selected.filter((value) => value.includes("#"))) {
+    const resolved = yield* resolvePackageSkillSelector(projectDir, selector);
+    const observation = yield* observePath(resolved.path);
+    if (observation.kind !== "directory") {
+      return yield* new CatalogError({ message: `package skill is missing: ${selector}` });
+    }
+    sources.set(selector, {
+      path: resolved.path,
+      linkPath: resolved.linkPath,
+      catalog: {
+        package: resolved.package,
+        version: resolved.version,
+        skill: resolved.name,
+        digest: observation.digest,
+      },
+    });
   }
   return sources;
 });

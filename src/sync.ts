@@ -3,7 +3,12 @@ import { Cause, Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
 
 import { DevKitManifestSchema, normalizeManifest } from "./manifest.ts";
-import { loadSkillCatalog, resolveSkillSources, type ResolvedSkillSource } from "./catalog.ts";
+import {
+  loadSkillCatalog,
+  resolveSkillSources,
+  type CatalogSkill,
+  type ResolvedSkillSource,
+} from "./catalog.ts";
 import { printDetail, printStatus, withSpinner } from "./cli-ui.ts";
 import {
   applyEffectSourcePlan,
@@ -21,6 +26,8 @@ import {
   observePath,
   type ObservedPath,
 } from "./path-digest.ts";
+import { resolvePackageSkillSelector } from "./package-skill-source.ts";
+import { parseSkillSelector } from "./skill-selector.ts";
 import {
   AppliedStateSchema,
   DevKitLockSchema,
@@ -272,7 +279,7 @@ const expandSelection = (
   for (const name of include) {
     if (skillFamilies[name]) {
       for (const skill of skillFamilies[name]) selected.add(skill);
-    } else if (availableSkills.includes(name)) {
+    } else if (availableSkills.includes(name) || parseSkillSelector(name)?.type === "package") {
       selected.add(name);
     } else {
       return Effect.fail(new UnknownSkillOrFamilyError({ name, known }));
@@ -417,7 +424,7 @@ const validateCrossInventoryPaths = Effect.fn("validateCrossInventoryPaths")(fun
 const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
   projectDir: string,
   sourceBySkill: ReadonlyMap<string, ResolvedSkillSource>,
-  skills: ReadonlyArray<string>,
+  skills: ReadonlyArray<CatalogSkill>,
   setup: ReturnType<typeof normalizeManifest>["setup"],
   targets: ReturnType<typeof normalizeManifest>["targets"],
 ) {
@@ -445,10 +452,21 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
     });
   }
   const agentsTarget = targets.agents;
+  const duplicateOutput = skills.find((skill, index) =>
+    skills.findIndex((candidate) => candidate.name === skill.name) !== index
+  );
+  if (duplicateOutput !== undefined) {
+    const selectors = skills
+      .filter((skill) => skill.name === duplicateOutput.name)
+      .map((skill) => skill.selector);
+    return yield* new InvalidProjectStateError({
+      message: `selected skills would both install as ${duplicateOutput.name}: ${selectors.join(", ")}`,
+    });
+  }
   for (const skill of skills) {
-    const resolvedSource = sourceBySkill.get(skill);
+    const resolvedSource = sourceBySkill.get(skill.selector);
     if (resolvedSource === undefined) {
-      return yield* new InvalidProjectStateError({ message: `skill source is unavailable: ${skill}` });
+      return yield* new InvalidProjectStateError({ message: `skill source is unavailable: ${skill.selector}` });
     }
     const source = resolvedSource.path;
     const sourceObservation = yield* observePath(source);
@@ -458,12 +476,12 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
     for (const targetName of ["agents", "claude", "opencode"] as const) {
       const target = targets[targetName];
       if (!target.enabled) continue;
-      const managed = yield* resolveManagedPath(projectDir, path.join(target.path, skill));
+      const managed = yield* resolveManagedPath(projectDir, path.join(target.path, skill.name));
       if (target.mode === "copy") {
         outputs.push({
-          resourceId: `skill:${skill}@${targetName}`,
+          resourceId: `skill:${skill.selector}@${targetName}`,
           path: managed.relative,
-          skill,
+          skill: skill.name,
           target: targetName,
           mode: "copy",
           kind: "directory",
@@ -476,14 +494,14 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
       }
       const linkSource =
         targetName === "agents" || !agentsTarget.enabled
-          ? source
-          : (yield* resolveManagedPath(projectDir, path.join(agentsTarget.path, skill))).absolute;
+          ? resolvedSource.linkPath ?? source
+          : (yield* resolveManagedPath(projectDir, path.join(agentsTarget.path, skill.name))).absolute;
       const linkTarget = path.relative(path.dirname(managed.absolute), linkSource);
       const linkDigest = yield* digestSymlinkTarget(linkTarget);
       outputs.push({
-        resourceId: `skill:${skill}@${targetName}`,
+        resourceId: `skill:${skill.selector}@${targetName}`,
         path: managed.relative,
-        skill,
+        skill: skill.name,
         target: targetName,
         mode: "symlink",
         kind: "symlink",
@@ -620,8 +638,8 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
         typescriptPackage: manifest.setup.effectTsgo.typescriptPackage,
       })
     : undefined;
-  const catalog = yield* loadSkillCatalog(packageRoot);
-  const availableSkills = catalog.skills.map((skill) => skill.name);
+  const catalog = yield* loadSkillCatalog(packageRoot, projectDir);
+  const availableSkills = catalog.skills.map((skill) => skill.selector);
   const skillFamilies = { ...SKILL_FAMILIES, ...catalog.families };
   for (const [family, familySkills] of Object.entries(skillFamilies)) {
     if (availableSkills.includes(family)) {
@@ -632,11 +650,28 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
       return yield* new InvalidSkillCatalogError({ family, message: `family references missing skills: ${missing.join(", ")}` });
     }
   }
-  const selectedSkills = yield* expandSelection(manifest.include, manifest.exclude, availableSkills, skillFamilies);
+  const selectedSelectors = yield* expandSelection(manifest.include, manifest.exclude, availableSkills, skillFamilies);
+  const catalogBySelector = new Map(catalog.skills.map((skill) => [skill.selector, skill]));
   const sourceBySkill = yield* withSpinner(
-    "Fetching selected skills",
-    resolveSkillSources(packageRoot, projectDir, selectedSkills, options.dryRun !== true),
+    "Resolving selected skills",
+    resolveSkillSources(
+      packageRoot,
+      projectDir,
+      catalog,
+      selectedSelectors,
+      options.dryRun !== true,
+    ),
   );
+  const selectedSkills: Array<CatalogSkill> = [];
+  for (const selector of selectedSelectors) {
+    const catalogSkill = catalogBySelector.get(selector);
+    if (catalogSkill === undefined) {
+      return yield* new InvalidProjectStateError({
+        message: `selected skill is unavailable: ${selector}`,
+      });
+    }
+    selectedSkills.push(catalogSkill);
+  }
   const desired = yield* buildDesiredOutputs(
     projectDir,
     sourceBySkill,
@@ -787,6 +822,47 @@ const observationsEqual = (left: ObservedPath, right: ObservedPath): boolean =>
   left.kind === right.kind &&
   (left.kind === "missing" || (right.kind !== "missing" && left.digest === right.digest));
 
+const findNestedSymbolicLink = Effect.fn("findNestedSkillSymbolicLink")(function* (
+  root: string,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const pending = [root];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (current === undefined) continue;
+    if ((yield* observeSymbolicLink(current)).kind === "symlink") return current;
+    const info = yield* fs.stat(current);
+    if (info.type !== "Directory") continue;
+    for (const entry of yield* fs.readDirectory(current)) {
+      pending.push(path.join(current, entry));
+    }
+  }
+  return undefined;
+});
+
+const verifyPackageSkillSources = Effect.fn("verifyPackageSkillSources")(function* (
+  plan: SkillPlan,
+) {
+  const verified = new Set<string>();
+  for (const action of plan.actions) {
+    if (action.action === "remove" || action.action === "conflict") continue;
+    if (!("skill" in action.desired)) continue;
+    const catalog = action.desired.catalog;
+    if (catalog === undefined || !("package" in catalog)) continue;
+    const selector = `${catalog.package}#${catalog.skill}`;
+    const key = `${selector}\0${catalog.version}\0${catalog.digest}`;
+    if (verified.has(key)) continue;
+    const resolved = yield* resolvePackageSkillSelector(plan.projectDir, selector);
+    const observation = yield* observePath(resolved.path);
+    if (resolved.path !== action.desired.source || resolved.version !== catalog.version ||
+      observation.kind !== "directory" || observation.digest !== catalog.digest) {
+      return yield* new ApplyRaceError({ path: action.desired.source });
+    }
+    verified.add(key);
+  }
+});
+
 const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function* (plan: SkillPlan) {
   const conflicts = plan.actions.filter((action) => action.action === "conflict");
   if (conflicts.length > 0) {
@@ -823,6 +899,12 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
     yield* fs.makeDirectory(path.dirname(staged), { recursive: true });
     if (action.desired.mode === "copy") {
       yield* fs.copy(action.desired.source, staged, { overwrite: true });
+      const symbolicLink = yield* findNestedSymbolicLink(staged);
+      if (symbolicLink !== undefined) {
+        return yield* new InvalidProjectStateError({
+          message: `staged skill contains a symlink: ${action.desired.path}`,
+        });
+      }
     } else {
       yield* fs.symlink(action.desired.linkTarget, staged);
     }
@@ -832,6 +914,8 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
     }
     stagedByResource.set(action.desired.resourceId, staged);
   }
+
+  yield* verifyPackageSkillSources(plan);
 
   const stagedLock = path.join(tempDir, "next-lock.json");
   const stagedState = path.join(tempDir, "next-state.json");

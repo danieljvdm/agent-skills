@@ -188,8 +188,14 @@ const selectedNames = (
   return selected;
 };
 
-const summary = (description: string, fallback: string): string => {
-  const text = description || fallback;
+const displayValue = (value: string): string =>
+  [...value].map((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 31 || (code >= 127 && code <= 159) ? " " : character;
+  }).join("").replace(/\s+/g, " ").trim();
+
+const summary = (description: string, defaultDescription: string): string => {
+  const text = displayValue(description || defaultDescription);
   const firstSentence = text.match(/^.*?[.!?](?:\s|$)/)?.[0]?.trim() ?? text;
   return firstSentence.length > 96 ? `${firstSentence.slice(0, 93).trimEnd()}…` : firstSentence;
 };
@@ -219,15 +225,16 @@ export const addSkills = Effect.fn("addManagedSkills")(function* (
   options: ManagerOptions,
 ) {
   const current = yield* readManifest(options, true);
-  const catalog = yield* loadSkillCatalog(yield* packageRoot());
-  const known = new Set([...catalog.skills.map((skill) => skill.name), ...Object.keys(catalog.families)]);
+  const catalog = yield* loadSkillCatalog(yield* packageRoot(), current.projectDir);
+  const known = new Set([...catalog.skills.map((skill) => skill.selector), ...Object.keys(catalog.families)]);
   const unknown = names.filter((name) => !known.has(name));
   if (unknown.length > 0) {
     return yield* new SkillManagerError({
       message: `unknown skill${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}. Try \`dev-kit search ${unknown[0]}\`.`,
     });
   }
-  for (const source of catalog.lock?.sources ?? []) {
+  const sourceFamilies = catalog.lock?.sources ?? [];
+  for (const source of sourceFamilies) {
     if (!names.includes(source.id)) continue;
     yield* printStatus(
       "info",
@@ -255,7 +262,7 @@ export const removeSkills = Effect.fn("removeManagedSkills")(function* (
   options: ManagerOptions,
 ) {
   const current = yield* readManifest(options);
-  const catalog = yield* loadSkillCatalog(yield* packageRoot());
+  const catalog = yield* loadSkillCatalog(yield* packageRoot(), current.projectDir);
   const before = selectedNames(
     current.manifest.include,
     current.manifest.exclude ?? [],
@@ -287,43 +294,63 @@ export const listSkills = Effect.fn("listManagedSkills")(function* (
 ) {
   const fs = yield* FileSystem.FileSystem;
   const paths = yield* resolvePaths(options);
-  const catalog = yield* loadSkillCatalog(yield* packageRoot());
+  const catalog = yield* loadSkillCatalog(yield* packageRoot(), paths.projectDir);
   const manifest = (yield* fs.exists(paths.manifestPath))
     ? (yield* readManifest(options)).manifest
     : { include: [], exclude: [] };
   const selected = selectedNames(manifest.include, manifest.exclude ?? [], catalog.families);
   const query = options.query?.toLowerCase();
   const visible = catalog.skills.filter((skill) =>
-    (options.all || selected.has(skill.name)) &&
-    (!query || `${skill.name} ${skill.description} ${skill.source}`.toLowerCase().includes(query)),
+    (options.all || selected.has(skill.selector)) &&
+    (!query || `${skill.selector} ${skill.description} ${skill.source}`.toLowerCase().includes(query)),
   );
-  if (visible.length === 0) {
+  const catalogSelectors = new Set(catalog.skills.map((skill) => skill.selector));
+  const unavailable = [...selected].filter((selector) =>
+    !catalogSelectors.has(selector) && (!query || selector.toLowerCase().includes(query))
+  );
+  if (visible.length === 0 && unavailable.length === 0) {
     yield* printStatus("info", query ? "No matching skills" : "No skills selected");
     if (!query && !options.all) yield* printDetail("Browse with: dev-kit list --all");
     return;
   }
   for (const skill of visible) {
-    const marker = selected.has(skill.name) ? "✓" : " ";
+    const marker = selected.has(skill.selector) ? "✓" : " ";
     const origin = skill.bundled ? "built in" : skill.source;
-    const provenance = skill.bundled ? "" : ` [${skill.source}]`;
-    yield* printLine(`${marker} ${skill.name}${provenance}  ${summary(skill.description, origin)}`);
+    const provenance = skill.package
+      ? ` [installed ${displayValue(skill.package.version)}]`
+      : skill.bundled ? "" : ` [${skill.source}]`;
+    yield* printLine(`${marker} ${skill.selector}${provenance}  ${summary(skill.description, origin)}`);
+  }
+  for (const selector of unavailable) {
+    yield* printLine(`! ${selector} [unavailable]  install or repair the selected direct dependency`);
   }
   yield* printLine();
-  yield* printLine(`${selected.size} selected · ${catalog.skills.length} approved`);
+  yield* printLine(`${selected.size} selected · ${catalog.skills.length} available`);
 });
 
-export const showSkill = Effect.fn("showCatalogSkill")(function* (name: string) {
-  const catalog = yield* loadSkillCatalog(yield* packageRoot());
-  const skill = catalog.skills.find((candidate) => candidate.name === name);
+export const showSkill = Effect.fn("showCatalogSkill")(function* (
+  name: string,
+  options: ManagerOptions,
+) {
+  const paths = yield* resolvePaths(options);
+  const catalog = yield* loadSkillCatalog(yield* packageRoot(), paths.projectDir);
+  const skill = catalog.skills.find((candidate) => candidate.selector === name);
   if (!skill) return yield* new SkillManagerError({ message: `unknown skill: ${name}` });
-  yield* printLine(skill.name);
-  if (skill.description) yield* printLine(skill.description);
+  yield* printLine(skill.selector);
+  if (skill.description) yield* printLine(displayValue(skill.description));
+  if (skill.package) {
+    yield* printLine(`Source: installed package`);
+    yield* printLine(`Package: ${skill.package.name}`);
+    yield* printLine(`Version: ${displayValue(skill.package.version)}`);
+    return;
+  }
   yield* printLine(`Source: ${skill.bundled ? "dev-kit (built in)" : skill.source}`);
   if (!skill.bundled) {
     const source = catalog.lock?.sources.find((candidate) => candidate.id === skill.source);
     if (source) {
       yield* printLine(`Repository: ${source.repository}`);
       yield* printLine(`Approved commit: ${source.resolved}`);
+      return;
     }
   }
 });
@@ -345,22 +372,22 @@ export const chooseSkillsToAdd = Effect.fn("chooseSkillsToAdd")(function* (
     return yield* new SkillManagerError({ message: "pass one or more skill names, or run this command in a terminal" });
   }
   const current = yield* readManifest(options, true);
-  const catalog = yield* loadSkillCatalog(yield* packageRoot());
+  const catalog = yield* loadSkillCatalog(yield* packageRoot(), current.projectDir);
   const selected = selectedNames(
     current.manifest.include,
     current.manifest.exclude ?? [],
     catalog.families,
   );
-  const available = catalog.skills.filter((skill) => !selected.has(skill.name));
+  const available = catalog.skills.filter((skill) => !selected.has(skill.selector));
   if (available.length === 0) {
-    yield* printStatus("success", "All approved skills are selected");
+    yield* printStatus("success", "All available skills are selected");
     return;
   }
   const names = yield* Prompt.multiSelect({
     message: "Choose skills to add",
     choices: available.map((skill) => ({
-      title: skill.name,
-      value: skill.name,
+      title: skill.selector,
+      value: skill.selector,
       description: summary(skill.description, skill.source),
     })),
     min: 1,
@@ -375,7 +402,7 @@ export const chooseSkillsToRemove = Effect.fn("chooseSkillsToRemove")(function* 
     return yield* new SkillManagerError({ message: "pass one or more skill names, or run this command in a terminal" });
   }
   const current = yield* readManifest(options);
-  const catalog = yield* loadSkillCatalog(yield* packageRoot());
+  const catalog = yield* loadSkillCatalog(yield* packageRoot(), current.projectDir);
   const selected = selectedNames(
     current.manifest.include,
     current.manifest.exclude ?? [],
@@ -387,11 +414,20 @@ export const chooseSkillsToRemove = Effect.fn("chooseSkillsToRemove")(function* 
   }
   const names = yield* Prompt.multiSelect({
     message: "Choose skills to remove",
-    choices: catalog.skills.filter((skill) => selected.has(skill.name)).map((skill) => ({
-      title: skill.name,
-      value: skill.name,
-      description: summary(skill.description, skill.source),
-    })),
+    choices: [
+      ...catalog.skills.filter((skill) => selected.has(skill.selector)).map((skill) => ({
+        title: skill.selector,
+        value: skill.selector,
+        description: summary(skill.description, skill.source),
+      })),
+      ...[...selected]
+        .filter((selector) => !catalog.skills.some((skill) => skill.selector === selector))
+        .map((selector) => ({
+          title: selector,
+          value: selector,
+          description: "Selected but currently unavailable",
+        })),
+    ],
     min: 1,
   });
   yield* removeSkills(names, options);

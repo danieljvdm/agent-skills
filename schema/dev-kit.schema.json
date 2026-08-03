@@ -10,21 +10,21 @@
       "type": "string"
     },
     "include": {
-      "description": "Skill names or family names to sync. Prefer individually relevant external skills; an external source id selects every approved skill from that source.",
+      "description": "Static skill names, family names, or exact <package>#<skill> selectors to sync. Installed package skills are discovered for browsing but selected only when explicitly included.",
       "type": "array",
       "items": {
         "type": "string",
-        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        "pattern": "^(?:[a-z0-9]+(?:-[a-z0-9]+)*|(?:[a-z0-9][a-z0-9._-]*|@[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*)#[a-z0-9]+(?:-[a-z0-9]+)*)$"
       },
       "uniqueItems": true,
       "minItems": 0
     },
     "exclude": {
-      "description": "Skill names or family names to remove from the selected set after expanding includes.",
+      "description": "Static skill names, family names, or exact <package>#<skill> selectors to remove after expanding includes.",
       "type": "array",
       "items": {
         "type": "string",
-        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        "pattern": "^(?:[a-z0-9]+(?:-[a-z0-9]+)*|(?:[a-z0-9][a-z0-9._-]*|@[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*)#[a-z0-9]+(?:-[a-z0-9]+)*)$"
       },
       "uniqueItems": true,
       "default": []

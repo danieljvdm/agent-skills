@@ -1,5 +1,11 @@
 # @danieljvdm/dev-kit
 
+## 0.3.3
+
+### Patch Changes
+
+- 221eab6: Remove the obsolete `check:scripts` command from the generated Effect CLI guide.
+
 ## 0.3.2
 
 ### Patch Changes

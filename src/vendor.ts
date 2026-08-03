@@ -3,6 +3,7 @@ import { Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
 
 import { printStatus, withSpinner } from "./cli-ui.ts";
+import { isPortablePackageSkillPath } from "./package-skill-path.ts";
 import { observePath, type Digest } from "./path-digest.ts";
 import { acquireProjectProcessLock } from "./project-process-lock.ts";
 
@@ -11,8 +12,11 @@ import {
   SkillSourcesManifestSchema,
   type ExternalSkillSource,
   type LockedSkillSource,
+  type LockedPackageSkillSource,
+  type PackageSkillSource,
   type SkillSourcesLock,
 } from "./source-manifest.ts";
+import { isTypeScriptPackageName } from "./typescript-package-name.ts";
 
 export type CatalogRefreshOptions = {
   readonly repoDir?: string;
@@ -523,6 +527,47 @@ const validateCurrentLock = Effect.fn("validateCurrentSkillSourcesLock")(functio
       skills.add(skill);
     }
   }
+  for (const source of lock.packages ?? []) {
+    if (!SOURCE_ID_PATTERN.test(source.id) || RESERVED_SOURCE_IDS.has(source.id)) {
+      return yield* new InvalidSourceError({
+        source: source.id,
+        reason: "lockfile contains an invalid package source id",
+      });
+    }
+    if (sourceIds.has(source.id)) {
+      return yield* new InvalidSourceError({
+        source: source.id,
+        reason: "lockfile source ids must be unique",
+      });
+    }
+    sourceIds.add(source.id);
+    if (!isTypeScriptPackageName(source.package)) {
+      return yield* new InvalidSourceError({
+        source: source.id,
+        reason: "lockfile contains an invalid package name",
+      });
+    }
+    for (const skill of source.skills) {
+      if (!SKILL_NAME_PATTERN.test(skill)) {
+        return yield* new InvalidSourceError({
+          source: source.id,
+          reason: `lockfile contains an invalid skill name: ${skill}`,
+        });
+      }
+      if (skills.has(skill)) {
+        return yield* new SkillCollisionError({ skill, owners: ["multiple lockfile sources"] });
+      }
+      skills.add(skill);
+    }
+  }
+  for (const sourceId of sourceIds) {
+    if (skills.has(sourceId)) {
+      return yield* new InvalidSourceError({
+        source: sourceId,
+        reason: "lockfile source id conflicts with a skill name",
+      });
+    }
+  }
 });
 
 const currentLocalSkills = Effect.fn("currentLocalSkills")(function* (
@@ -540,6 +585,7 @@ const currentLocalSkills = Effect.fn("currentLocalSkills")(function* (
 
 const validateOwnership = Effect.fn("validateSkillOwnership")(function* (
   prepared: ReadonlyArray<PreparedSource>,
+  packages: ReadonlyArray<PackageSkillSource>,
   localSkills: ReadonlyArray<string>,
 ) {
   const owners = new Map<string, Array<string>>();
@@ -553,15 +599,25 @@ const validateOwnership = Effect.fn("validateSkillOwnership")(function* (
       owners.set(skill, existing);
     }
   }
+  for (const source of packages) {
+    for (const skill of source.include) {
+      const existing = owners.get(skill) ?? [];
+      existing.push(source.id);
+      owners.set(skill, existing);
+    }
+  }
   for (const [skill, skillOwners] of owners) {
     if (skillOwners.length > 1) {
       return yield* new SkillCollisionError({ skill, owners: skillOwners });
     }
   }
-  for (const preparedSource of prepared) {
-    if (owners.has(preparedSource.source.id)) {
+  for (const sourceId of [
+    ...prepared.map((source) => source.source.id),
+    ...packages.map((source) => source.id),
+  ]) {
+    if (owners.has(sourceId)) {
       return yield* new InvalidSourceError({
-        source: preparedSource.source.id,
+        source: sourceId,
         reason: "id conflicts with a skill name",
       });
     }
@@ -640,6 +696,7 @@ const stageSources = Effect.fn("stageSkillSources")(function* (
 const buildLock = Effect.fn("buildSkillCatalogLock")(function* (
   prepared: ReadonlyArray<PreparedSource>,
   stagedSkillsDir: string,
+  packages: ReadonlyArray<PackageSkillSource>,
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -678,7 +735,66 @@ const buildLock = Effect.fn("buildSkillCatalogLock")(function* (
       ...(source.stripFrontmatter ? { stripFrontmatter: source.stripFrontmatter } : {}),
     });
   }
-  return { version: 1, sources } satisfies SkillSourcesLock;
+  const lockedPackages: Array<LockedPackageSkillSource> = packages.map((source) => ({
+    id: source.id,
+    package: source.package,
+    skillsPath: source.skillsPath,
+    skills: [...source.include].sort(),
+    ...(source.descriptions ? { descriptions: source.descriptions } : {}),
+  }));
+  return {
+    version: 1,
+    sources,
+    ...(lockedPackages.length > 0 ? { packages: lockedPackages } : {}),
+  } satisfies SkillSourcesLock;
+});
+
+const validatePackageSources = Effect.fn("validatePackageSkillSources")(function* (
+  packages: ReadonlyArray<PackageSkillSource>,
+  sourceIds: Set<string>,
+) {
+  for (const source of packages) {
+    if (!SOURCE_ID_PATTERN.test(source.id) || RESERVED_SOURCE_IDS.has(source.id)) {
+      return yield* new InvalidSourceError({
+        source: source.id,
+        reason: "id must use lowercase letters, numbers, and hyphens and not conflict with a built-in skill family",
+      });
+    }
+    if (sourceIds.has(source.id)) {
+      return yield* new InvalidSourceError({ source: source.id, reason: "source ids must be unique" });
+    }
+    sourceIds.add(source.id);
+    if (!isTypeScriptPackageName(source.package)) {
+      return yield* new InvalidSourceError({ source: source.id, reason: `invalid package name: ${source.package}` });
+    }
+    if (!isPortablePackageSkillPath(source.skillsPath)) {
+      return yield* new InvalidSourceError({
+        source: source.id,
+        reason: "skillsPath must be a portable package-relative path",
+      });
+    }
+    if (source.include.length === 0) {
+      return yield* new InvalidSourceError({ source: source.id, reason: "include must select at least one skill" });
+    }
+    const selected = new Set<string>();
+    for (const skill of source.include) {
+      if (!SKILL_NAME_PATTERN.test(skill)) {
+        return yield* new InvalidSourceError({
+          source: source.id,
+          reason: `package include must contain explicit valid skill names: ${skill}`,
+        });
+      }
+      if (selected.has(skill)) {
+        return yield* new InvalidSourceError({ source: source.id, reason: `include contains duplicate skill: ${skill}` });
+      }
+      selected.add(skill);
+    }
+    for (const skill of Object.keys(source.descriptions ?? {})) {
+      if (!selected.has(skill)) {
+        return yield* new InvalidSourceError({ source: source.id, reason: `description is not for an approved skill: ${skill}` });
+      }
+    }
+  }
 });
 
 export const inspectCatalogRepository = Effect.fn("inspectCatalogRepository")(function* (
@@ -780,6 +896,7 @@ export const refreshSkillCatalog = Effect.fn("refreshSkillCatalog")(function* (
     currentLock?.sources.map((source) => [source.id, source] as const) ?? [],
   );
 
+  const packages = manifest.packages ?? [];
   const sourceIds = new Set<string>();
   for (const source of manifest.sources) {
     if (sourceIds.has(source.id)) {
@@ -790,6 +907,7 @@ export const refreshSkillCatalog = Effect.fn("refreshSkillCatalog")(function* (
     }
     sourceIds.add(source.id);
   }
+  yield* validatePackageSources(packages, sourceIds);
   if (options.locked) {
     if (!currentLock) {
       return yield* new SourceManifestError({
@@ -797,9 +915,13 @@ export const refreshSkillCatalog = Effect.fn("refreshSkillCatalog")(function* (
         message: "lockfile is required with --locked",
       });
     }
-    const lockedIds = new Set(currentLock.sources.map((source) => source.id));
-    const missingFromManifest = currentLock.sources.find((source) => !sourceIds.has(source.id));
-    const missingFromLock = manifest.sources.find((source) => !lockedIds.has(source.id));
+    const lockedIds = new Set([
+      ...currentLock.sources.map((source) => source.id),
+      ...(currentLock.packages ?? []).map((source) => source.id),
+    ]);
+    const missingFromManifest = [...currentLock.sources, ...(currentLock.packages ?? [])]
+      .find((source) => !sourceIds.has(source.id));
+    const missingFromLock = [...manifest.sources, ...packages].find((source) => !lockedIds.has(source.id));
     if (missingFromManifest || missingFromLock) {
       return yield* new SourceManifestError({
         path: lockfilePath,
@@ -832,12 +954,16 @@ export const refreshSkillCatalog = Effect.fn("refreshSkillCatalog")(function* (
     ),
   );
   const localSkills = yield* currentLocalSkills(path.join(repoDir, "skills"), currentLock);
-  yield* validateOwnership(prepared, localSkills);
+  yield* validateOwnership(prepared, packages, localSkills);
   const staged = yield* stageSources(tempDir, prepared);
-  const nextLock = yield* buildLock(prepared, staged.stagedSkillsDir);
+  const nextLock = yield* buildLock(prepared, staged.stagedSkillsDir, packages);
 
-  const skillCount = new Set(nextLock.sources.flatMap((source) => source.skills)).size;
-  const summary = `${skillCount} skill${skillCount === 1 ? "" : "s"} from ${nextLock.sources.length} source${nextLock.sources.length === 1 ? "" : "s"}`;
+  const skillCount = new Set([
+    ...nextLock.sources.flatMap((source) => source.skills),
+    ...(nextLock.packages ?? []).flatMap((source) => source.skills),
+  ]).size;
+  const sourceCount = nextLock.sources.length + (nextLock.packages?.length ?? 0);
+  const summary = `${skillCount} skill${skillCount === 1 ? "" : "s"} from ${sourceCount} source${sourceCount === 1 ? "" : "s"}`;
 
   if (options.locked) {
     if (JSON.stringify(currentLock) !== JSON.stringify(nextLock)) {

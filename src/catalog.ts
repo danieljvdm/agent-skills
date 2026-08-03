@@ -2,7 +2,8 @@ import { parse as parseJsonc, type ParseError } from "jsonc-parser";
 import { Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
 
-import { observePath } from "./path-digest.ts";
+import { observePath, type Digest } from "./path-digest.ts";
+import { resolvePackageSkillSource } from "./package-skill-source.ts";
 import {
   SkillSourcesLockSchema,
   type LockedSkillSource,
@@ -24,11 +25,19 @@ export type SkillCatalog = {
 
 export type ResolvedSkillSource = {
   readonly path: string;
-  readonly catalog?: {
-    readonly source: string;
-    readonly repository: string;
-    readonly resolved: string;
-  };
+  readonly linkPath?: string;
+  readonly catalog?:
+    | {
+        readonly source: string;
+        readonly repository: string;
+        readonly resolved: string;
+      }
+    | {
+        readonly source: string;
+        readonly package: string;
+        readonly version: string;
+        readonly digest: Digest;
+      };
 };
 
 class CatalogError extends Schema.TaggedErrorClass<CatalogError>()("CatalogError", {
@@ -116,6 +125,16 @@ export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
       });
     }
   }
+  for (const source of lock?.packages ?? []) {
+    for (const name of source.skills) {
+      skills.push({
+        name,
+        description: source.descriptions?.[name] ?? "",
+        source: source.id,
+        bundled: false,
+      });
+    }
+  }
   const duplicates = skills.filter(
     (skill, index) => skills.findIndex((candidate) => candidate.name === skill.name) !== index,
   );
@@ -124,11 +143,21 @@ export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
       message: `duplicate catalog skill: ${duplicates[0]?.name ?? "unknown"}`,
     });
   }
+  const externalFamilies = [
+    ...(lock?.sources ?? []).map((source) => [source.id, source.skills] as const),
+    ...(lock?.packages ?? []).map((source) => [source.id, source.skills] as const),
+  ];
+  const duplicateFamily = externalFamilies.find(
+    ([id], index) => externalFamilies.findIndex(([candidate]) => candidate === id) !== index,
+  );
+  if (duplicateFamily !== undefined) {
+    return yield* new CatalogError({
+      message: `duplicate catalog family: ${duplicateFamily[0]}`,
+    });
+  }
   const families: Readonly<Record<string, ReadonlyArray<string>>> = {
     effect: ["effect-ts"],
-    ...Object.fromEntries(
-      (lock?.sources ?? []).map((source) => [source.id, source.skills]),
-    ),
+    ...Object.fromEntries(externalFamilies),
   };
   return {
     skills: skills.sort((left, right) => left.name.localeCompare(right.name)),
@@ -240,6 +269,32 @@ export const resolveSkillSources = Effect.fn("resolveSkillSources")(function* (
     if (wanted.length === 0) continue;
     for (const [name, sourcePath] of yield* materializeSource(projectDir, source, wanted, cache)) {
       sources.set(name, sourcePath);
+    }
+  }
+  for (const source of catalog.lock?.packages ?? []) {
+    const wanted = source.skills.filter((skill) => selected.includes(skill));
+    if (wanted.length === 0) continue;
+    for (const [name, resolved] of yield* resolvePackageSkillSource(
+      projectDir,
+      source,
+      wanted,
+    )) {
+      const observation = yield* observePath(resolved.path);
+      if (observation.kind !== "directory") {
+        return yield* new CatalogError({
+          message: `package source ${source.id} is missing skill ${name}`,
+        });
+      }
+      sources.set(name, {
+        path: resolved.path,
+        linkPath: resolved.linkPath,
+        catalog: {
+          source: source.id,
+          package: source.package,
+          version: resolved.version,
+          digest: observation.digest,
+        },
+      });
     }
   }
   return sources;

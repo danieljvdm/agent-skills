@@ -68,7 +68,10 @@ describe("remote catalog resolution", () => {
         assert.include(document, "Hello.");
         assert.notInclude(document, "disable-model-invocation");
         assert.include(materialized.path, path.join(projectDir, ".dev-kit", "cache"));
-        assert.strictEqual(materialized.catalog?.resolved, resolved);
+        if (materialized.catalog === undefined || !("resolved" in materialized.catalog)) {
+          assert.fail("remote catalog provenance was not recorded");
+        }
+        assert.strictEqual(materialized.catalog.resolved, resolved);
         assert.isFalse(yield* fs.exists(path.join(packageRoot, "skills", "remote-skill")));
 
         yield* fs.writeFileString(path.join(materialized.path, "SKILL.md"), "tampered\n");
@@ -76,6 +79,68 @@ describe("remote catalog resolution", () => {
           resolveSkillSources(packageRoot, projectDir, ["remote-skill"]),
         );
         assert.match(error.message, /does not match the approved catalog/);
+      }));
+
+    it.effect("resolves approved skills from the consumer's installed package version", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const root = yield* fs.makeTempDirectoryScoped({ prefix: "dev-kit-package-catalog-" });
+        const packageRoot = path.join(root, "dev-kit-package");
+        const projectDir = path.join(root, "project");
+        const installed = path.join(projectDir, "node_modules", "@scope", "tools");
+        yield* fs.makeDirectory(path.join(packageRoot, "skills"), { recursive: true });
+        yield* fs.makeDirectory(path.join(installed, "skills", "package-skill"), {
+          recursive: true,
+        });
+        yield* fs.writeFileString(
+          path.join(installed, "package.json"),
+          '{"name":"@scope/tools","version":"2.3.4"}\n',
+        );
+        yield* fs.writeFileString(
+          path.join(installed, "skills", "package-skill", "SKILL.md"),
+          "---\nname: package-skill\ndescription: Installed package skill.\n---\n\nHello.\n",
+        );
+        yield* fs.writeFileString(
+          path.join(packageRoot, "skill-sources.lock.json"),
+          `${JSON.stringify({
+            version: 1,
+            sources: [],
+            packages: [{
+              id: "package-tools",
+              package: "@scope/tools",
+              skillsPath: "skills",
+              skills: ["package-skill"],
+              descriptions: { "package-skill": "Installed package skill." },
+            }],
+          }, null, 2)}\n`,
+        );
+
+        const catalog = yield* loadSkillCatalog(packageRoot);
+        assert.deepEqual(catalog.families["package-tools"], ["package-skill"]);
+        const resolved = yield* resolveSkillSources(
+          packageRoot,
+          projectDir,
+          ["package-skill"],
+        );
+        const skill = resolved.get("package-skill");
+        if (skill === undefined) assert.fail("package skill was not resolved");
+        assert.strictEqual(
+          skill.path,
+          path.join(yield* fs.realPath(installed), "skills", "package-skill"),
+        );
+        assert.strictEqual(
+          skill.linkPath,
+          path.join(installed, "skills", "package-skill"),
+        );
+        if (skill.catalog === undefined || !("package" in skill.catalog)) {
+          assert.fail("package catalog provenance was not recorded");
+        }
+        assert.strictEqual(skill.catalog.source, "package-tools");
+        assert.strictEqual(skill.catalog.package, "@scope/tools");
+        assert.strictEqual(skill.catalog.version, "2.3.4");
+        assert.match(skill.catalog.digest, /^sha256:/);
+        assert.isFalse(yield* fs.exists(path.join(projectDir, ".dev-kit", "cache")));
       }));
   });
 });

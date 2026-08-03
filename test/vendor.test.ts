@@ -241,6 +241,156 @@ describe("approved skill catalog", () => {
         assert.notStrictEqual(updatedLock.sources[0].resolved, firstLock.sources[0].resolved);
       }));
 
+    it.effect("locks explicit package skill approvals without resolving packages", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const fixture = yield* createFixture();
+        yield* fs.writeFileString(
+          path.join(fixture.aggregate, "skill-sources.jsonc"),
+          `${JSON.stringify({
+            sources: [],
+            packages: [{
+              id: "tanstack-skills",
+              package: "@tanstack/react-start",
+              skillsPath: "skills",
+              include: ["tanstack-router", "tanstack-start"],
+              descriptions: {
+                "tanstack-router": "Reviewed package skill.",
+                "tanstack-start": "Second reviewed package skill.",
+              },
+            }],
+          }, null, 2)}\n`,
+        );
+
+        const refreshed = yield* runDevKit(fixture.aggregate, [
+          "catalog", "refresh", "--repo-dir", fixture.aggregate,
+        ]);
+        assert.strictEqual(refreshed.exitCode, 0, refreshed.output);
+        assert.match(refreshed.output, /2 skills from 1 source/);
+        const lockPath = path.join(fixture.aggregate, "skill-sources.lock.json");
+        const lock = JSON.parse(yield* fs.readFileString(lockPath));
+        assert.deepEqual(lock.sources, []);
+        assert.deepEqual(lock.packages, [{
+          id: "tanstack-skills",
+          package: "@tanstack/react-start",
+          skillsPath: "skills",
+          skills: ["tanstack-router", "tanstack-start"],
+          descriptions: {
+            "tanstack-router": "Reviewed package skill.",
+            "tanstack-start": "Second reviewed package skill.",
+          },
+        }]);
+
+        const listed = yield* runDevKit(fixture.aggregate, [
+          "catalog", "list", "--repo-dir", fixture.aggregate,
+        ]);
+        assert.strictEqual(listed.exitCode, 0, listed.output);
+        assert.match(listed.output, /tanstack-skills  @tanstack\/react-start/);
+        assert.match(listed.output, /2 skills · installed package/);
+
+        const info = yield* runDevKit(fixture.aggregate, [
+          "catalog", "info", "tanstack-skills", "--repo-dir", fixture.aggregate,
+        ]);
+        assert.strictEqual(info.exitCode, 0, info.output);
+        assert.match(info.output, /Package: @tanstack\/react-start/);
+        assert.match(info.output, /Skills: tanstack-router, tanstack-start/);
+
+        const verified = yield* runDevKit(fixture.aggregate, [
+          "catalog", "verify", "--repo-dir", fixture.aggregate,
+        ]);
+        assert.strictEqual(verified.exitCode, 0, verified.output);
+
+        const removedSkill = yield* runDevKit(fixture.aggregate, [
+          "catalog", "remove", "tanstack-router", "--yes", "--repo-dir", fixture.aggregate,
+        ]);
+        assert.strictEqual(removedSkill.exitCode, 0, removedSkill.output);
+        const afterSkill = JSON.parse(yield* fs.readFileString(
+          path.join(fixture.aggregate, "skill-sources.jsonc"),
+        ));
+        assert.deepEqual(afterSkill.packages[0].include, ["tanstack-start"]);
+        assert.deepEqual(afterSkill.packages[0].descriptions, {
+          "tanstack-start": "Second reviewed package skill.",
+        });
+
+        const removedSource = yield* runDevKit(fixture.aggregate, [
+          "catalog", "remove", "tanstack-skills", "--yes", "--repo-dir", fixture.aggregate,
+        ]);
+        assert.strictEqual(removedSource.exitCode, 0, removedSource.output);
+        const afterSource = JSON.parse(yield* fs.readFileString(
+          path.join(fixture.aggregate, "skill-sources.jsonc"),
+        ));
+        assert.deepEqual(afterSource.packages, []);
+      }));
+
+    it.effect("rejects package approval collisions and wildcard includes", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const fixture = yield* createFixture();
+        yield* fs.writeFileString(
+          path.join(fixture.aggregate, "skill-sources.jsonc"),
+          `${JSON.stringify({
+            sources: [{
+              id: "fixture-skills",
+              repository: fixture.upstream,
+              ref: "main",
+              skillsPath: "skills",
+              include: ["one"],
+            }],
+            packages: [{
+              id: "package-skills",
+              package: "@tanstack/react-start",
+              skillsPath: "skills",
+              include: ["one"],
+            }],
+          }, null, 2)}\n`,
+        );
+        const collision = yield* runDevKit(fixture.aggregate, [
+          "catalog", "refresh", "--repo-dir", fixture.aggregate,
+        ]);
+        assert.notStrictEqual(collision.exitCode, 0);
+        assert.match(collision.output, /skill "one" is owned by more than one source/);
+
+        yield* fs.writeFileString(
+          path.join(fixture.aggregate, "skill-sources.jsonc"),
+          `${JSON.stringify({
+            sources: [],
+            packages: [{
+              id: "package-skills",
+              package: "@tanstack/react-start",
+              skillsPath: "skills",
+              include: ["*"],
+            }],
+          }, null, 2)}\n`,
+        );
+        const wildcard = yield* runDevKit(fixture.aggregate, [
+          "catalog", "refresh", "--repo-dir", fixture.aggregate,
+        ]);
+        assert.notStrictEqual(wildcard.exitCode, 0);
+        assert.match(wildcard.output, /explicit valid skill names/);
+
+        for (const skillsPath of ["../skills", "/tmp/skills", "C:\\skills"]) {
+          yield* fs.writeFileString(
+            path.join(fixture.aggregate, "skill-sources.jsonc"),
+            `${JSON.stringify({
+              sources: [],
+              packages: [{
+                id: "package-skills",
+                package: "@tanstack/react-start",
+                skillsPath,
+                include: ["tanstack-router"],
+              }],
+            }, null, 2)}\n`,
+          );
+          const unsafePath = yield* runDevKit(fixture.aggregate, [
+            "catalog", "refresh", "--repo-dir", fixture.aggregate,
+          ]);
+          assert.notStrictEqual(unsafePath.exitCode, 0);
+          assert.match(unsafePath.output, /portable package-relative path/);
+        }
+      }));
+
     it.effect("rejects symlinks in approved skill paths", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;

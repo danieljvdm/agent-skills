@@ -46,11 +46,19 @@ export {
   type ExternalSkillSource,
   LockedSkillSourceSchema,
   type LockedSkillSource,
+  LockedPackageSkillSourceSchema,
+  type LockedPackageSkillSource,
+  PackageSkillSourceSchema,
+  type PackageSkillSource,
   SkillSourcesLockSchema,
   type SkillSourcesLock,
   SkillSourcesManifestSchema,
   type SkillSourcesManifest,
 } from "./source-manifest.ts";
+export {
+  PackageSkillSourceError,
+  resolvePackageSkillSource,
+} from "./package-skill-source.ts";
 export {
   planProjectSkills,
   printSkillPlan,
@@ -60,6 +68,7 @@ export {
 } from "./sync.ts";
 export {
   AppliedStateSchema,
+  CatalogProvenanceSchema,
   DevKitLockSchema,
   EffectSourceLockSchema,
   EffectTsgoLockSchema,
@@ -68,6 +77,7 @@ export {
   ManagedSkillOutputSchema,
   OwnershipReceiptSchema,
   type AppliedState,
+  type CatalogProvenance,
   type DevKitLock,
   type EffectSourceLock,
   type EffectTsgoLock,

@@ -227,7 +227,11 @@ export const addSkills = Effect.fn("addManagedSkills")(function* (
       message: `unknown skill${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}. Try \`dev-kit search ${unknown[0]}\`.`,
     });
   }
-  for (const source of catalog.lock?.sources ?? []) {
+  const sourceFamilies = [
+    ...(catalog.lock?.sources ?? []),
+    ...(catalog.lock?.packages ?? []),
+  ];
+  for (const source of sourceFamilies) {
     if (!names.includes(source.id)) continue;
     yield* printStatus(
       "info",
@@ -324,6 +328,14 @@ export const showSkill = Effect.fn("showCatalogSkill")(function* (name: string) 
     if (source) {
       yield* printLine(`Repository: ${source.repository}`);
       yield* printLine(`Approved commit: ${source.resolved}`);
+      return;
+    }
+    const packageSource = catalog.lock?.packages?.find(
+      (candidate) => candidate.id === skill.source,
+    );
+    if (packageSource) {
+      yield* printLine(`Package: ${packageSource.package}`);
+      yield* printLine("Version: resolved from the consuming project's installation");
     }
   }
 });

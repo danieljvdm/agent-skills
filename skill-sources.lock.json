@@ -5,7 +5,7 @@
       "id": "emilkowalski-skills",
       "repository": "https://github.com/emilkowalski/skills.git",
       "ref": "main",
-      "resolved": "70744e3816f1d93eafb697161a8b880a7384c5ff",
+      "resolved": "da80201b64de7d608a6dc5f723797ce6c65b692b",
       "skillsPath": "skills",
       "include": [
         "animation-vocabulary",
@@ -131,6 +131,84 @@
         "serve-sim": "sha256:782f41d4d79100d5bfc9ec1211e5d4766e978299bbb93fd8e34c6f8d2ecf2114"
       },
       "licensePath": "LICENSE"
+    }
+  ],
+  "packages": [
+    {
+      "id": "tanstack-ai",
+      "package": "@tanstack/ai",
+      "skillsPath": "skills",
+      "skills": [
+        "ai-core"
+      ],
+      "descriptions": {
+        "ai-core": "Chat, tools, adapters, middleware, locks, structured output, media, AG-UI, and custom TanStack AI backends."
+      }
+    },
+    {
+      "id": "tanstack-ai-persistence",
+      "package": "@tanstack/ai-persistence",
+      "skillsPath": "skills",
+      "skills": [
+        "ai-persistence"
+      ],
+      "descriptions": {
+        "ai-persistence": "Durable TanStack AI chat state, store contracts, and persistence-adapter recipes."
+      }
+    },
+    {
+      "id": "tanstack-ai-memory-skills",
+      "package": "@tanstack/ai-memory",
+      "skillsPath": "skills",
+      "skills": [
+        "tanstack-ai-memory",
+        "tanstack-ai-memory-hindsight",
+        "tanstack-ai-memory-honcho",
+        "tanstack-ai-memory-in-memory",
+        "tanstack-ai-memory-mem0",
+        "tanstack-ai-memory-redis"
+      ],
+      "descriptions": {
+        "tanstack-ai-memory": "TanStack AI memory middleware and its recall/save adapter contract.",
+        "tanstack-ai-memory-hindsight": "Hindsight memory adapter for TanStack AI.",
+        "tanstack-ai-memory-honcho": "Honcho memory adapter for TanStack AI.",
+        "tanstack-ai-memory-in-memory": "In-memory reference adapter for TanStack AI memory.",
+        "tanstack-ai-memory-mem0": "Mem0 memory adapter for TanStack AI.",
+        "tanstack-ai-memory-redis": "Redis memory adapter for TanStack AI."
+      }
+    },
+    {
+      "id": "tanstack-ai-mcp",
+      "package": "@tanstack/ai-mcp",
+      "skillsPath": "skills",
+      "skills": [
+        "ai-mcp"
+      ],
+      "descriptions": {
+        "ai-mcp": "Connect MCP servers and use their tools, resources, prompts, and generated types in TanStack AI."
+      }
+    },
+    {
+      "id": "tanstack-ai-sandbox",
+      "package": "@tanstack/ai-sandbox",
+      "skillsPath": "skills",
+      "skills": [
+        "ai-sandbox"
+      ],
+      "descriptions": {
+        "ai-sandbox": "Run TanStack AI harness adapters inside isolated, policy-controlled sandboxes."
+      }
+    },
+    {
+      "id": "tanstack-ai-code-mode",
+      "package": "@tanstack/ai-code-mode",
+      "skillsPath": "skills",
+      "skills": [
+        "ai-code-mode"
+      ],
+      "descriptions": {
+        "ai-code-mode": "Execute LLM-generated TypeScript safely in isolated Code Mode environments."
+      }
     }
   ]
 }

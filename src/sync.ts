@@ -476,7 +476,7 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
       }
       const linkSource =
         targetName === "agents" || !agentsTarget.enabled
-          ? source
+          ? resolvedSource.linkPath ?? source
           : (yield* resolveManagedPath(projectDir, path.join(agentsTarget.path, skill))).absolute;
       const linkTarget = path.relative(path.dirname(managed.absolute), linkSource);
       const linkDigest = yield* digestSymlinkTarget(linkTarget);
@@ -634,7 +634,7 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
   }
   const selectedSkills = yield* expandSelection(manifest.include, manifest.exclude, availableSkills, skillFamilies);
   const sourceBySkill = yield* withSpinner(
-    "Fetching selected skills",
+    "Resolving selected skills",
     resolveSkillSources(packageRoot, projectDir, selectedSkills, options.dryRun !== true),
   );
   const desired = yield* buildDesiredOutputs(
@@ -787,6 +787,25 @@ const observationsEqual = (left: ObservedPath, right: ObservedPath): boolean =>
   left.kind === right.kind &&
   (left.kind === "missing" || (right.kind !== "missing" && left.digest === right.digest));
 
+const findNestedSymbolicLink = Effect.fn("findNestedSkillSymbolicLink")(function* (
+  root: string,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const pending = [root];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (current === undefined) continue;
+    if ((yield* observeSymbolicLink(current)).kind === "symlink") return current;
+    const info = yield* fs.stat(current);
+    if (info.type !== "Directory") continue;
+    for (const entry of yield* fs.readDirectory(current)) {
+      pending.push(path.join(current, entry));
+    }
+  }
+  return undefined;
+});
+
 const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function* (plan: SkillPlan) {
   const conflicts = plan.actions.filter((action) => action.action === "conflict");
   if (conflicts.length > 0) {
@@ -823,6 +842,12 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
     yield* fs.makeDirectory(path.dirname(staged), { recursive: true });
     if (action.desired.mode === "copy") {
       yield* fs.copy(action.desired.source, staged, { overwrite: true });
+      const symbolicLink = yield* findNestedSymbolicLink(staged);
+      if (symbolicLink !== undefined) {
+        return yield* new InvalidProjectStateError({
+          message: `staged skill contains a symlink: ${action.desired.path}`,
+        });
+      }
     } else {
       yield* fs.symlink(action.desired.linkTarget, staged);
     }

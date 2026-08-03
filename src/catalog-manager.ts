@@ -269,30 +269,60 @@ export const removeCatalogEntry = Effect.fn("removeCatalogEntry")(function* (
 ) {
   const state = yield* readState(options);
   const sources = state.sources.value.sources;
+  const packages = state.sources.value.packages ?? [];
   const sourceIndex = sources.findIndex((source) => source.id === name);
+  const packageIndex = packages.findIndex((source) => source.id === name);
   let next = state.sources.raw;
   let label: string;
   let pinSourceIds: ReadonlyArray<string> = [];
   if (sourceIndex >= 0) {
     next = applyEdits(next, modify(next, ["sources", sourceIndex], undefined, { formattingOptions }));
     label = `source ${name}`;
+  } else if (packageIndex >= 0) {
+    next = applyEdits(next, modify(next, ["packages", packageIndex], undefined, { formattingOptions }));
+    label = `package source ${name}`;
   } else {
     const owner = state.lock?.value.sources.find((source) => source.skills.includes(name));
-    if (!owner) return yield* new CatalogManagerError({ message: `catalog entry not found: ${name}` });
-    const index = sources.findIndex((source) => source.id === owner.id);
-    const source = sources[index];
-    if (!source) return yield* new CatalogManagerError({ message: `source not found: ${owner.id}` });
-    if (source.include.includes("*")) {
-      const exclude = [...new Set([...(source.exclude ?? []), name])];
-      next = applyEdits(next, modify(next, ["sources", index, "exclude"], exclude, { formattingOptions }));
+    if (owner) {
+      const index = sources.findIndex((source) => source.id === owner.id);
+      const source = sources[index];
+      if (!source) return yield* new CatalogManagerError({ message: `source not found: ${owner.id}` });
+      if (source.include.includes("*")) {
+        const exclude = [...new Set([...(source.exclude ?? []), name])];
+        next = applyEdits(next, modify(next, ["sources", index, "exclude"], exclude, { formattingOptions }));
+      } else {
+        const include = source.include.filter((skill) => skill !== name);
+        next = include.length === 0
+          ? applyEdits(next, modify(next, ["sources", index], undefined, { formattingOptions }))
+          : applyEdits(next, modify(next, ["sources", index, "include"], include, { formattingOptions }));
+      }
+      pinSourceIds = [owner.id];
     } else {
+      const packageOwner = state.lock?.value.packages?.find((source) =>
+        source.skills.includes(name)
+      );
+      if (!packageOwner) {
+        return yield* new CatalogManagerError({ message: `catalog entry not found: ${name}` });
+      }
+      const index = packages.findIndex((source) => source.id === packageOwner.id);
+      const source = packages[index];
+      if (!source) {
+        return yield* new CatalogManagerError({ message: `source not found: ${packageOwner.id}` });
+      }
       const include = source.include.filter((skill) => skill !== name);
-      next = include.length === 0
-        ? applyEdits(next, modify(next, ["sources", index], undefined, { formattingOptions }))
-        : applyEdits(next, modify(next, ["sources", index, "include"], include, { formattingOptions }));
+      if (include.length === 0) {
+        next = applyEdits(next, modify(next, ["packages", index], undefined, { formattingOptions }));
+      } else {
+        next = applyEdits(next, modify(next, ["packages", index, "include"], include, { formattingOptions }));
+        if (source.descriptions?.[name] !== undefined) {
+          next = applyEdits(
+            next,
+            modify(next, ["packages", index, "descriptions", name], undefined, { formattingOptions }),
+          );
+        }
+      }
     }
     label = `skill ${name}`;
-    pinSourceIds = [owner.id];
   }
   if (options.dryRun) {
     yield* printStatus("plan", "Would remove catalog entry", label);
@@ -320,7 +350,8 @@ export const listCatalogSources = Effect.fn("listCatalogSources")(function* (
   options: CatalogCommandOptions,
 ) {
   const state = yield* readState(options);
-  if (state.sources.value.sources.length === 0) {
+  const packageSources = state.sources.value.packages ?? [];
+  if (state.sources.value.sources.length === 0 && packageSources.length === 0) {
     yield* printStatus("info", "Catalog has no external sources");
     return;
   }
@@ -328,6 +359,11 @@ export const listCatalogSources = Effect.fn("listCatalogSources")(function* (
     const locked = state.lock?.value.sources.find((candidate) => candidate.id === source.id);
     yield* printLine(`${source.id}  ${source.repository}`);
     yield* printLine(`  ${locked?.skills.length ?? 0} skills · ${locked?.resolved.slice(0, 12) ?? "not refreshed"}`);
+  }
+  for (const source of packageSources) {
+    const locked = state.lock?.value.packages?.find((candidate) => candidate.id === source.id);
+    yield* printLine(`${source.id}  ${source.package}`);
+    yield* printLine(`  ${locked?.skills.length ?? 0} skills · installed package`);
   }
 });
 
@@ -337,12 +373,23 @@ export const showCatalogSource = Effect.fn("showCatalogSource")(function* (
 ) {
   const state = yield* readState(options);
   const source = state.sources.value.sources.find((candidate) => candidate.id === id);
-  if (!source) return yield* new CatalogManagerError({ message: `catalog source not found: ${id}` });
-  const locked = state.lock?.value.sources.find((candidate) => candidate.id === id);
-  yield* printLine(source.id);
-  yield* printLine(`Repository: ${source.repository}`);
-  yield* printLine(`Tracking: ${source.ref}`);
-  if (locked) yield* printLine(`Approved commit: ${locked.resolved}`);
-  yield* printLine(`Skills: ${locked?.skills.join(", ") ?? "run catalog refresh"}`);
-  if (source.exclude?.length) yield* printLine(`Excluded: ${source.exclude.join(", ")}`);
+  if (source) {
+    const locked = state.lock?.value.sources.find((candidate) => candidate.id === id);
+    yield* printLine(source.id);
+    yield* printLine(`Repository: ${source.repository}`);
+    yield* printLine(`Tracking: ${source.ref}`);
+    if (locked) yield* printLine(`Approved commit: ${locked.resolved}`);
+    yield* printLine(`Skills: ${locked?.skills.join(", ") ?? "run catalog refresh"}`);
+    if (source.exclude?.length) yield* printLine(`Excluded: ${source.exclude.join(", ")}`);
+    return;
+  }
+  const packageSource = state.sources.value.packages?.find((candidate) => candidate.id === id);
+  if (!packageSource) {
+    return yield* new CatalogManagerError({ message: `catalog source not found: ${id}` });
+  }
+  const lockedPackage = state.lock?.value.packages?.find((candidate) => candidate.id === id);
+  yield* printLine(packageSource.id);
+  yield* printLine(`Package: ${packageSource.package}`);
+  yield* printLine("Version: resolved from the consuming project's installation");
+  yield* printLine(`Skills: ${lockedPackage?.skills.join(", ") ?? "run catalog refresh"}`);
 });

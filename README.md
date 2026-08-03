@@ -273,7 +273,8 @@ of shared JSONC files.
 ## Approved external skills
 
 This repository is an opinionated catalog, not a mirror of every upstream skill
-tree. `skill-sources.jsonc` declares sources Dan has approved:
+tree. `skill-sources.jsonc` declares both reviewed Git sources and approved
+package-backed skills:
 
 ```jsonc
 {
@@ -287,9 +288,40 @@ tree. `skill-sources.jsonc` declares sources Dan has approved:
       "include": ["*"],
       "licensePath": "LICENSE"
     }
+  ],
+  "packages": [
+    {
+      "id": "tanstack-ai",
+      "package": "@tanstack/ai",
+      "skillsPath": "skills",
+      "include": ["ai-core"],
+      "descriptions": {
+        "ai-core": "TanStack AI core concepts."
+      }
+    }
   ]
 }
 ```
+
+Package-backed skills are an explicit trust decision for both the package and
+the listed top-level skill names. Their content comes from the package version
+installed by the consuming project, rather than a Git checkout. The project
+lock records that resolved package version and the selected skill digests, so
+locked installs reject package or skill-content drift. If a selected package is
+not installed, sync reports the missing package instead of silently fetching a
+substitute.
+
+Some approved companion packages may still be upstream development artifacts
+and not yet be published to the npm registry. Select them only in projects that
+install them from a compatible source.
+
+A package skill root may contain nested `SKILL.md` files and references. Those
+are progressive-disclosure material copied with the selected root; they are not
+separate catalog entries. For example, `ai-core` includes its routed topic
+skills and `ai-persistence` includes its server, store, and adapter recipes.
+This follows TanStack's documented
+[Agent Skills layout](https://tanstack.com/ai/latest/docs/getting-started/agent-skills)
+without asking Intent to manage Dev Kit's agent configuration files.
 
 Maintainers approve a new upstream snapshot with:
 
@@ -317,19 +349,21 @@ exact snapshot; it never writes a wildcard that could silently approve a future
 upstream addition.
 
 The current catalog includes approved snapshots from Emil Kowalski,
-Cloudflare, and Evan Bacon. Inspect them with `dev-kit catalog list` and
-`dev-kit catalog info <source>`.
+Cloudflare, and Evan Bacon, plus package-backed TanStack AI skills for
+`@tanstack/ai`, persistence, memory, MCP, sandboxing, and Code Mode. Inspect
+them with `dev-kit catalog list` and `dev-kit catalog info <source>`.
 
 The refresh resolves refs to exact commits, validates names and paths, rejects
 symlinks and collisions, extracts short descriptions, and updates
 `skill-sources.lock.json`. It does not copy upstream skill trees into this
 repository.
 
-When a consuming project selects an external skill, Dev Kit fetches that exact
-approved commit into the ignored `.dev-kit/cache`, applies declared compatibility
-transforms, and installs the result through the ownership-safe sync path. Normal
-installs never float to a newer upstream commit; only a reviewed catalog refresh
-changes what is approved.
+When a consuming project selects a Git-backed external skill, Dev Kit fetches
+that exact approved commit into the ignored `.dev-kit/cache`, applies declared
+compatibility transforms, and installs the result through the ownership-safe
+sync path. Package-backed selections resolve from the project's installed
+package version instead. Normal Git-source installs never float to a newer
+upstream commit; only a reviewed catalog refresh changes what is approved.
 
 ## Oxlint and Oxfmt configurations
 

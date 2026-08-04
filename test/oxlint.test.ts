@@ -8,7 +8,7 @@ const recommendedOxlintConfig = packagedOxlintConfig;
 
 describe("recommended Oxlint config", () => {
   it("enables the Vite+ plugins and type-aware rules", () => {
-    expect(recommendedOxlintConfig.options).toEqual({ typeAware: true });
+    expect(recommendedOxlintConfig.options).toEqual({ typeAware: true, typeCheck: true });
     expect(recommendedOxlintConfig.jsPlugins).toEqual([
       {
         name: "effect",

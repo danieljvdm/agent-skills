@@ -7,6 +7,7 @@
 export const recommendedOxlintConfig = {
   options: {
     typeAware: true,
+    typeCheck: true,
   },
   jsPlugins: [
     {

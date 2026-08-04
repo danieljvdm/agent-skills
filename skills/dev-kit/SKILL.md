@@ -214,7 +214,9 @@ Use `lint.extends` instead of spreading the object so Vite+ composes nested
 rule maps correctly. Oxfmt has no inheritance mechanism, so spread its object
 before project-local options. Standalone `oxlint.config.ts` uses the same
 `extends: [recommendedOxlintConfig]`; standalone `oxfmt.config.ts` spreads the
-same `recommendedOxfmtConfig`.
+same `recommendedOxfmtConfig`. The shared lint preset enables both `typeAware`
+and `typeCheck`, making `vp check` the single formatting, linting, and
+TypeScript verification command.
 
 The Oxlint preset enables the fixable
 `stylistic/padding-line-between-statements` rule. It keeps adjacent variable

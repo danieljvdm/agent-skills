@@ -451,7 +451,9 @@ export default defineConfig({
 
 Use `lint.extends` rather than a shallow object spread so Vite+ composes the
 nested plugin and rule configuration correctly. Oxfmt has no `extends`, so
-spread its configuration before project-local formatter options.
+spread its configuration before project-local formatter options. The shared
+lint preset enables both `typeAware` and `typeCheck`, so `vp check` covers
+formatting, linting, and TypeScript without a separate `tsc` invocation.
 
 Standalone projects import the same objects from their native config files:
 

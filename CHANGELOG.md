@@ -1,5 +1,11 @@
 # @danieljvdm/dev-kit
 
+## 0.9.0
+
+### Minor Changes
+
+- 569ddd4: Add a high-bar `testing` skill and approve the upstream `tdd` and `improve-codebase-architecture` skills.
+
 ## 0.8.0
 
 ### Minor Changes

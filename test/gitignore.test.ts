@@ -14,6 +14,7 @@ describe("gitignore patch", () => {
           prefix: "dev-kit-gitignore-test-",
         });
         const gitignorePath = path.join(projectDir, ".gitignore");
+
         yield* fs.writeFileString(gitignorePath, "node_modules/\n.repos/effect/\n");
 
         const first = yield* patchProjectGitignore({ projectDir });
@@ -57,6 +58,7 @@ describe("gitignore patch", () => {
           prefix: "dev-kit-gitignore-external-test-",
         });
         const externalGitignore = path.join(externalDir, ".gitignore");
+
         yield* fs.writeFileString(externalGitignore, "keep-this\n");
         yield* fs.symlink(externalGitignore, path.join(projectDir, ".gitignore"));
 
@@ -71,6 +73,7 @@ describe("gitignore patch", () => {
     it.effect("preserves CRLF and existing entries", () =>
       Effect.sync(() => {
         const result = patchGitignoreContents("node_modules/\r\n.repos/\r\n");
+
         assert.deepEqual(result.added, [".dev-kit/"]);
         assert.strictEqual(
           result.contents,

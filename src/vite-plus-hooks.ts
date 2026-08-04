@@ -60,6 +60,7 @@ const runCommand = Effect.fn("runVitePlusHooksCommand")(function* (
     child.exitCode,
   ]);
   const trimmed = output.trim();
+
   if (!allowedExitCodes.includes(exitCode)) {
     return yield* new VitePlusHooksCommandError({
       command: [command, ...args].join(" "),
@@ -67,13 +68,16 @@ const runCommand = Effect.fn("runVitePlusHooksCommand")(function* (
       output: trimmed,
     });
   }
+
   return { exitCode, output: trimmed };
 });
 
 const hasExecutableFile = Effect.fn("hasExecutableVitePlusHookFile")(function* (filePath: string) {
   const fs = yield* FileSystem.FileSystem;
+
   if (!(yield* fs.exists(filePath))) return false;
   const info = yield* fs.stat(filePath);
+
   return info.type === "File" && (info.mode & 0o111) !== 0;
 });
 
@@ -81,8 +85,10 @@ const hasVitePlusPreCommitHook = Effect.fn("hasVitePlusPreCommitHook")(function*
   filePath: string,
 ) {
   const fs = yield* FileSystem.FileSystem;
+
   if (!(yield* fs.exists(filePath))) return false;
   const info = yield* fs.stat(filePath);
+
   return info.type === "File" && (yield* fs.readFileString(filePath)).includes("vp staged");
 });
 
@@ -95,6 +101,7 @@ const inspectVitePlusHooks = Effect.fn("inspectVitePlusHooks")(function* (projec
     [0, 1],
   );
   const hooksPath = configuredPath.exitCode === 0 ? configuredPath.output : "";
+
   if (
     hooksPath.length > 0 &&
     hooksPath !== VITE_PLUS_HOOKS_PATH &&
@@ -109,6 +116,7 @@ const inspectVitePlusHooks = Effect.fn("inspectVitePlusHooks")(function* (projec
     hasExecutableFile(path.join(internalDir, "pre-commit")),
     hasVitePlusPreCommitHook(path.join(projectDir, VITE_PLUS_HOOKS_DIR, "pre-commit")),
   ]);
+
   return hooksPath === VITE_PLUS_HOOKS_PATH && hasLauncher && hasDispatcher && hasPreCommit;
 });
 
@@ -116,12 +124,14 @@ export const planVitePlusHooks = Effect.fn("planVitePlusHooks")(function* (proje
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const dependencies = yield* readDirectDependencyNames(projectDir);
+
   if (!dependencies.includes("vite-plus")) {
     return yield* new VitePlusHooksDependencyError({
       message: "vite-plus must be a direct project dependency before enabling setup.vitePlus.hooks",
     });
   }
   const vpBin = path.join(projectDir, "node_modules", ".bin", "vp");
+
   if (!(yield* fs.exists(vpBin))) {
     return yield* new VitePlusHooksDependencyError({
       message:
@@ -136,6 +146,7 @@ export const planVitePlusHooks = Effect.fn("planVitePlusHooks")(function* (proje
       : (yield* inspectVitePlusHooks(projectDir))
         ? "unchanged"
         : "configure";
+
   return {
     action,
     hooksDir: VITE_PLUS_HOOKS_DIR,

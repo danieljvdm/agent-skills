@@ -19,6 +19,7 @@ const writeManifest = Effect.fn("writeSyncTestManifest")(function* (
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
+
   yield* fs.writeFileString(
     path.join(projectDir, "dev-kit.jsonc"),
     `${JSON.stringify(
@@ -55,7 +56,9 @@ const createProject = Effect.fn("createSyncTestProject")(function* () {
   const projectDir = yield* fs.makeTempDirectoryScoped({
     prefix: "dev-kit-sync-test-",
   });
+
   yield* writeManifest(projectDir);
+
   return projectDir;
 });
 
@@ -65,6 +68,7 @@ const writeProjectPackage = Effect.fn("writeSyncTestProjectPackage")(function* (
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
+
   yield* fs.writeFileString(
     path.join(projectDir, "package.json"),
     `${JSON.stringify(packageJson, null, 2)}\n`,
@@ -78,6 +82,7 @@ const installFakeVitePlusInstructions = Effect.fn("installFakeVitePlusInstructio
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const packageDir = path.join(projectDir, "node_modules", "vite-plus");
+
   yield* fs.makeDirectory(packageDir, { recursive: true });
   yield* fs.writeFileString(path.join(packageDir, "AGENTS.md"), contents);
 });
@@ -90,6 +95,7 @@ const writePackageVersion = Effect.fn("writeSyncTestPackageVersion")(function* (
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const packageDir = path.join(projectDir, "node_modules", ...packageName.split("/"));
+
   yield* fs.makeDirectory(packageDir, { recursive: true });
   yield* fs.writeFileString(
     path.join(packageDir, "package.json"),
@@ -100,12 +106,14 @@ const writePackageVersion = Effect.fn("writeSyncTestPackageVersion")(function* (
 const installFakeEffectTsgo = Effect.fn("installFakeEffectTsgo")(function* (projectDir: string) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
+
   yield* writePackageVersion(projectDir, "@effect/tsgo", EFFECT_TSGO_VERSION);
   yield* writePackageVersion(projectDir, "typescript", EFFECT_TSGO_TYPESCRIPT_VERSION);
 
   const platform = "test-platform";
   const typescriptPlatformPackage = `@typescript/typescript-${platform}`;
   const effectPlatformPackage = `@effect/tsgo-${platform}`;
+
   yield* writePackageVersion(projectDir, typescriptPlatformPackage, EFFECT_TSGO_TYPESCRIPT_VERSION);
   yield* writePackageVersion(projectDir, effectPlatformPackage, EFFECT_TSGO_VERSION);
 
@@ -123,12 +131,14 @@ const installFakeEffectTsgo = Effect.fn("installFakeEffectTsgo")(function* (proj
     `tsgo-${platform}`,
     "lib",
   );
+
   yield* fs.makeDirectory(platformLib, { recursive: true });
   yield* fs.makeDirectory(effectPlatformLib, { recursive: true });
   yield* fs.writeFileString(path.join(platformLib, "tsc"), "original\n");
   yield* fs.writeFileString(path.join(effectPlatformLib, "tsc"), "patched\n");
 
   const executable = path.join(projectDir, "node_modules", ".bin", "effect-tsgo");
+
   yield* fs.makeDirectory(path.dirname(executable), { recursive: true });
   yield* fs.writeFileString(
     executable,
@@ -176,6 +186,7 @@ describe("project apply", () => {
         const projectDir = yield* createProject();
 
         const first = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
         assert.strictEqual(first.exitCode, 0, first.output);
         assert.match(first.output, /Dev kit ready 2 changes/);
         assert.isTrue(
@@ -192,6 +203,7 @@ describe("project apply", () => {
         const firstLock = yield* fs.readFileString(lockPath);
         const firstState = yield* fs.readFileString(statePath);
         const lock = JSON.parse(firstLock);
+
         assert.deepEqual(
           lock.outputs.map((output: { resourceId: string; path: string }) => [
             output.resourceId,
@@ -204,6 +216,7 @@ describe("project apply", () => {
         );
 
         const second = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
         assert.strictEqual(second.exitCode, 0, second.output);
         assert.match(second.output, /Dev kit up to date/);
         assert.strictEqual(yield* fs.readFileString(lockPath), firstLock);
@@ -216,11 +229,13 @@ describe("project apply", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
+
         yield* installFakeEffectTsgo(projectDir);
         yield* writeManifest(projectDir, { effectTsgoEnabled: true });
         const marker = path.join(projectDir, "tsgo-patch-count.txt");
 
         const planned = yield* runDevKit(projectDir, ["plan", "--project-dir", projectDir]);
+
         assert.strictEqual(planned.exitCode, 0, planned.output);
         assert.match(
           planned.output,
@@ -229,6 +244,7 @@ describe("project apply", () => {
         assert.isFalse(yield* fs.exists(marker));
 
         const applied = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
         assert.strictEqual(applied.exitCode, 0, applied.output);
         assert.match(applied.output, /✓ Dev kit ready 3 changes/);
         assert.notMatch(applied.output, /Verification succeeded|Backed up original binary/);
@@ -236,6 +252,7 @@ describe("project apply", () => {
 
         const lockPath = path.join(projectDir, "dev-kit.lock.json");
         const lock = JSON.parse(yield* fs.readFileString(lockPath));
+
         assert.deepEqual(lock.setup.effectTsgo, {
           effectTsgoVersion: EFFECT_TSGO_VERSION,
           typescriptPackage: "typescript",
@@ -248,6 +265,7 @@ describe("project apply", () => {
           "--project-dir",
           projectDir,
         ]);
+
         assert.strictEqual(postinstall.exitCode, 0, postinstall.output);
         assert.match(postinstall.output, /Dev kit up to date/);
         assert.strictEqual(yield* fs.readFileString(marker), "1");
@@ -260,6 +278,7 @@ describe("project apply", () => {
           "--project-dir",
           projectDir,
         ]);
+
         assert.notStrictEqual(mismatched.exitCode, 0);
         assert.match(mismatched.output, /manifest or packaged skills differ/);
       }),
@@ -271,6 +290,7 @@ describe("project apply", () => {
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
         const destination = path.join(projectDir, ".agents", "skills", "effect-ts");
+
         yield* fs.makeDirectory(destination, { recursive: true });
         yield* fs.writeFileString(path.join(destination, "keep.txt"), "user content\n");
 
@@ -291,22 +311,26 @@ describe("project apply", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
+
         assert.strictEqual(
           (yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir])).exitCode,
           0,
         );
         const unrelated = path.join(projectDir, ".agents", "skills", "local-skill");
+
         yield* fs.makeDirectory(unrelated, { recursive: true });
         yield* fs.writeFileString(path.join(unrelated, "SKILL.md"), "local\n");
         yield* writeManifest(projectDir, { agentsEnabled: false });
 
         const planned = yield* runDevKit(projectDir, ["plan", "--project-dir", projectDir]);
+
         assert.strictEqual(planned.exitCode, 0, planned.output);
         assert.match(planned.output, /− skill:effect-ts@agents/);
         assert.match(planned.output, /− skill:effect-atom-data-fetching@agents/);
         assert.isTrue(yield* fs.exists(path.join(projectDir, ".agents", "skills", "effect-ts")));
 
         const applied = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
         assert.strictEqual(applied.exitCode, 0, applied.output);
         assert.isFalse(yield* fs.exists(path.join(projectDir, ".agents", "skills", "effect-ts")));
         assert.strictEqual(yield* fs.readFileString(path.join(unrelated, "SKILL.md")), "local\n");
@@ -322,11 +346,13 @@ describe("project apply", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
+
         assert.strictEqual(
           (yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir])).exitCode,
           0,
         );
         const skillDocument = path.join(projectDir, ".agents", "skills", "effect-ts", "SKILL.md");
+
         yield* fs.writeFileString(
           skillDocument,
           `${yield* fs.readFileString(skillDocument)}\nlocal edit\n`,
@@ -350,6 +376,7 @@ describe("project apply", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
+
         assert.strictEqual(
           (yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir])).exitCode,
           0,
@@ -377,11 +404,14 @@ describe("project apply", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
+
         yield* writeManifest(projectDir, { claudeEnabled: true });
 
         const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
         assert.strictEqual(result.exitCode, 0, result.output);
         const link = path.join(projectDir, ".claude", "skills", "effect-ts");
+
         assert.strictEqual(
           yield* fs.readLink(link),
           path.relative(
@@ -397,20 +427,24 @@ describe("project apply", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
+
         yield* writeManifest(projectDir, {
           agentInstructionsEnabled: true,
           claudeInstructionsEnabled: true,
         });
 
         const planned = yield* runDevKit(projectDir, ["plan", "--project-dir", projectDir]);
+
         assert.strictEqual(planned.exitCode, 0, planned.output);
         assert.match(planned.output, /\+ copy templates\/AGENTS\.md → AGENTS\.md/);
         assert.match(planned.output, /\+ link AGENTS\.md → CLAUDE\.md/);
         assert.isFalse(yield* fs.exists(path.join(projectDir, "AGENTS.md")));
 
         const applied = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
         assert.strictEqual(applied.exitCode, 0, applied.output);
         const instructions = yield* fs.readFileString(path.join(projectDir, "AGENTS.md"));
+
         assert.match(instructions, /This project uses `@danieljvdm\/dev-kit`/);
         assert.match(
           instructions,
@@ -427,6 +461,7 @@ describe("project apply", () => {
         const agentOutput = outputs.find(
           (output: { resourceId: string }) => output.resourceId === "setup:agent-instructions",
         );
+
         assert.deepInclude(agentOutput, {
           resourceId: "setup:agent-instructions",
           path: "AGENTS.md",
@@ -446,6 +481,7 @@ describe("project apply", () => {
           "--project-dir",
           projectDir,
         ]);
+
         assert.strictEqual(converged.exitCode, 0, converged.output);
         assert.match(converged.output, /Dev kit up to date/);
         assert.strictEqual(yield* fs.readFileString(lockPath), firstLock);
@@ -458,14 +494,17 @@ describe("project apply", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const directProject = yield* createProject();
+
         yield* writeManifest(directProject, { agentInstructionsEnabled: true });
         yield* writeProjectPackage(directProject, {
           devDependencies: { "vite-plus": "0.2.6" },
         });
         const viteInstructions = "<!--VITE PLUS START-->\n\n# Vite+ Test\n\n<!--VITE PLUS END-->\n";
+
         yield* installFakeVitePlusInstructions(directProject, viteInstructions);
 
         const direct = yield* runDevKit(directProject, ["apply", "--project-dir", directProject]);
+
         assert.strictEqual(direct.exitCode, 0, direct.output);
         assert.isTrue(
           (yield* fs.readFileString(path.join(directProject, "AGENTS.md"))).endsWith(
@@ -474,6 +513,7 @@ describe("project apply", () => {
         );
 
         const transitiveProject = yield* createProject();
+
         yield* writeManifest(transitiveProject, { agentInstructionsEnabled: true });
         yield* writeProjectPackage(transitiveProject, { dependencies: {} });
         yield* installFakeVitePlusInstructions(transitiveProject, viteInstructions);
@@ -482,6 +522,7 @@ describe("project apply", () => {
           "--project-dir",
           transitiveProject,
         ]);
+
         assert.strictEqual(transitive.exitCode, 0, transitive.output);
         assert.notMatch(
           yield* fs.readFileString(path.join(transitiveProject, "AGENTS.md")),
@@ -495,6 +536,7 @@ describe("project apply", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
+
         yield* writeManifest(projectDir, { agentInstructionsEnabled: true });
         yield* writeProjectPackage(projectDir, { dependencies: { "vite-plus": "0.2.6" } });
 
@@ -515,6 +557,7 @@ describe("project apply", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
+
         yield* fs.writeFileString(path.join(projectDir, "AGENTS.md"), "custom\n");
         yield* writeManifest(projectDir, { agentInstructionsEnabled: true });
 
@@ -534,6 +577,7 @@ describe("project apply", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
+
         yield* writeManifest(projectDir, { agentInstructionsEnabled: true });
         assert.strictEqual(
           (yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir])).exitCode,
@@ -546,11 +590,13 @@ describe("project apply", () => {
           "<!--VITE PLUS START-->\nupdated\n<!--VITE PLUS END-->\n",
         );
         const updated = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
         assert.strictEqual(updated.exitCode, 0, updated.output);
         assert.match(yield* fs.readFileString(path.join(projectDir, "AGENTS.md")), /updated/);
 
         yield* writeManifest(projectDir);
         const removed = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
         assert.strictEqual(removed.exitCode, 0, removed.output);
         assert.isFalse(yield* fs.exists(path.join(projectDir, "AGENTS.md")));
       }),
@@ -561,6 +607,7 @@ describe("project apply", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
+
         yield* writeManifest(projectDir, { agentInstructionsEnabled: true });
         assert.strictEqual(
           (yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir])).exitCode,
@@ -585,6 +632,7 @@ describe("project apply", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
+
         yield* writeManifest(projectDir, { agentInstructionsEnabled: true });
         yield* writeProjectPackage(projectDir, { devDependencies: { "vite-plus": "0.2.6" } });
         yield* installFakeVitePlusInstructions(projectDir, "first\n");
@@ -613,6 +661,7 @@ describe("project apply", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
+
         yield* writeManifest(projectDir, {
           agentInstructionsEnabled: true,
           claudeInstructionsEnabled: true,
@@ -640,15 +689,18 @@ describe("project apply", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
+
         yield* fs.writeFileString(path.join(projectDir, "AGENTS.md"), "# Instructions\n");
         yield* writeManifest(projectDir, { claudeInstructionsEnabled: true });
 
         const planned = yield* runDevKit(projectDir, ["plan", "--project-dir", projectDir]);
+
         assert.strictEqual(planned.exitCode, 0, planned.output);
         assert.match(planned.output, /\+ link AGENTS\.md → CLAUDE\.md/);
         assert.isFalse(yield* fs.exists(path.join(projectDir, "CLAUDE.md")));
 
         const applied = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
         assert.strictEqual(applied.exitCode, 0, applied.output);
         assert.strictEqual(yield* fs.readLink(path.join(projectDir, "CLAUDE.md")), "AGENTS.md");
         const lockPath = path.join(projectDir, "dev-kit.lock.json");
@@ -658,6 +710,7 @@ describe("project apply", () => {
         const instructionOutput = JSON.parse(firstLock).outputs.find(
           (output: { resourceId: string }) => output.resourceId === "setup:claude-instructions",
         );
+
         assert.deepEqual(instructionOutput, {
           resourceId: "setup:claude-instructions",
           path: "CLAUDE.md",
@@ -673,6 +726,7 @@ describe("project apply", () => {
           "--project-dir",
           projectDir,
         ]);
+
         assert.strictEqual(converged.exitCode, 0, converged.output);
         assert.match(converged.output, /Dev kit up to date/);
         assert.strictEqual(yield* fs.readFileString(lockPath), firstLock);
@@ -685,6 +739,7 @@ describe("project apply", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
+
         yield* writeManifest(projectDir, { claudeInstructionsEnabled: true });
 
         const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
@@ -701,6 +756,7 @@ describe("project apply", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
+
         yield* fs.writeFileString(path.join(projectDir, "AGENTS.md"), "agents\n");
         yield* fs.writeFileString(path.join(projectDir, "CLAUDE.md"), "claude\n");
         yield* writeManifest(projectDir, { claudeInstructionsEnabled: true });
@@ -721,6 +777,7 @@ describe("project apply", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
+
         yield* fs.writeFileString(path.join(projectDir, "AGENTS.md"), "agents\n");
         yield* fs.symlink("AGENTS.md", path.join(projectDir, "CLAUDE.md"));
         yield* writeManifest(projectDir, { claudeInstructionsEnabled: true });
@@ -738,6 +795,7 @@ describe("project apply", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
+
         yield* fs.writeFileString(path.join(projectDir, "AGENTS.md"), "agents\n");
         yield* writeManifest(projectDir, { claudeInstructionsEnabled: true });
         assert.strictEqual(
@@ -747,6 +805,7 @@ describe("project apply", () => {
 
         yield* writeManifest(projectDir);
         const planned = yield* runDevKit(projectDir, ["plan", "--project-dir", projectDir]);
+
         assert.strictEqual(planned.exitCode, 0, planned.output);
         assert.match(planned.output, /− setup:claude-instructions → CLAUDE\.md/);
         const removed = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
@@ -761,6 +820,7 @@ describe("project apply", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
+
         yield* fs.writeFileString(path.join(projectDir, "AGENTS.md"), "agents\n");
         yield* writeManifest(projectDir, { claudeInstructionsEnabled: true });
         assert.strictEqual(
@@ -784,6 +844,7 @@ describe("project apply", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
+
         assert.strictEqual(
           (yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir])).exitCode,
           0,
@@ -813,6 +874,7 @@ describe("project apply", () => {
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
         const nextProjectDir = yield* createProject();
+
         assert.strictEqual(
           (yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir])).exitCode,
           0,
@@ -850,6 +912,7 @@ describe("project apply", () => {
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
+
         for (const lockfile of [
           ".dev-kit/state.json",
           ".agents/skills/effect-ts/dev-kit.lock.json",
@@ -862,6 +925,7 @@ describe("project apply", () => {
             "--project-dir",
             projectDir,
           ]);
+
           assert.notStrictEqual(result.exitCode, 0);
           assert.match(result.output, /overlaps/);
           assert.isFalse(yield* fs.exists(path.join(projectDir, ".agents")));
@@ -876,6 +940,7 @@ describe("project apply", () => {
         const projectDir = yield* createProject();
         const root = yield* repositoryRoot();
         const destination = path.join(projectDir, ".agents", "skills", "effect-ts");
+
         yield* fs.makeDirectory(path.dirname(destination), { recursive: true });
         yield* fs.copy(path.join(root, "skills", "effect-ts"), destination);
 
@@ -892,6 +957,7 @@ describe("project apply", () => {
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
         const processLock = path.join(projectDir, ".dev-kit", "apply.lock");
+
         yield* fs.makeDirectory(processLock, { recursive: true });
         yield* fs.writeFileString(path.join(processLock, "owner.json"), '{"token":"other"}\n');
 
@@ -914,6 +980,7 @@ describe("project apply", () => {
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
         const blockedParent = path.join(projectDir, "blocked");
+
         yield* fs.writeFileString(blockedParent, "not a directory\n");
 
         const result = yield* runDevKit(projectDir, [
@@ -940,6 +1007,7 @@ describe("project apply", () => {
         const externalDir = yield* fs.makeTempDirectoryScoped({
           prefix: "dev-kit-external-test-",
         });
+
         yield* fs.writeFileString(path.join(externalDir, "keep.txt"), "external content\n");
         yield* fs.symlink(externalDir, path.join(projectDir, ".agents"));
 

@@ -29,6 +29,7 @@ describe("project process lock", () => {
             const owner = yield* Schema.decodeUnknownEffect(
               Schema.fromJsonString(ProcessLockOwnerSchema),
             )(yield* fs.readFileString(ownerPath));
+
             assert.isString(owner.token);
             assert.isString(owner.startedAt);
             assert.notProperty(owner, "pid");

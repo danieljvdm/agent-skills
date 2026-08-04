@@ -140,6 +140,7 @@ export const normalizeManifest = (manifest: DevKitManifest): NormalizedManifest 
 
   for (const key of ["agents", "claude", "opencode"] as const) {
     const override = manifest.targets?.[key];
+
     if (override) {
       targets[key] = {
         enabled: override.enabled ?? DEFAULT_TARGETS[key].enabled,

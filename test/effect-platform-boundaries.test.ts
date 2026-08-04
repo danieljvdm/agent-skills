@@ -25,6 +25,7 @@ describe("Effect platform boundaries", () => {
 
         for (const file of files) {
           const source = yield* fs.readFileString(file);
+
           assert.notMatch(
             source,
             directNodeApi,

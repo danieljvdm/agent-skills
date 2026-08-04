@@ -10,6 +10,7 @@ const repositoryPaths = Effect.fn("repositoryPaths")(function* () {
   const root = path.resolve(path.dirname(testPath), "..");
   const skillDir = path.join(root, "skills", "effect-ts");
   const atomDataSkillDir = path.join(root, "skills", "effect-atom-data-fetching");
+
   return {
     root,
     skillDir,
@@ -36,6 +37,7 @@ const runCli = Effect.fn("runTestCli")(function* (
     Stream.mkString(Stream.decodeText(child.all)),
     child.exitCode,
   ]);
+
   return { exitCode, output };
 });
 
@@ -45,6 +47,7 @@ const writeManifest = Effect.fn("writeTestManifest")(function* (
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
+
   yield* fs.writeFileString(
     path.join(projectDir, "dev-kit.jsonc"),
     `${JSON.stringify({ include }, null, 2)}\n`,
@@ -64,11 +67,13 @@ describe("shipped skills", () => {
         assert.isFalse(yield* fs.exists(path.join(root, "skills", "effect-patterns", "SKILL.md")));
 
         const skill = yield* fs.readFileString(path.join(skillDir, "SKILL.md"));
+
         assert.match(skill, /^---\nname: effect-ts\n/);
         assert.notMatch(skill, /name: effect-(?:cli|patterns)/);
         assert.notMatch(skill, /stop and prompt the user.*\.repos\/effect/is);
 
         const referenceNames = new Set(yield* fs.readDirectory(referencesDir));
+
         assert.isTrue(referenceNames.has("audit-services.md"));
         for (const duplicateReference of [
           "guide-functions-and-errors.md",
@@ -108,8 +113,10 @@ describe("shipped skills", () => {
         for (const reference of referenceNames) {
           if (!reference.endsWith(".md")) continue;
           const markdown = yield* fs.readFileString(path.join(referencesDir, reference));
+
           for (const match of markdown.matchAll(/\]\((?!https?:|#)([^)]+\.md)(?:#[^)]+)?\)/g)) {
             const linkedReference = match[1];
+
             if (linkedReference === undefined) continue;
             assert.isTrue(
               yield* fs.exists(path.resolve(referencesDir, linkedReference)),
@@ -129,6 +136,7 @@ describe("shipped skills", () => {
           yield* fs.readFileString(path.join(root, "package.json")),
         ) as { dependencies: Record<string, string> };
         const effectVersion = packageJson.dependencies.effect;
+
         if (effectVersion === undefined) assert.fail("effect dependency is missing");
 
         assert.isString(effectVersion);
@@ -173,6 +181,7 @@ describe("shipped skills", () => {
         const projectDir = yield* fs.makeTempDirectoryScoped({
           prefix: "dev-kit-self-plan-test-",
         });
+
         yield* writeManifest(projectDir, ["dev-kit"]);
         const result = yield* runCli(cli, tsx, projectDir, ["plan", "--project-dir", projectDir]);
 
@@ -197,6 +206,7 @@ describe("shipped skills", () => {
         const routedReferences = [...skill.matchAll(/`\.\/references\/([^`]+\.md)`/g)].flatMap(
           (match) => (match[1] === undefined ? [] : [match[1]]),
         );
+
         assert.deepEqual(
           new Set(routedReferences),
           new Set([
@@ -211,6 +221,7 @@ describe("shipped skills", () => {
         const projectDir = yield* fs.makeTempDirectoryScoped({
           prefix: "dev-kit-effect-atom-plan-test-",
         });
+
         yield* writeManifest(projectDir, ["effect-atom-data-fetching"]);
         const result = yield* runCli(cli, tsx, projectDir, ["plan", "--project-dir", projectDir]);
 
@@ -232,6 +243,7 @@ describe("shipped skills", () => {
         ) as { name: string; scripts: Record<string, string> };
         const selfManifest = parseJsonc(yield* fs.readFileString(path.join(root, "dev-kit.jsonc")));
         const selfLock = JSON.parse(yield* fs.readFileString(path.join(root, "dev-kit.lock.json")));
+
         assert.strictEqual(packageJson.name, "@danieljvdm/dev-kit");
         assert.strictEqual(packageJson.scripts.prepare, "./bin/dev-kit.mjs apply --locked");
         assert.strictEqual(packageJson.scripts["dev-kit"], "./bin/dev-kit.mjs");
@@ -261,6 +273,7 @@ describe("shipped skills", () => {
         for (const include of [["effect"], ["effect-ts"], ["effect-atom-data-fetching"]]) {
           yield* writeManifest(projectDir, include);
           const result = yield* runCli(cli, tsx, projectDir, ["plan", "--project-dir", projectDir]);
+
           assert.strictEqual(result.exitCode, 0, result.output);
           if (include[0] === "effect" || include[0] === "effect-ts") {
             assert.match(result.output, /copy effect-ts → \.agents\/skills\/effect-ts/);
@@ -291,6 +304,7 @@ describe("shipped skills", () => {
         for (const oldSkill of ["effect-cli", "effect-patterns"]) {
           yield* writeManifest(projectDir, [oldSkill]);
           const result = yield* runCli(cli, tsx, projectDir, ["plan", "--project-dir", projectDir]);
+
           assert.notStrictEqual(result.exitCode, 0);
         }
       }),

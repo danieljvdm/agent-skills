@@ -216,6 +216,11 @@ before project-local options. Standalone `oxlint.config.ts` uses the same
 `extends: [recommendedOxlintConfig]`; standalone `oxfmt.config.ts` spreads the
 same `recommendedOxfmtConfig`.
 
+The Oxlint preset enables the fixable
+`stylistic/padding-line-between-statements` rule. It keeps adjacent variable
+declarations grouped, requires a blank line before the next logical statement,
+and separates every `return` statement from the preceding statement.
+
 The Oxlint preset registers Dev Kit's shared Effect plugin as `effect`, but
 does not enable its scope-sensitive rules globally. Effect projects should
 enable rules such as `effect/no-effect-run`, `effect/no-unsafe-promise`, and

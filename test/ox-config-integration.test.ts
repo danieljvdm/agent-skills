@@ -1,6 +1,6 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, layer } from "@effect/vitest";
-import { Effect, Path } from "effect";
+import { Effect, FileSystem, Path } from "effect";
 
 import { repositoryRoot, runCommand } from "./test-platform.ts";
 
@@ -8,6 +8,7 @@ describe("shared Oxlint and Oxfmt configuration", () => {
   layer(NodeServices.layer)((it) => {
     it.effect("loads in standalone tools and Vite+", () =>
       Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const root = yield* repositoryRoot();
         const fixture = path.join(root, "test", "fixtures", "ox-config-consumer");
@@ -22,6 +23,7 @@ describe("shared Oxlint and Oxfmt configuration", () => {
           ["--config", "oxlint.config.mjs", "valid.ts"],
           standaloneEnv,
         );
+
         assert.strictEqual(standaloneLint.exitCode, 0, standaloneLint.output);
 
         const effectLint = yield* runCommand(
@@ -30,6 +32,7 @@ describe("shared Oxlint and Oxfmt configuration", () => {
           ["--config", "oxlint.config.mjs", "invalid.js"],
           standaloneEnv,
         );
+
         assert.notStrictEqual(effectLint.exitCode, 0);
         assert.include(effectLint.output, "effect(no-effect-run)");
 
@@ -39,13 +42,49 @@ describe("shared Oxlint and Oxfmt configuration", () => {
           ["--config", "oxfmt.config.mjs", "valid.ts", "--check"],
           standaloneEnv,
         );
+
         assert.strictEqual(standaloneFormat.exitCode, 0, standaloneFormat.output);
 
         const vitePlusLint = yield* runCommand(fixture, vitePlus, ["lint", "valid.ts"]);
+
         assert.strictEqual(vitePlusLint.exitCode, 0, vitePlusLint.output);
 
         const vitePlusFormat = yield* runCommand(fixture, vitePlus, ["fmt", "valid.ts", "--check"]);
+
         assert.strictEqual(vitePlusFormat.exitCode, 0, vitePlusFormat.output);
+
+        const spacingDir = yield* fs.makeTempDirectoryScoped({
+          directory: fixture,
+          prefix: ".spacing-test-",
+        });
+        const spacingFile = path.join(spacingDir, "spacing.ts");
+
+        yield* fs.writeFileString(
+          spacingFile,
+          "const load = () => {\n  const value = 1;\n  return value;\n};\n",
+        );
+        const spacingLint = yield* runCommand(
+          fixture,
+          oxlint,
+          ["--config", "oxlint.config.mjs", spacingFile],
+          standaloneEnv,
+        );
+
+        assert.notStrictEqual(spacingLint.exitCode, 0);
+        assert.include(spacingLint.output, "stylistic(padding-line-between-statements)");
+
+        const fixedSpacing = yield* runCommand(
+          fixture,
+          oxlint,
+          ["--fix", "--config", "oxlint.config.mjs", spacingFile],
+          standaloneEnv,
+        );
+
+        assert.strictEqual(fixedSpacing.exitCode, 0, fixedSpacing.output);
+        assert.include(
+          yield* fs.readFileString(spacingFile),
+          "  const value = 1;\n\n  return value;",
+        );
       }),
     );
   });

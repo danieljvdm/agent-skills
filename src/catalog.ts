@@ -59,11 +59,13 @@ const runGit = Effect.fn("runCatalogGit")(function* (cwd: string, args: Readonly
     Stream.mkString(Stream.decodeText(child.all)),
     child.exitCode,
   ]);
+
   if (exitCode !== 0) {
     return yield* new CatalogError({
       message: `git ${args.join(" ")} failed: ${output.trim()}`,
     });
   }
+
   return output.trim();
 });
 
@@ -71,13 +73,16 @@ const readCatalogLock = Effect.fn("readCatalogLock")(function* (packageRoot: str
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const lockPath = path.join(packageRoot, "skill-sources.lock.json");
+
   if (!(yield* fs.exists(lockPath))) return undefined;
   const raw = yield* fs.readFileString(lockPath);
   const errors: Array<ParseError> = [];
   const value = parseJsonc(raw, errors, { allowTrailingComma: true });
+
   if (errors.length > 0) {
     return yield* new CatalogError({ message: `invalid skill catalog lock: ${lockPath}` });
   }
+
   return yield* Schema.decodeUnknownEffect(SkillSourcesLockSchema)(value).pipe(
     Effect.mapError((error) => new CatalogError({ message: error.message })),
   );
@@ -87,6 +92,7 @@ const readDescription = Effect.fn("readSkillDescription")(function* (skillPath: 
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const text = yield* fs.readFileString(path.join(skillPath, "SKILL.md"));
+
   return (
     text
       .match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1]
@@ -106,9 +112,11 @@ export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
   const path = yield* Path.Path;
   const skillsDir = path.join(packageRoot, "skills");
   const skills: Array<CatalogSkill> = [];
+
   if (yield* fs.exists(skillsDir)) {
     for (const name of (yield* fs.readDirectory(skillsDir)).sort()) {
       const skillPath = path.join(skillsDir, name);
+
       if (yield* fs.exists(path.join(skillPath, "SKILL.md"))) {
         skills.push({
           name,
@@ -121,6 +129,7 @@ export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
     }
   }
   const lock = yield* readCatalogLock(packageRoot);
+
   for (const source of lock?.sources ?? []) {
     for (const name of source.skills) {
       skills.push({
@@ -133,6 +142,7 @@ export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
     }
   }
   const discovery = yield* discoverPackageSkills(projectDir);
+
   for (const candidate of discovery.candidates) {
     skills.push({
       name: candidate.name,
@@ -147,6 +157,7 @@ export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
     (skill, index) =>
       skills.findIndex((candidate) => candidate.selector === skill.selector) !== index,
   );
+
   if (duplicates.length > 0) {
     return yield* new CatalogError({
       message: `duplicate catalog skill selector: ${duplicates[0]?.selector ?? "unknown"}`,
@@ -158,6 +169,7 @@ export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
   const duplicateFamily = externalFamilies.find(
     ([id], index) => externalFamilies.findIndex(([candidate]) => candidate === id) !== index,
   );
+
   if (duplicateFamily !== undefined) {
     return yield* new CatalogError({
       message: `duplicate catalog family: ${duplicateFamily[0]}`,
@@ -167,6 +179,7 @@ export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
     effect: ["effect-ts", "effect-atom-data-fetching"],
     ...Object.fromEntries(externalFamilies),
   };
+
   return {
     skills: skills.sort((left, right) => left.selector.localeCompare(right.selector)),
     families,
@@ -177,14 +190,18 @@ export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
 const stripFrontmatterKeys = (text: string, keys: ReadonlyArray<string>): string => {
   if (keys.length === 0) return text;
   const frontmatter = text.match(/^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/);
+
   if (!frontmatter?.[1]) return text;
   const stripped = new Set(keys);
   let skipping = false;
   const lines = frontmatter[1].split(/\r?\n/).filter((line) => {
     const key = line.match(/^([A-Za-z0-9_-]+):/)?.[1];
+
     if (key) skipping = stripped.has(key);
+
     return !skipping;
   });
+
   return `---\n${lines.join("\n")}\n---${frontmatter[2]}${text.slice(frontmatter[0].length)}`;
 };
 
@@ -205,6 +222,7 @@ const materializeSource = Effect.fn("materializeCatalogSource")(function* (
       );
   const checkout = path.join(root, "checkout");
   const ready = path.join(root, ".ready");
+
   if (!(yield* fs.exists(ready))) {
     yield* fs.remove(root, { force: true, recursive: true });
     yield* fs.makeDirectory(checkout, { recursive: true });
@@ -213,12 +231,14 @@ const materializeSource = Effect.fn("materializeCatalogSource")(function* (
     yield* runGit(checkout, ["fetch", "--quiet", "--depth", "1", "origin", source.resolved]);
     yield* runGit(checkout, ["checkout", "--quiet", "--detach", "FETCH_HEAD"]);
     const actual = yield* runGit(checkout, ["rev-parse", "HEAD"]);
+
     if (actual !== source.resolved) {
       return yield* new CatalogError({
         message: `source ${source.id} resolved to ${actual}, expected ${source.resolved}`,
       });
     }
     const symlinks = yield* runGit(checkout, ["ls-files", "--stage", "--", source.skillsPath]);
+
     if (symlinks.split(/\r?\n/).some((line) => line.startsWith("120000 "))) {
       return yield* new CatalogError({
         message: `source ${source.id} contains symlinks; refusing to install it`,
@@ -228,6 +248,7 @@ const materializeSource = Effect.fn("materializeCatalogSource")(function* (
       const from = path.join(checkout, source.skillsPath, skill);
       const to = path.join(root, "skills", skill);
       const observation = yield* observePath(from);
+
       if (observation.kind !== "directory") {
         return yield* new CatalogError({
           message: `source ${source.id} is missing skill ${skill}`,
@@ -236,6 +257,7 @@ const materializeSource = Effect.fn("materializeCatalogSource")(function* (
       yield* fs.copy(from, to, { overwrite: true });
       if (source.stripFrontmatter?.length) {
         const document = path.join(to, "SKILL.md");
+
         yield* fs.writeFileString(
           document,
           stripFrontmatterKeys(yield* fs.readFileString(document), source.stripFrontmatter),
@@ -247,6 +269,7 @@ const materializeSource = Effect.fn("materializeCatalogSource")(function* (
   for (const skill of selected) {
     const observation = yield* observePath(path.join(root, "skills", skill));
     const approvedDigest = source.digests?.[skill];
+
     if (
       approvedDigest !== undefined &&
       (observation.kind !== "directory" || observation.digest !== approvedDigest)
@@ -256,6 +279,7 @@ const materializeSource = Effect.fn("materializeCatalogSource")(function* (
       });
     }
   }
+
   return new Map(
     selected.map((skill) => [
       skill,
@@ -280,6 +304,7 @@ export const resolveSkillSources = Effect.fn("resolveSkillSources")(function* (
 ) {
   const path = yield* Path.Path;
   const sources = new Map<string, ResolvedSkillSource>();
+
   for (const skill of catalog.skills.filter((skill) => skill.bundled)) {
     if (selected.includes(skill.selector)) {
       sources.set(skill.selector, { path: path.join(packageRoot, "skills", skill.name) });
@@ -287,6 +312,7 @@ export const resolveSkillSources = Effect.fn("resolveSkillSources")(function* (
   }
   for (const source of catalog.lock?.sources ?? []) {
     const wanted = source.skills.filter((skill) => selected.includes(skill));
+
     if (wanted.length === 0) continue;
     for (const [name, sourcePath] of yield* materializeSource(projectDir, source, wanted, cache)) {
       sources.set(name, sourcePath);
@@ -295,6 +321,7 @@ export const resolveSkillSources = Effect.fn("resolveSkillSources")(function* (
   for (const selector of selected.filter((value) => value.includes("#"))) {
     const resolved = yield* resolvePackageSkillSelector(projectDir, selector);
     const observation = yield* observePath(resolved.path);
+
     if (observation.kind !== "directory") {
       return yield* new CatalogError({ message: `package skill is missing: ${selector}` });
     }
@@ -309,5 +336,6 @@ export const resolveSkillSources = Effect.fn("resolveSkillSources")(function* (
       },
     });
   }
+
   return sources;
 });

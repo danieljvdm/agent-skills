@@ -20,6 +20,7 @@ const createFixture = Effect.fn("createEffectSourceFixture")(function* () {
   });
   const upstream = path.join(root, "upstream");
   const project = path.join(root, "project");
+
   yield* fs.makeDirectory(upstream);
   yield* fs.makeDirectory(project);
   yield* runCommandSuccess(upstream, "git", ["init", "-b", "main"]);
@@ -30,6 +31,7 @@ const createFixture = Effect.fn("createEffectSourceFixture")(function* () {
   yield* runCommandSuccess(upstream, "git", ["tag", "effect@1.2.3"]);
   yield* runCommandSuccess(project, "git", ["init", "-b", "main"]);
   yield* writeInstalledVersion(project, "1.2.3");
+
   return { project, root, upstream };
 });
 
@@ -40,6 +42,7 @@ const writeInstalledVersion = Effect.fn("writeInstalledEffectVersion")(function*
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const packageDir = path.join(project, "node_modules", "effect");
+
   yield* fs.makeDirectory(packageDir, { recursive: true });
   yield* fs.writeFileString(
     path.join(packageDir, "package.json"),
@@ -56,6 +59,7 @@ const writeManifest = Effect.fn("writeEffectSourceManifest")(function* (
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
+
   yield* fs.writeFileString(
     path.join(project, "dev-kit.jsonc"),
     `${JSON.stringify(
@@ -88,6 +92,7 @@ describe("Effect source checkout", () => {
           ...effectSyncArgs(fixture.project, fixture.upstream),
           "--dry-run",
         ]);
+
         assert.strictEqual(planned.exitCode, 0, planned.output);
         assert.match(planned.output, /Would sync Effect source effect@1\.2\.3 → \.repos\/effect/);
         assert.isFalse(yield* fs.exists(checkout));
@@ -96,6 +101,7 @@ describe("Effect source checkout", () => {
           fixture.project,
           effectSyncArgs(fixture.project, fixture.upstream),
         );
+
         assert.strictEqual(applied.exitCode, 0, applied.output);
         assert.match(applied.output, /✓ Effect source ready effect@1\.2\.3 → \.repos\/effect/);
         assert.notMatch(applied.output, /Cloning into|detached HEAD/);
@@ -120,6 +126,7 @@ describe("Effect source checkout", () => {
           fixture.project,
           effectSyncArgs(fixture.project, fixture.upstream),
         );
+
         assert.strictEqual(second.exitCode, 0, second.output);
         assert.match(second.output, /Effect source up to date effect@1\.2\.3/);
       }),
@@ -130,6 +137,7 @@ describe("Effect source checkout", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const fixture = yield* createFixture();
+
         yield* writeManifest(fixture.project, fixture.upstream);
 
         const planned = yield* runDevKit(fixture.project, [
@@ -137,6 +145,7 @@ describe("Effect source checkout", () => {
           "--project-dir",
           fixture.project,
         ]);
+
         assert.strictEqual(planned.exitCode, 0, planned.output);
         assert.match(planned.output, /Effect source effect@1\.2\.3 → \.repos\/effect/);
         assert.isFalse(yield* fs.exists(path.join(fixture.project, ".repos", "effect")));
@@ -146,9 +155,11 @@ describe("Effect source checkout", () => {
           "--project-dir",
           fixture.project,
         ]);
+
         assert.strictEqual(applied.exitCode, 0, applied.output);
         const lockPath = path.join(fixture.project, "dev-kit.lock.json");
         const firstLock = yield* fs.readFileString(lockPath);
+
         assert.deepEqual(JSON.parse(firstLock).setup.effectSource, {
           packageName: "effect",
           packageVersion: "1.2.3",
@@ -163,6 +174,7 @@ describe("Effect source checkout", () => {
           "--project-dir",
           fixture.project,
         ]);
+
         assert.strictEqual(locked.exitCode, 0, locked.output);
         assert.match(locked.output, /Dev kit up to date/);
         assert.strictEqual(yield* fs.readFileString(lockPath), firstLock);
@@ -174,6 +186,7 @@ describe("Effect source checkout", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const fixture = yield* createFixture();
+
         yield* writeManifest(fixture.project, fixture.upstream);
         assert.strictEqual(
           (yield* runDevKit(fixture.project, ["apply", "--project-dir", fixture.project])).exitCode,
@@ -192,6 +205,7 @@ describe("Effect source checkout", () => {
           "--project-dir",
           fixture.project,
         ]);
+
         assert.notStrictEqual(locked.exitCode, 0);
         assert.match(locked.output, /manifest or packaged skills differ/);
         assert.strictEqual(
@@ -204,6 +218,7 @@ describe("Effect source checkout", () => {
           "--project-dir",
           fixture.project,
         ]);
+
         assert.strictEqual(updated.exitCode, 0, updated.output);
         assert.strictEqual(
           yield* fs.readFileString(path.join(checkout, "source.txt")),
@@ -223,6 +238,7 @@ describe("Effect source checkout", () => {
         const path = yield* Path.Path;
         const fixture = yield* createFixture();
         const args = effectSyncArgs(fixture.project, fixture.upstream);
+
         assert.strictEqual((yield* runDevKit(fixture.project, args)).exitCode, 0);
         const checkout = path.join(fixture.project, ".repos", "effect");
 
@@ -233,6 +249,7 @@ describe("Effect source checkout", () => {
         yield* fs.writeFileString(path.join(checkout, "local.txt"), "keep me\n");
 
         const result = yield* runDevKit(fixture.project, args);
+
         assert.notStrictEqual(result.exitCode, 0);
         assert.match(result.output, /local changes; refusing to switch/);
         assert.strictEqual(yield* fs.readFileString(path.join(checkout, "local.txt")), "keep me\n");
@@ -253,6 +270,7 @@ describe("Effect source checkout", () => {
           effectSyncArgs(fixture.project, fixture.upstream),
           { CI: "true" },
         );
+
         assert.strictEqual(result.exitCode, 0, result.output);
         assert.match(result.output, /Effect source skipped CI/);
         assert.isFalse(yield* fs.exists(path.join(fixture.project, ".repos", "effect")));
@@ -264,12 +282,14 @@ describe("Effect source checkout", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const fixture = yield* createFixture();
+
         yield* writeInstalledVersion(fixture.project, "9.9.9");
 
         const result = yield* runDevKit(
           fixture.project,
           effectSyncArgs(fixture.project, fixture.upstream),
         );
+
         assert.notStrictEqual(result.exitCode, 0);
         assert.isFalse(yield* fs.exists(path.join(fixture.project, ".repos", "effect")));
       }),

@@ -14,9 +14,23 @@ describe("recommended Oxlint config", () => {
         name: "effect",
         specifier: "@danieljvdm/dev-kit/oxlint-plugin-effect",
       },
+      {
+        name: "stylistic",
+        specifier: "@danieljvdm/dev-kit/oxlint-plugin-style",
+      },
     ]);
     expect(recommendedOxlintConfig.plugins).toEqual(["import", "react", "vitest"]);
     expect(recommendedOxlintConfig.rules["react/rules-of-hooks"]).toBe("error");
+    expect(recommendedOxlintConfig.rules["stylistic/padding-line-between-statements"]).toEqual([
+      "error",
+      { blankLine: "always", prev: ["const", "let", "var"], next: "*" },
+      {
+        blankLine: "any",
+        prev: ["const", "let", "var"],
+        next: ["const", "let", "var"],
+      },
+      { blankLine: "always", prev: "*", next: "return" },
+    ]);
     expect(recommendedOxlintConfig.rules["typescript/switch-exhaustiveness-check"]).toBe("error");
     expect(recommendedOxlintConfig.rules["typescript/no-floating-promises"]).toBe("off");
     expect(recommendedOxlintConfig.rules["vitest/no-standalone-expect"]).toBe("off");

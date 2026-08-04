@@ -12,6 +12,7 @@ const writeSkill = Effect.fn("writeVendorTestSkill")(function* (
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const skillDir = path.join(root, "skills", name);
+
   yield* fs.makeDirectory(skillDir, { recursive: true });
   yield* fs.writeFileString(
     path.join(skillDir, "SKILL.md"),
@@ -34,6 +35,7 @@ const writeSourceManifest = Effect.fn("writeVendorTestManifest")(function* (
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
+
   yield* fs.writeFileString(
     path.join(aggregate, "skill-sources.jsonc"),
     `${JSON.stringify(
@@ -64,6 +66,7 @@ const createFixture = Effect.fn("createVendorTestFixture")(function* () {
   });
   const upstream = path.join(root, "upstream");
   const aggregate = path.join(root, "aggregate");
+
   yield* fs.makeDirectory(upstream);
   yield* fs.makeDirectory(aggregate);
   yield* runCommandSuccess(upstream, "git", ["init", "-b", "main"]);
@@ -86,6 +89,7 @@ describe("approved skill catalog", () => {
         const path = yield* Path.Path;
         const fixture = yield* createFixture();
         const sourcesPath = path.join(fixture.aggregate, "skill-sources.jsonc");
+
         yield* fs.writeFileString(sourcesPath, '{\n  // Approved upstreams.\n  "sources": []\n}\n');
 
         const added = yield* runDevKit(fixture.aggregate, [
@@ -100,10 +104,13 @@ describe("approved skill catalog", () => {
           "--repo-dir",
           fixture.aggregate,
         ]);
+
         assert.strictEqual(added.exitCode, 0, added.output);
         const manifestText = yield* fs.readFileString(sourcesPath);
+
         assert.include(manifestText, "// Approved upstreams.");
         const manifest = JSON.parse(manifestText.replace("// Approved upstreams.", ""));
+
         assert.deepEqual(manifest.sources[0].include, ["one", "two"]);
         assert.notInclude(manifestText, '"*"');
         assert.isFalse(yield* fs.exists(path.join(fixture.aggregate, "skills", "one")));
@@ -114,6 +121,7 @@ describe("approved skill catalog", () => {
           "--repo-dir",
           fixture.aggregate,
         ]);
+
         assert.strictEqual(listed.exitCode, 0, listed.output);
         assert.match(listed.output, /fixture-skills[\s\S]*2 skills/);
 
@@ -125,6 +133,7 @@ describe("approved skill catalog", () => {
           "--repo-dir",
           fixture.aggregate,
         ]);
+
         assert.notStrictEqual(unconfirmed.exitCode, 0);
         assert.match(unconfirmed.output, /requires --yes outside a terminal/);
         assert.strictEqual(yield* fs.readFileString(sourcesPath), beforeRemoval);
@@ -137,10 +146,12 @@ describe("approved skill catalog", () => {
           "--repo-dir",
           fixture.aggregate,
         ]);
+
         assert.strictEqual(removedSkill.exitCode, 0, removedSkill.output);
         const afterSkill = JSON.parse(
           (yield* fs.readFileString(sourcesPath)).replace("// Approved upstreams.", ""),
         );
+
         assert.deepEqual(afterSkill.sources[0].include, ["one"]);
 
         const removedSource = yield* runDevKit(fixture.aggregate, [
@@ -151,14 +162,17 @@ describe("approved skill catalog", () => {
           "--repo-dir",
           fixture.aggregate,
         ]);
+
         assert.strictEqual(removedSource.exitCode, 0, removedSource.output);
         const afterSource = JSON.parse(
           (yield* fs.readFileString(sourcesPath)).replace("// Approved upstreams.", ""),
         );
+
         assert.deepEqual(afterSource.sources, []);
         const lock = JSON.parse(
           yield* fs.readFileString(path.join(fixture.aggregate, "skill-sources.lock.json")),
         );
+
         assert.deepEqual(lock.sources, []);
       }),
     );
@@ -170,6 +184,7 @@ describe("approved skill catalog", () => {
         const fixture = yield* createFixture();
         const sourcesPath = path.join(fixture.aggregate, "skill-sources.jsonc");
         const original = '{\n  "sources": []\n}\n';
+
         yield* fs.writeFileString(sourcesPath, original);
 
         const result = yield* runDevKit(fixture.aggregate, [
@@ -203,6 +218,7 @@ describe("approved skill catalog", () => {
           "--repo-dir",
           fixture.aggregate,
         ]);
+
         assert.strictEqual(firstRun.exitCode, 0, firstRun.output);
         assert.isFalse(yield* fs.exists(path.join(fixture.aggregate, "skills", "one")));
         assert.isFalse(yield* fs.exists(path.join(fixture.aggregate, "third-party")));
@@ -210,6 +226,7 @@ describe("approved skill catalog", () => {
         const firstLockPath = path.join(fixture.aggregate, "skill-sources.lock.json");
         const firstLockText = yield* fs.readFileString(firstLockPath);
         const firstLock = JSON.parse(firstLockText);
+
         assert.deepEqual(firstLock.sources[0].skills, ["one"]);
         assert.deepEqual(firstLock.sources[0].include, ["one"]);
         assert.strictEqual(firstLock.sources[0].descriptions.one, "Test skill one.");
@@ -227,6 +244,7 @@ describe("approved skill catalog", () => {
           "--repo-dir",
           fixture.aggregate,
         ]);
+
         assert.strictEqual(lockedRun.exitCode, 0, lockedRun.output);
         assert.strictEqual(yield* fs.readFileString(firstLockPath), firstLockText);
 
@@ -238,6 +256,7 @@ describe("approved skill catalog", () => {
           "--repo-dir",
           fixture.aggregate,
         ]);
+
         assert.notStrictEqual(failedLockedRun.exitCode, 0);
         assert.strictEqual(yield* fs.readFileString(firstLockPath), firstLockText);
 
@@ -248,8 +267,10 @@ describe("approved skill catalog", () => {
           "--repo-dir",
           fixture.aggregate,
         ]);
+
         assert.strictEqual(updatedRun.exitCode, 0, updatedRun.output);
         const updatedLock = JSON.parse(yield* fs.readFileString(firstLockPath));
+
         assert.notStrictEqual(updatedLock.sources[0].resolved, firstLock.sources[0].resolved);
       }),
     );
@@ -264,6 +285,7 @@ describe("approved skill catalog", () => {
         const upstream = path.join(root, "upstream");
         const aggregate = path.join(root, "aggregate");
         const outside = path.join(root, "outside");
+
         yield* fs.makeDirectory(path.join(upstream, "skills"), { recursive: true });
         yield* fs.makeDirectory(aggregate);
         yield* fs.makeDirectory(outside);
@@ -309,11 +331,14 @@ describe("approved skill catalog", () => {
           "--repo-dir",
           fixture.aggregate,
         ]);
+
         assert.strictEqual(firstRun.exitCode, 0, firstRun.output);
         const protectedFile = path.join(fixture.aggregate, "README.md");
+
         yield* fs.writeFileString(protectedFile, "keep me\n");
         const lockPath = path.join(fixture.aggregate, "skill-sources.lock.json");
         const lock = JSON.parse(yield* fs.readFileString(lockPath));
+
         lock.sources[0].skills = ["../README.md"];
         yield* fs.writeFileString(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
 
@@ -336,6 +361,7 @@ describe("approved skill catalog", () => {
         const fixture = yield* createFixture();
         const processLock = path.join(fixture.aggregate, ".dev-kit", "apply.lock");
         const ownerPath = path.join(processLock, "owner.json");
+
         yield* fs.makeDirectory(processLock, { recursive: true });
         yield* fs.writeFileString(ownerPath, '{"token":"other-process"}\n');
 

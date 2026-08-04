@@ -14,6 +14,7 @@ const writePackage = Effect.fn("writePackageSkillFixturePackage")(function* (
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const root = path.join(project, "node_modules", ...packageName.split("/"));
+
   yield* fs.makeDirectory(path.join(root, "skills", skill, "nested"), { recursive: true });
   yield* fs.writeFileString(
     path.join(root, "package.json"),
@@ -32,6 +33,7 @@ const writePackage = Effect.fn("writePackageSkillFixturePackage")(function* (
     `---\nname: ${skill}\ndescription: ${packageName} ${skill}.\n---\n`,
   );
   yield* fs.writeFileString(path.join(root, "skills", skill, "nested", "note.md"), body);
+
   return root;
 });
 
@@ -41,7 +43,9 @@ const fixture = Effect.fn("packageSkillFixture")(function* (
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const project = yield* fs.makeTempDirectoryScoped({ prefix: "dev-kit-package-discovery-" });
+
   yield* fs.writeFileString(path.join(project, "package.json"), JSON.stringify({ dependencies }));
+
   return project;
 });
 
@@ -50,14 +54,17 @@ describe("installed package skill discovery", () => {
     it.effect("discovers scoped and unscoped direct dependencies, retaining nested files", () =>
       Effect.gen(function* () {
         const project = yield* fixture({ "plain-skills": "1", "@scope/skills": "1" });
+
         yield* writePackage(project, "plain-skills", "1.0.0", "alpha");
         yield* writePackage(project, "@scope/skills", "2.0.0", "beta");
         const found = yield* discoverPackageSkills(project);
+
         assert.deepEqual(
           found.candidates.map((skill) => skill.selector),
           ["@scope/skills#beta", "plain-skills#alpha"],
         );
         const exact = yield* resolvePackageSkillSelector(project, "plain-skills#alpha");
+
         assert.strictEqual(exact.version, "1.0.0");
         assert.isTrue(
           yield* (yield* FileSystem.FileSystem).exists(
@@ -70,9 +77,11 @@ describe("installed package skill discovery", () => {
     it.effect("does not browse installed packages that are not direct dependencies", () =>
       Effect.gen(function* () {
         const project = yield* fixture({ "direct-skills": "1" });
+
         yield* writePackage(project, "direct-skills", "1.0.0", "alpha");
         yield* writePackage(project, "transitive-skills", "1.0.0", "hidden");
         const found = yield* discoverPackageSkills(project);
+
         assert.deepEqual(
           found.candidates.map((skill) => skill.selector),
           ["direct-skills#alpha"],
@@ -86,6 +95,7 @@ describe("installed package skill discovery", () => {
         const path = yield* Path.Path;
         const project = yield* fixture({ documented: "1" });
         const root = yield* writePackage(project, "documented", "1.0.0", "alpha");
+
         yield* writePackage(project, "documented", "1.0.0", "literal");
         yield* fs.writeFileString(
           path.join(root, "skills", "alpha", "SKILL.md"),
@@ -96,6 +106,7 @@ describe("installed package skill discovery", () => {
           "---\nname: literal\ndescription: |+\n  First line.\n  Second line.\n---\n",
         );
         const found = yield* discoverPackageSkills(project);
+
         assert.strictEqual(found.candidates[0]?.description, "First line. Second line.");
         assert.strictEqual(found.candidates[1]?.description, "First line.\nSecond line.");
       }),
@@ -106,6 +117,7 @@ describe("installed package skill discovery", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const project = yield* fixture({});
+
         yield* fs.writeFileString(
           path.join(project, "package.json"),
           JSON.stringify({
@@ -118,6 +130,7 @@ describe("installed package skill discovery", () => {
         yield* writePackage(project, "optional", "1.0.0", "optional");
         yield* writePackage(project, "peer", "1.0.0", "peer");
         const found = yield* discoverPackageSkills(project);
+
         assert.deepEqual(
           found.candidates.map((skill) => skill.selector),
           ["development#dev", "optional#optional", "peer#peer"],
@@ -134,10 +147,12 @@ describe("installed package skill discovery", () => {
           const project = yield* fixture({ "@scope/skills": "1" });
           const linked = yield* writePackage(project, "@scope/skills", "1.0.0", "alpha");
           const store = path.join(project, ".store", "skills");
+
           yield* fs.makeDirectory(path.dirname(store), { recursive: true });
           yield* fs.rename(linked, store);
           yield* fs.symlink(store, linked);
           const first = yield* resolvePackageSkillSelector(project, "@scope/skills#alpha");
+
           assert.strictEqual(
             first.linkPath,
             path.join(project, "node_modules", "@scope", "skills", "skills", "alpha"),
@@ -159,11 +174,14 @@ describe("installed package skill discovery", () => {
             nodescription: "1",
             unmarked: "1",
           });
+
           yield* writePackage(project, "good", "1.0.0", "alpha");
           const broken = yield* writePackage(project, "broken", "1.0.0", "beta");
+
           yield* writePackage(project, "broken", "1.0.0", "valid");
           const unmarked = yield* writePackage(project, "unmarked", "1.0.0", "gamma");
           const nodescription = yield* writePackage(project, "nodescription", "1.0.0", "delta");
+
           yield* fs.writeFileString(
             path.join(nodescription, "skills", "delta", "SKILL.md"),
             "---\nname: delta\n---\n",
@@ -177,6 +195,7 @@ describe("installed package skill discovery", () => {
             "---\nname: nope\n---\n",
           );
           const found = yield* discoverPackageSkills(project);
+
           assert.deepEqual(
             found.candidates.map((skill) => skill.selector),
             ["broken#valid", "good#alpha"],
@@ -186,8 +205,10 @@ describe("installed package skill discovery", () => {
             ["broken", "nodescription", "unmarked"],
           );
           const missing = yield* Effect.flip(resolvePackageSkillSelector(project, "missing#none"));
+
           assert.match(missing.message, /not installed/);
           const malformed = yield* Effect.flip(resolvePackageSkillSelector(project, "broken#beta"));
+
           assert.match(malformed.message, /name must match/);
         }),
     );
@@ -199,18 +220,22 @@ describe("installed package skill discovery", () => {
           const fs = yield* FileSystem.FileSystem;
           const path = yield* Path.Path;
           const project = yield* fixture({ one: "1", two: "1", linked: "1" });
+
           yield* writePackage(project, "one", "1.0.0", "same");
           yield* writePackage(project, "two", "1.0.0", "same");
           const linked = yield* writePackage(project, "linked", "1.0.0", "bad");
           const outside = path.join(project, "outside");
+
           yield* fs.writeFileString(outside, "no");
           yield* fs.symlink(outside, path.join(linked, "skills", "bad", "escape"));
           const found = yield* discoverPackageSkills(project);
+
           assert.deepEqual(
             found.candidates.map((skill) => skill.selector),
             ["one#same", "two#same"],
           );
           const rejected = yield* Effect.flip(resolvePackageSkillSelector(project, "linked#bad"));
+
           assert.match(rejected.message, /contains a symlink/);
         }),
     );

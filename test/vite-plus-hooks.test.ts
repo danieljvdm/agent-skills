@@ -7,6 +7,7 @@ import { runCommandSuccess, runDevKit } from "./test-platform.ts";
 const writeFixture = Effect.fn("writeVitePlusHooksFixture")(function* (projectDir: string) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
+
   yield* fs.writeFileString(
     path.join(projectDir, ".gitignore"),
     ".dev-kit/\n.vite-hooks/_/\nnode_modules/\n",
@@ -33,6 +34,7 @@ const installFakeVitePlus = Effect.fn("installFakeVitePlusHooks")(function* (pro
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const executable = path.join(projectDir, "node_modules", ".bin", "vp");
+
   yield* fs.makeDirectory(path.dirname(executable), { recursive: true });
   yield* fs.writeFileString(
     executable,
@@ -62,6 +64,7 @@ describe("Vite+ hooks setup", () => {
           prefix: "dev-kit-vite-hooks-test-",
         });
         const projectDir = path.join(fixtureRoot, "main");
+
         yield* fs.makeDirectory(projectDir);
         yield* runCommandSuccess(projectDir, "git", ["init", "--initial-branch", "main"]);
         yield* runCommandSuccess(projectDir, "git", ["config", "user.email", "test@example.com"]);
@@ -70,11 +73,13 @@ describe("Vite+ hooks setup", () => {
         yield* installFakeVitePlus(projectDir);
 
         const planned = yield* runDevKit(projectDir, ["plan", "--project-dir", projectDir]);
+
         assert.strictEqual(planned.exitCode, 0, planned.output);
         assert.match(planned.output, /Vite\+ hooks → \.vite-hooks\/_/);
         assert.isFalse(yield* fs.exists(path.join(projectDir, ".vite-hooks")));
 
         const applied = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
         assert.strictEqual(applied.exitCode, 0, applied.output);
         assert.strictEqual(
           yield* fs.readFileString(path.join(projectDir, ".vite-hooks", "_", "config-count")),
@@ -96,6 +101,7 @@ describe("Vite+ hooks setup", () => {
           "--project-dir",
           projectDir,
         ]);
+
         assert.strictEqual(converged.exitCode, 0, converged.output);
         assert.match(converged.output, /Dev kit up to date/);
         assert.strictEqual(
@@ -106,6 +112,7 @@ describe("Vite+ hooks setup", () => {
         yield* runCommandSuccess(projectDir, "git", ["add", "."]);
         yield* runCommandSuccess(projectDir, "git", ["commit", "-m", "fixture"]);
         const linkedDir = path.join(fixtureRoot, "linked");
+
         yield* runCommandSuccess(projectDir, "git", ["worktree", "add", "-b", "linked", linkedDir]);
         yield* installFakeVitePlus(linkedDir);
 
@@ -116,6 +123,7 @@ describe("Vite+ hooks setup", () => {
           "--project-dir",
           linkedDir,
         ]);
+
         assert.strictEqual(linked.exitCode, 0, linked.output);
         assert.strictEqual(
           yield* fs.readFileString(path.join(linkedDir, ".vite-hooks", "_", "config-count")),
@@ -131,6 +139,7 @@ describe("Vite+ hooks setup", () => {
         const projectDir = yield* fs.makeTempDirectoryScoped({
           prefix: "dev-kit-vite-hooks-dependency-test-",
         });
+
         yield* runCommandSuccess(projectDir, "git", ["init", "--initial-branch", "main"]);
         yield* writeFixture(projectDir);
         yield* fs.writeFileString(path.join(projectDir, "package.json"), "{}\n");
@@ -148,6 +157,7 @@ describe("Vite+ hooks setup", () => {
         const projectDir = yield* fs.makeTempDirectoryScoped({
           prefix: "dev-kit-vite-hooks-conflict-test-",
         });
+
         yield* runCommandSuccess(projectDir, "git", ["init", "--initial-branch", "main"]);
         yield* runCommandSuccess(projectDir, "git", ["config", "core.hooksPath", ".custom-hooks"]);
         yield* writeFixture(projectDir);

@@ -21,6 +21,7 @@ const writePackageVersion = Effect.fn("writeTestPackageVersion")(function* (
     ...packageName.split("/"),
     "package.json",
   );
+
   yield* fs.makeDirectory(path.dirname(manifestPath), { recursive: true });
   yield* fs.writeFileString(manifestPath, `${JSON.stringify({ version })}\n`);
 });
@@ -75,6 +76,7 @@ const installIsolatedPatchedToolchain = Effect.fn("installIsolatedPatchedToolcha
   }
 
   const executableName = path.sep === "\\" ? "tsc.exe" : "tsc";
+
   yield* fs.makeDirectory(path.join(typescriptPlatformRoot, "lib"), { recursive: true });
   yield* fs.makeDirectory(path.join(effectPlatformRoot, "lib"), { recursive: true });
   yield* fs.writeFileString(path.join(typescriptPlatformRoot, "lib", executableName), "patched\n");
@@ -82,6 +84,7 @@ const installIsolatedPatchedToolchain = Effect.fn("installIsolatedPatchedToolcha
 
   const typescriptDependencies = path.join(path.dirname(typescriptRoot), "@typescript");
   const effectDependencies = path.join(path.dirname(path.dirname(effectTsgoRoot)), "@effect");
+
   yield* fs.makeDirectory(typescriptDependencies, { recursive: true });
   yield* fs.makeDirectory(effectDependencies, { recursive: true });
   yield* fs.symlink(
@@ -96,6 +99,7 @@ const installIsolatedPatchedToolchain = Effect.fn("installIsolatedPatchedToolcha
   yield* fs.symlink(typescriptRoot, path.join(projectDir, "node_modules", "typescript"));
   yield* fs.symlink(effectTsgoRoot, path.join(projectDir, "node_modules", "@effect", "tsgo"));
   const executable = path.join(projectDir, "node_modules", ".bin", "effect-tsgo");
+
   yield* fs.makeDirectory(path.dirname(executable), { recursive: true });
   yield* fs.writeFileString(executable, "fixture\n");
 });
@@ -109,9 +113,11 @@ describe("Effect tsgo patch", () => {
         const projectDir = yield* fs.makeTempDirectoryScoped({
           prefix: "dev-kit-tsgo-test-",
         });
+
         yield* writePackageVersion(projectDir, "@effect/tsgo", EFFECT_TSGO_VERSION);
         yield* writePackageVersion(projectDir, "typescript", EFFECT_TSGO_TYPESCRIPT_VERSION);
         const executable = path.join(projectDir, "node_modules", ".bin", "effect-tsgo");
+
         yield* fs.makeDirectory(path.dirname(executable), { recursive: true });
         yield* fs.writeFileString(executable, "fixture\n");
 
@@ -133,6 +139,7 @@ describe("Effect tsgo patch", () => {
         const projectDir = yield* fs.makeTempDirectoryScoped({
           prefix: "dev-kit-tsgo-bun-test-",
         });
+
         yield* installIsolatedPatchedToolchain(projectDir, ".bun");
 
         const plan = yield* planEffectTsgoPatch({ projectDir });
@@ -147,6 +154,7 @@ describe("Effect tsgo patch", () => {
         const projectDir = yield* fs.makeTempDirectoryScoped({
           prefix: "dev-kit-tsgo-pnpm-test-",
         });
+
         yield* installIsolatedPatchedToolchain(projectDir, ".pnpm");
 
         const plan = yield* planEffectTsgoPatch({ projectDir });
@@ -162,9 +170,11 @@ describe("Effect tsgo patch", () => {
         const projectDir = yield* fs.makeTempDirectoryScoped({
           prefix: "dev-kit-tsgo-test-",
         });
+
         yield* writePackageVersion(projectDir, "@effect/tsgo", "0.24.2");
         yield* writePackageVersion(projectDir, "typescript", EFFECT_TSGO_TYPESCRIPT_VERSION);
         const executable = path.join(projectDir, "node_modules", ".bin", "effect-tsgo");
+
         yield* fs.makeDirectory(path.dirname(executable), { recursive: true });
         yield* fs.writeFileString(executable, "fixture\n");
 
@@ -185,6 +195,7 @@ describe("Effect tsgo patch", () => {
         const projectDir = yield* fs.makeTempDirectoryScoped({
           prefix: "dev-kit-tsgo-test-",
         });
+
         yield* writePackageVersion(projectDir, "@effect/tsgo", EFFECT_TSGO_VERSION);
         yield* writePackageVersion(
           projectDir,
@@ -192,6 +203,7 @@ describe("Effect tsgo patch", () => {
           EFFECT_TSGO_TYPESCRIPT_VERSION,
         );
         const executable = path.join(projectDir, "node_modules", ".bin", "effect-tsgo");
+
         yield* fs.makeDirectory(path.dirname(executable), { recursive: true });
         yield* fs.writeFileString(executable, "fixture\n");
 
@@ -230,6 +242,7 @@ describe("Effect tsgo patch", () => {
           const error = yield* Effect.flip(
             planEffectTsgoPatch({ projectDir, typescriptPackage: packageName }),
           );
+
           assert.strictEqual(error._tag, "InvalidEffectTsgoPackageNameError");
           if (error._tag === "InvalidEffectTsgoPackageNameError") {
             assert.strictEqual(error.packageName, packageName);

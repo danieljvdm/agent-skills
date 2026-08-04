@@ -26,6 +26,7 @@ const terminalCapabilities = Effect.fn("terminalCapabilities")(function* () {
   const term = yield* Config.string("TERM").pipe(Config.withDefault(""), Effect.orDie);
   const ci = yield* Config.string("CI").pipe(Config.withDefault(""), Effect.orDie);
   const interactive = columns > 0 && term !== "dumb" && ci !== "true" && ci !== "1";
+
   return {
     color: interactive && Option.isNone(noColor),
     interactive,
@@ -52,6 +53,7 @@ export const printStatus = Effect.fn("printCliStatus")(function* (
   const capabilities = yield* terminalCapabilities();
   const [symbol, color] = statusAppearance[kind];
   const prefix = capabilities.color ? `${color}${symbol}${ANSI.reset}` : symbol;
+
   yield* capabilities.terminal
     .display(`${prefix} ${label}${formatDetail(detail, capabilities.color)}\n`)
     .pipe(Effect.orDie);
@@ -59,6 +61,7 @@ export const printStatus = Effect.fn("printCliStatus")(function* (
 
 export const printDetail = Effect.fn("printCliDetail")(function* (text: string) {
   const capabilities = yield* terminalCapabilities();
+
   yield* capabilities.terminal
     .display(capabilities.color ? `  ${ANSI.dim}${text}${ANSI.reset}\n` : `  ${text}\n`)
     .pipe(Effect.orDie);
@@ -66,6 +69,7 @@ export const printDetail = Effect.fn("printCliDetail")(function* (text: string) 
 
 export const printLine = Effect.fn("printCliLine")(function* (text = "") {
   const capabilities = yield* terminalCapabilities();
+
   yield* capabilities.terminal.display(`${text}\n`).pipe(Effect.orDie);
 });
 
@@ -75,6 +79,7 @@ export const withSpinner = <A, E, R>(
 ): Effect.Effect<A, E, R | Terminal.Terminal> =>
   Effect.gen(function* () {
     const capabilities = yield* terminalCapabilities();
+
     if (!capabilities.interactive) return yield* effect;
 
     const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -83,12 +88,14 @@ export const withSpinner = <A, E, R>(
       Effect.suspend(() => {
         const frame = frames[index++ % frames.length];
         const symbol = capabilities.color ? `${ANSI.cyan}${frame}${ANSI.reset}` : frame;
+
         return capabilities.terminal
           .display(`${ANSI.clearLine}${symbol} ${label}`)
           .pipe(Effect.orDie, Effect.andThen(Effect.sleep("80 millis")));
       }),
     );
     const fiber = yield* Effect.forkChild(animate);
+
     return yield* effect.pipe(
       Effect.ensuring(
         Effect.sync(() => fiber.interruptUnsafe()).pipe(
@@ -102,5 +109,6 @@ export const printError = Effect.fn("printCliError")(function* (message: string)
   const capabilities = yield* terminalCapabilities();
   const [symbol, color] = statusAppearance.error;
   const prefix = capabilities.color ? `${color}${symbol}${ANSI.reset}` : symbol;
+
   yield* Console.error(`${prefix} ${message}`);
 });

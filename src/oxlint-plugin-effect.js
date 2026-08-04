@@ -33,6 +33,7 @@ const noPromiseAtomMode = {
         const isMode =
           (key.type === "Identifier" && key.name === "mode") ||
           (key.type === "Literal" && key.value === "mode");
+
         if (isMode && value.type === "Literal" && value.value === "promise") {
           context.report({ node, messageId: "noPromiseAtomMode" });
         }
@@ -117,8 +118,10 @@ const noAsyncWorkflow = {
         parent?.type === "Property" &&
         ((parent.key.type === "Identifier" && parent.key.name === "try") ||
           (parent.key.type === "Literal" && parent.key.value === "try"));
+
       if (!isCapturedTryThunk) context.report({ node, messageId: "noAsyncWorkflow" });
     };
+
     return {
       ArrowFunctionExpression: check,
       FunctionDeclaration: check,

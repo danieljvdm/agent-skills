@@ -23,6 +23,7 @@ describe("path digest", () => {
           observePath(first),
           observePath(second),
         ]);
+
         assert.strictEqual(firstDigest.kind, "directory");
         assert.deepEqual(firstDigest, secondDigest);
       }),
@@ -37,6 +38,7 @@ describe("path digest", () => {
 
         yield* fs.symlink("first-target", link);
         const first = yield* observePath(link);
+
         yield* fs.remove(link);
         yield* fs.symlink("second-target", link);
         const second = yield* observePath(link);
@@ -69,6 +71,7 @@ describe("path digest", () => {
           observePath(readable),
           observePath(executable),
         ]);
+
         assert.deepEqual(restrictedDigest, readableDigest);
         assert.notDeepEqual(executableDigest, readableDigest);
 

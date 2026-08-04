@@ -6,7 +6,9 @@ const reportsFor = (ruleName: string, visitor: string, node: unknown) => {
   const reports: Array<{ messageId: string }> = [];
   const rule = effectOxlintPlugin.rules[ruleName];
   const visit = rule?.create({ report: (report) => reports.push(report) })[visitor];
+
   visit?.(node);
+
   return reports.map(({ messageId }) => messageId);
 };
 

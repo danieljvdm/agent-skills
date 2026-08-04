@@ -21,6 +21,7 @@ type ManagerOptions = {
 
 const packageRoot = Effect.fn("skillManagerPackageRoot")(function* () {
   const path = yield* Path.Path;
+
   return path.resolve(path.dirname(yield* path.fromFileUrl(new URL(import.meta.url))), "..");
 });
 
@@ -29,6 +30,7 @@ const resolvePaths = Effect.fn("resolveSkillManagerPaths")(function* (options: M
   const path = yield* Path.Path;
   const projectDir = path.resolve(options.projectDir ?? ".");
   const candidate = options.manifestPath ?? "dev-kit.jsonc";
+
   if (candidate.length === 0 || path.isAbsolute(candidate)) {
     return yield* new SkillManagerError({
       message: "--manifest must be a non-empty project-relative path",
@@ -36,12 +38,14 @@ const resolvePaths = Effect.fn("resolveSkillManagerPaths")(function* (options: M
   }
   const manifestPath = path.resolve(projectDir, candidate);
   const relative = path.relative(projectDir, manifestPath);
+
   if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
     return yield* new SkillManagerError({
       message: "--manifest must resolve inside the project",
     });
   }
   let ancestor = projectDir;
+
   for (const segment of relative.split(path.sep).slice(0, -1)) {
     ancestor = path.join(ancestor, segment);
     if ((yield* observeSymbolicLink(ancestor)).kind === "symlink") {
@@ -51,12 +55,14 @@ const resolvePaths = Effect.fn("resolveSkillManagerPaths")(function* (options: M
     }
   }
   const destination = yield* observeSymbolicLink(manifestPath);
+
   if (destination.kind === "symlink") {
     return yield* new SkillManagerError({ message: `manifest is a symlink: ${relative}` });
   }
   if (destination.kind === "not-symlink" && (yield* fs.stat(manifestPath)).type !== "File") {
     return yield* new SkillManagerError({ message: `manifest is not a regular file: ${relative}` });
   }
+
   return {
     projectDir,
     manifestPath,
@@ -80,6 +86,7 @@ const renderDefaultManifest = (projectDir: string, manifestPath: string, path: P
   const schemaPath = portableSchemaPath.startsWith(".")
     ? portableSchemaPath
     : `./${portableSchemaPath}`;
+
   return `${JSON.stringify(
     {
       $schema: schemaPath,
@@ -97,11 +104,13 @@ const createDefaultManifest = Effect.fn("createDefaultSkillManifest")(function* 
 }) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
+
   yield* fs.makeDirectory(path.dirname(paths.manifestPath), { recursive: true });
   const staged = yield* fs.makeTempFileScoped({
     directory: path.dirname(paths.manifestPath),
     prefix: ".dev-kit-init-",
   });
+
   yield* fs.writeFileString(
     staged,
     renderDefaultManifest(paths.projectDir, paths.manifestPath, path),
@@ -116,6 +125,7 @@ const readManifest = Effect.fn("readManagedSkillManifest")(function* (
 ) {
   const fs = yield* FileSystem.FileSystem;
   const paths = yield* resolvePaths(options);
+
   if (!(yield* fs.exists(paths.manifestPath))) {
     if (!create) {
       return yield* new SkillManagerError({
@@ -127,12 +137,14 @@ const readManifest = Effect.fn("readManagedSkillManifest")(function* (
   const raw = yield* fs.readFileString(paths.manifestPath);
   const errors: Array<ParseError> = [];
   const parsed = parseJsonc(raw, errors, { allowTrailingComma: true });
+
   if (errors.length > 0) {
     return yield* new SkillManagerError({ message: `could not parse ${paths.manifestPath}` });
   }
   const manifest = yield* Schema.decodeUnknownEffect(DevKitManifestSchema)(parsed).pipe(
     Effect.mapError((error) => new SkillManagerError({ message: error.message })),
   );
+
   return { ...paths, manifest, raw };
 });
 
@@ -149,18 +161,23 @@ const writeArray = Effect.fn("writeManifestArray")(function* (
         (value): value is string => typeof value === "string",
       )
     : undefined;
+
   if (current === undefined) {
     if (values.length === 0) return;
     const edits = modify(raw, [property], [...values], {
       formattingOptions: { insertSpaces: true, tabSize: 2 },
     });
+
     yield* fs.writeFileString(manifestPath, applyEdits(raw, edits));
+
     return;
   }
   let next = raw;
   const retained = [...current];
+
   for (let index = current.length - 1; index >= 0; index -= 1) {
     const currentValue = current[index];
+
     if (currentValue !== undefined && !values.includes(currentValue)) {
       next = applyEdits(
         next,
@@ -191,12 +208,14 @@ const selectedNames = (
   families: Readonly<Record<string, ReadonlyArray<string>>>,
 ) => {
   const selected = new Set<string>();
+
   for (const name of include) {
     for (const skill of families[name] ?? [name]) selected.add(skill);
   }
   for (const name of exclude) {
     for (const skill of families[name] ?? [name]) selected.delete(skill);
   }
+
   return selected;
 };
 
@@ -204,6 +223,7 @@ const displayValue = (value: string): string =>
   [...value]
     .map((character) => {
       const code = character.charCodeAt(0);
+
       return code <= 31 || (code >= 127 && code <= 159) ? " " : character;
     })
     .join("")
@@ -213,6 +233,7 @@ const displayValue = (value: string): string =>
 const summary = (description: string, defaultDescription: string): string => {
   const text = displayValue(description || defaultDescription);
   const firstSentence = text.match(/^.*?[.!?](?:\s|$)/)?.[0]?.trim() ?? text;
+
   return firstSentence.length > 96 ? `${firstSentence.slice(0, 93).trimEnd()}…` : firstSentence;
 };
 
@@ -227,8 +248,10 @@ const applyIfRequested = (options: ManagerOptions) =>
 export const initProject = Effect.fn("initDevKitProject")(function* (options: ManagerOptions) {
   const fs = yield* FileSystem.FileSystem;
   const paths = yield* resolvePaths(options);
+
   if (yield* fs.exists(paths.manifestPath)) {
     yield* printStatus("info", "Already initialized", paths.manifestPath);
+
     return;
   }
   yield* createDefaultManifest(paths);
@@ -247,12 +270,14 @@ export const addSkills = Effect.fn("addManagedSkills")(function* (
     ...Object.keys(catalog.families),
   ]);
   const unknown = names.filter((name) => !known.has(name));
+
   if (unknown.length > 0) {
     return yield* new SkillManagerError({
       message: `unknown skill${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}. Try \`dev-kit search ${unknown[0]}\`.`,
     });
   }
   const sourceFamilies = catalog.lock?.sources ?? [];
+
   for (const source of sourceFamilies) {
     if (!names.includes(source.id)) continue;
     yield* printStatus(
@@ -265,8 +290,10 @@ export const addSkills = Effect.fn("addManagedSkills")(function* (
   }
   const include = [...new Set([...current.manifest.include, ...names])];
   const exclude = (current.manifest.exclude ?? []).filter((name) => !names.includes(name));
+
   yield* writeArray(current.manifestPath, current.raw, "include", include);
   const reread = yield* FileSystem.FileSystem;
+
   yield* writeArray(
     current.manifestPath,
     yield* reread.readFileString(current.manifestPath),
@@ -290,17 +317,20 @@ export const removeSkills = Effect.fn("removeManagedSkills")(function* (
   const absent = names.filter(
     (name) => !before.has(name) && !current.manifest.include.includes(name),
   );
+
   if (absent.length > 0) {
     return yield* new SkillManagerError({ message: `not selected: ${absent.join(", ")}` });
   }
   const include = current.manifest.include.filter((name) => !names.includes(name));
   const excluded = new Set(current.manifest.exclude ?? []);
+
   for (const name of names) {
     if (before.has(name) && !current.manifest.include.includes(name)) excluded.add(name);
     else excluded.delete(name);
   }
   yield* writeArray(current.manifestPath, current.raw, "include", include);
   const fs = yield* FileSystem.FileSystem;
+
   yield* writeArray(
     current.manifestPath,
     yield* fs.readFileString(current.manifestPath),
@@ -332,9 +362,11 @@ export const listSkills = Effect.fn("listManagedSkills")(function* (
     (selector) =>
       !catalogSelectors.has(selector) && (!query || selector.toLowerCase().includes(query)),
   );
+
   if (visible.length === 0 && unavailable.length === 0) {
     yield* printStatus("info", query ? "No matching skills" : "No skills selected");
     if (!query && !options.all) yield* printDetail("Browse with: dev-kit list --all");
+
     return;
   }
   for (const skill of visible) {
@@ -345,6 +377,7 @@ export const listSkills = Effect.fn("listManagedSkills")(function* (
       : skill.bundled
         ? ""
         : ` [${skill.source}]`;
+
     yield* printLine(
       `${marker} ${skill.selector}${provenance}  ${summary(skill.description, origin)}`,
     );
@@ -365,6 +398,7 @@ export const showSkill = Effect.fn("showCatalogSkill")(function* (
   const paths = yield* resolvePaths(options);
   const catalog = yield* loadSkillCatalog(yield* packageRoot(), paths.projectDir);
   const skill = catalog.skills.find((candidate) => candidate.selector === name);
+
   if (!skill) return yield* new SkillManagerError({ message: `unknown skill: ${name}` });
   yield* printLine(skill.selector);
   if (skill.description) yield* printLine(displayValue(skill.description));
@@ -372,14 +406,17 @@ export const showSkill = Effect.fn("showCatalogSkill")(function* (
     yield* printLine(`Source: installed package`);
     yield* printLine(`Package: ${skill.package.name}`);
     yield* printLine(`Version: ${displayValue(skill.package.version)}`);
+
     return;
   }
   yield* printLine(`Source: ${skill.bundled ? "dev-kit (built in)" : skill.source}`);
   if (!skill.bundled) {
     const source = catalog.lock?.sources.find((candidate) => candidate.id === skill.source);
+
     if (source) {
       yield* printLine(`Repository: ${source.repository}`);
       yield* printLine(`Approved commit: ${source.resolved}`);
+
       return;
     }
   }
@@ -411,8 +448,10 @@ export const chooseSkillsToAdd = Effect.fn("chooseSkillsToAdd")(function* (
     catalog.families,
   );
   const available = catalog.skills.filter((skill) => !selected.has(skill.selector));
+
   if (available.length === 0) {
     yield* printStatus("success", "All available skills are selected");
+
     return;
   }
   const names = yield* Prompt.multiSelect({
@@ -424,6 +463,7 @@ export const chooseSkillsToAdd = Effect.fn("chooseSkillsToAdd")(function* (
     })),
     min: 1,
   });
+
   yield* addSkills(names, options);
 });
 
@@ -442,8 +482,10 @@ export const chooseSkillsToRemove = Effect.fn("chooseSkillsToRemove")(function* 
     current.manifest.exclude ?? [],
     catalog.families,
   );
+
   if (selected.size === 0) {
     yield* printStatus("info", "No skills selected");
+
     return;
   }
   const names = yield* Prompt.multiSelect({
@@ -466,5 +508,6 @@ export const chooseSkillsToRemove = Effect.fn("chooseSkillsToRemove")(function* 
     ],
     min: 1,
   });
+
   yield* removeSkills(names, options);
 });

@@ -16,6 +16,10 @@ export const recommendedOxlintConfig = {
       name: "effect",
       specifier: "@danieljvdm/dev-kit/oxlint-plugin-effect",
     },
+    {
+      name: "stylistic",
+      specifier: "@danieljvdm/dev-kit/oxlint-plugin-style",
+    },
   ],
   plugins: ["import", "react", "vitest"],
   rules: {
@@ -27,6 +31,16 @@ export const recommendedOxlintConfig = {
     "import/no-self-import": "error",
     "react/exhaustive-deps": "error",
     "react/rules-of-hooks": "error",
+    "stylistic/padding-line-between-statements": [
+      "error",
+      { blankLine: "always", prev: ["const", "let", "var"], next: "*" },
+      {
+        blankLine: "any",
+        prev: ["const", "let", "var"],
+        next: ["const", "let", "var"],
+      },
+      { blankLine: "always", prev: "*", next: "return" },
+    ],
     "typescript/consistent-type-imports": "error",
     "typescript/no-floating-promises": "off",
     "typescript/no-explicit-any": "error",

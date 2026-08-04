@@ -13,6 +13,7 @@ describe("skill management UX", () => {
         const projectDir = yield* fs.makeTempDirectoryScoped({ prefix: "dev-kit-manager-" });
 
         const initialized = yield* runDevKit(projectDir, ["init", "--project-dir", projectDir]);
+
         assert.strictEqual(initialized.exitCode, 0, initialized.output);
         assert.match(initialized.output, /Created dev-kit\.jsonc/);
 
@@ -23,6 +24,7 @@ describe("skill management UX", () => {
           "--project-dir",
           projectDir,
         ]);
+
         assert.strictEqual(added.exitCode, 0, added.output);
         assert.match(added.output, /Manifest updated/);
         assert.include(
@@ -31,6 +33,7 @@ describe("skill management UX", () => {
         );
 
         const listed = yield* runDevKit(projectDir, ["list", "--project-dir", projectDir]);
+
         assert.strictEqual(listed.exitCode, 0, listed.output);
         assert.match(listed.output, /✓ dev-kit/);
 
@@ -41,6 +44,7 @@ describe("skill management UX", () => {
           "--project-dir",
           projectDir,
         ]);
+
         assert.strictEqual(removed.exitCode, 0, removed.output);
         assert.notInclude(
           yield* fs.readFileString(path.join(projectDir, "dev-kit.jsonc")),
@@ -54,6 +58,7 @@ describe("skill management UX", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* fs.makeTempDirectoryScoped({ prefix: "dev-kit-family-" });
+
         yield* fs.writeFileString(
           path.join(projectDir, "dev-kit.jsonc"),
           '{\n  "include": [\n    // Keep this family note.\n    "effect"\n  ]\n}\n',
@@ -66,8 +71,10 @@ describe("skill management UX", () => {
           "--project-dir",
           projectDir,
         ]);
+
         assert.strictEqual(removed.exitCode, 0, removed.output);
         const manifest = yield* fs.readFileString(path.join(projectDir, "dev-kit.jsonc"));
+
         assert.include(manifest, "// Keep this family note.");
         assert.include(manifest, '"exclude": [');
         assert.include(manifest, '"effect-ts"');
@@ -84,6 +91,7 @@ describe("skill management UX", () => {
           "--project-dir",
           projectDir,
         ]);
+
         assert.strictEqual(searched.exitCode, 0, searched.output);
         assert.match(searched.output, /animation-vocabulary \[emilkowalski-skills\]/);
         const sourceSearch = yield* runDevKit(projectDir, [
@@ -92,9 +100,11 @@ describe("skill management UX", () => {
           "--project-dir",
           projectDir,
         ]);
+
         assert.strictEqual(sourceSearch.exitCode, 0, sourceSearch.output);
         assert.match(sourceSearch.output, /animation-vocabulary \[emilkowalski-skills\]/);
         const info = yield* runDevKit(projectDir, ["info", "prototype"]);
+
         assert.strictEqual(info.exitCode, 0, info.output);
         assert.match(info.output, /Approved commit: [0-9a-f]{40}/);
       }),
@@ -130,6 +140,7 @@ describe("skill management UX", () => {
         const path = yield* Path.Path;
         const projectDir = yield* fs.makeTempDirectoryScoped({ prefix: "dev-kit-package-list-" });
         const packageRoot = path.join(projectDir, "node_modules", "@tanstack", "ai");
+
         yield* fs.makeDirectory(path.join(packageRoot, "skills", "ai-core"), { recursive: true });
         yield* fs.writeFileString(
           path.join(projectDir, "package.json"),
@@ -145,6 +156,7 @@ describe("skill management UX", () => {
         );
 
         const listed = yield* runDevKit(projectDir, ["list", "--all", "--project-dir", projectDir]);
+
         assert.strictEqual(listed.exitCode, 0, listed.output);
         assert.match(listed.output, /@tanstack\/ai#ai-core \[installed 1\.2\.3\]/);
         assert.isFalse(yield* fs.exists(path.join(projectDir, "dev-kit.jsonc")));
@@ -157,6 +169,7 @@ describe("skill management UX", () => {
           "--project-dir",
           projectDir,
         ]);
+
         assert.strictEqual(searched.exitCode, 0, searched.output);
         assert.match(searched.output, /@tanstack\/ai#ai-core/);
 
@@ -166,6 +179,7 @@ describe("skill management UX", () => {
           "--project-dir",
           projectDir,
         ]);
+
         assert.strictEqual(info.exitCode, 0, info.output);
         assert.match(info.output, /Source: installed package/);
         assert.match(info.output, /Version: 1\.2\.3/);
@@ -177,6 +191,7 @@ describe("skill management UX", () => {
           "--project-dir",
           projectDir,
         ]);
+
         assert.strictEqual(added.exitCode, 0, added.output);
         assert.include(
           yield* fs.readFileString(path.join(projectDir, "dev-kit.jsonc")),
@@ -186,6 +201,7 @@ describe("skill management UX", () => {
 
         yield* fs.remove(packageRoot, { recursive: true });
         const unavailable = yield* runDevKit(projectDir, ["list", "--project-dir", projectDir]);
+
         assert.strictEqual(unavailable.exitCode, 0, unavailable.output);
         assert.match(unavailable.output, /! @tanstack\/ai#ai-core \[unavailable\]/);
 
@@ -196,6 +212,7 @@ describe("skill management UX", () => {
           "--project-dir",
           projectDir,
         ]);
+
         assert.strictEqual(removed.exitCode, 0, removed.output);
         assert.notInclude(
           yield* fs.readFileString(path.join(projectDir, "dev-kit.jsonc")),
@@ -219,6 +236,7 @@ describe("skill management UX", () => {
           "--project-dir",
           projectDir,
         ]);
+
         assert.strictEqual(initialized.exitCode, 0, initialized.output);
         assert.include(
           yield* fs.readFileString(path.join(projectDir, "config", "dev-kit.jsonc")),
@@ -233,6 +251,7 @@ describe("skill management UX", () => {
             "--project-dir",
             projectDir,
           ]);
+
           assert.notStrictEqual(rejected.exitCode, 0);
           assert.match(rejected.output, /--manifest must/);
         }
@@ -250,6 +269,7 @@ describe("skill management UX", () => {
           prefix: "dev-kit-external-manifest-",
         });
         const externalManifest = path.join(externalDir, "manifest.jsonc");
+
         yield* fs.writeFileString(externalManifest, "keep me\n");
         yield* fs.symlink(externalManifest, path.join(projectDir, "dev-kit.jsonc"));
 

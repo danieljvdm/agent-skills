@@ -16,11 +16,13 @@ describe("remote catalog resolution", () => {
         const upstream = path.join(root, "upstream");
         const packageRoot = path.join(root, "package");
         const projectDir = path.join(root, "project");
+
         yield* fs.makeDirectory(path.join(upstream, "skills", "remote-skill"), { recursive: true });
         yield* fs.makeDirectory(path.join(packageRoot, "skills"), { recursive: true });
         yield* fs.makeDirectory(projectDir);
         const upstreamDocument =
           "---\nname: remote-skill\ndescription: A remote test skill.\ndisable-model-invocation: true\n---\n\nHello.\n";
+
         yield* fs.writeFileString(
           path.join(upstream, "skills", "remote-skill", "SKILL.md"),
           upstreamDocument,
@@ -32,6 +34,7 @@ describe("remote catalog resolution", () => {
         yield* runCommandSuccess(upstream, "git", ["commit", "-m", "initial"]);
         const resolved = (yield* runCommandSuccess(upstream, "git", ["rev-parse", "HEAD"])).trim();
         const approved = path.join(root, "approved", "remote-skill");
+
         yield* fs.copy(path.join(upstream, "skills", "remote-skill"), approved, {
           overwrite: true,
         });
@@ -40,6 +43,7 @@ describe("remote catalog resolution", () => {
           upstreamDocument.replace("disable-model-invocation: true\n", ""),
         );
         const approvedObservation = yield* observePath(approved);
+
         assert.strictEqual(approvedObservation.kind, "directory");
         if (approvedObservation.kind !== "directory") return;
         yield* fs.writeFileString(
@@ -68,13 +72,16 @@ describe("remote catalog resolution", () => {
         );
 
         const catalog = yield* loadSkillCatalog(packageRoot, projectDir);
+
         assert.deepEqual(catalog.families["test-source"], ["remote-skill"]);
         const sources = yield* resolveSkillSources(packageRoot, projectDir, catalog, [
           "remote-skill",
         ]);
         const materialized = sources.get("remote-skill");
+
         if (materialized === undefined) assert.fail("remote-skill was not materialized");
         const document = yield* fs.readFileString(path.join(materialized.path, "SKILL.md"));
+
         assert.include(document, "Hello.");
         assert.notInclude(document, "disable-model-invocation");
         assert.include(materialized.path, path.join(projectDir, ".dev-kit", "cache"));
@@ -86,16 +93,19 @@ describe("remote catalog resolution", () => {
 
         const cachedDocument = path.join(materialized.path, "SKILL.md");
         const cachedInfo = yield* fs.stat(cachedDocument);
+
         yield* fs.chmod(cachedDocument, cachedInfo.mode ^ 0o044);
         const permissionsAdjusted = yield* resolveSkillSources(packageRoot, projectDir, catalog, [
           "remote-skill",
         ]);
+
         assert.isTrue(permissionsAdjusted.has("remote-skill"));
 
         yield* fs.writeFileString(path.join(materialized.path, "SKILL.md"), "tampered\n");
         const error = yield* Effect.flip(
           resolveSkillSources(packageRoot, projectDir, catalog, ["remote-skill"]),
         );
+
         assert.match(error.message, /does not match the approved catalog/);
       }),
     );
@@ -108,6 +118,7 @@ describe("remote catalog resolution", () => {
         const packageRoot = path.join(root, "dev-kit-package");
         const projectDir = path.join(root, "project");
         const installed = path.join(projectDir, "node_modules", "@scope", "tools");
+
         yield* fs.makeDirectory(path.join(packageRoot, "skills"), { recursive: true });
         yield* fs.makeDirectory(path.join(installed, "skills", "package-skill"), {
           recursive: true,
@@ -125,6 +136,7 @@ describe("remote catalog resolution", () => {
           "---\nname: package-skill\ndescription: Installed package skill.\n---\n\nHello.\n",
         );
         const catalog = yield* loadSkillCatalog(packageRoot, projectDir);
+
         assert.deepEqual(
           catalog.skills.map((skill) => skill.selector),
           ["@scope/tools#package-skill"],
@@ -133,6 +145,7 @@ describe("remote catalog resolution", () => {
           "@scope/tools#package-skill",
         ]);
         const skill = resolved.get("@scope/tools#package-skill");
+
         if (skill === undefined) assert.fail("package skill was not resolved");
         assert.strictEqual(
           skill.path,

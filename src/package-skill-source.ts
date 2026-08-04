@@ -39,6 +39,7 @@ const nonEmptyString = (value: unknown): value is string =>
 
 const hasIntentDiscoveryMetadata = (metadata: typeof PackageMetadataSchema.Type): boolean => {
   const intent = metadata.intent;
+
   if (
     typeof intent === "object" &&
     intent !== null &&
@@ -52,6 +53,7 @@ const hasIntentDiscoveryMetadata = (metadata: typeof PackageMetadataSchema.Type)
     return true;
   }
   const repository = metadata.repository;
+
   return (
     nonEmptyString(repository) ||
     (typeof repository === "object" &&
@@ -66,33 +68,41 @@ const isSafePackageVersion = (value: string): boolean =>
   value.trim() === value &&
   ![...value].some((character) => {
     const code = character.charCodeAt(0);
+
     return code <= 32 || (code >= 127 && code <= 159);
   });
 
 const isContained = (path: Path.Path, root: string, candidate: string): boolean => {
   const relative = path.relative(root, candidate);
+
   return relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
 };
 
 const frontmatterScalar = (document: string, key: string): string | undefined => {
   const body = document.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)?.[1];
+
   if (body === undefined) return undefined;
   const lines = body.split(/\r?\n/);
   const index = lines.findIndex((line) => line.startsWith(`${key}:`));
+
   if (index < 0) return undefined;
   const raw = lines[index]?.slice(key.length + 1).trim() ?? "";
   const block = raw.match(/^([|>])(?:[1-9][+-]?|[+-][1-9]?)?$/)?.[1];
+
   if (block !== undefined) {
     const values: Array<string> = [];
+
     for (const line of lines.slice(index + 1)) {
       if (line.length > 0 && !/^\s/.test(line)) break;
       values.push(line.trim());
     }
     const value = block === "|" ? values.join("\n").trim() : values.join(" ").trim();
+
     return value.length > 0 ? value : undefined;
   }
   const quoted = raw.match(/^(['"])([\s\S]*?)\1(?:\s+#.*)?$/)?.[2];
   const value = (quoted ?? raw.replace(/\s+#.*$/, "")).trim();
+
   return value.length > 0 ? value : undefined;
 };
 
@@ -105,8 +115,10 @@ const rejectNestedSymlinks = Effect.fn("rejectPackageSkillSymlinks")(function* (
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const pending = [skillRoot];
+
   while (pending.length > 0) {
     const current = pending.pop();
+
     if (current === undefined) continue;
     if ((yield* observeSymbolicLink(current)).kind === "symlink") {
       return yield* new PackageSkillSourceError({
@@ -121,6 +133,7 @@ const rejectNestedSymlinks = Effect.fn("rejectPackageSkillSymlinks")(function* (
             new PackageSkillSourceError({ message: `could not inspect package skill: ${current}` }),
         ),
       );
+
     if (info.type !== "Directory") continue;
     for (const entry of yield* fs
       .readDirectory(current)
@@ -165,6 +178,7 @@ const loadInstalledPackageSkills = Effect.fn("loadInstalledPackageSkills")(funct
         }),
     ),
   );
+
   if (packageInfo.type !== "Directory")
     return yield* new PackageSkillSourceError({
       message: `package skill package is not a directory: ${packageName}`,
@@ -178,6 +192,7 @@ const loadInstalledPackageSkills = Effect.fn("loadInstalledPackageSkills")(funct
         }),
     ),
   );
+
   if (metadata.name !== packageName)
     return yield* new PackageSkillSourceError({
       message: `package.json name does not match package skill package: ${packageName}`,
@@ -192,6 +207,7 @@ const loadInstalledPackageSkills = Effect.fn("loadInstalledPackageSkills")(funct
     });
   const skillsPath = "skills";
   const skillsLink = path.join(packageLink, skillsPath);
+
   if ((yield* observeSymbolicLink(skillsLink)).kind === "symlink")
     return yield* new PackageSkillSourceError({
       message: `package skills path is a symlink: ${packageName}/${skillsPath}`,
@@ -204,11 +220,13 @@ const loadInstalledPackageSkills = Effect.fn("loadInstalledPackageSkills")(funct
         }),
     ),
   );
+
   if (!isContained(path, packageRoot, skillsRoot))
     return yield* new PackageSkillSourceError({
       message: `package skills path resolves outside package root: ${packageName}/${skillsPath}`,
     });
   const skillsInfo = yield* fs.stat(skillsRoot);
+
   if (skillsInfo.type !== "Directory")
     return yield* new PackageSkillSourceError({
       message: `package skills path is not a directory: ${packageName}/${skillsPath}`,
@@ -223,6 +241,7 @@ const loadInstalledPackageSkills = Effect.fn("loadInstalledPackageSkills")(funct
   ))
     .filter(isSkillName)
     .sort();
+
   return {
     package: packageName,
     version: metadata.version,
@@ -238,11 +257,13 @@ const inspectPackageSkill = Effect.fn("inspectInstalledPackageSkill")(function* 
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
+
   if (!isSkillName(name)) {
     return yield* new PackageSkillSourceError({ message: `invalid package skill name: ${name}` });
   }
   const selector = `${installed.package}#${name}`;
   const linkPath = path.join(installed.packageLink, "skills", name);
+
   if ((yield* observeSymbolicLink(linkPath)).kind === "symlink") {
     return yield* new PackageSkillSourceError({
       message: `package skill contains a symlink: ${selector}`,
@@ -255,6 +276,7 @@ const inspectPackageSkill = Effect.fn("inspectInstalledPackageSkill")(function* 
         () => new PackageSkillSourceError({ message: `package skill does not exist: ${selector}` }),
       ),
     );
+
   if (
     !isContained(path, installed.skillsRoot, skillRoot) ||
     (yield* fs.stat(skillRoot)).type !== "Directory"
@@ -272,17 +294,20 @@ const inspectPackageSkill = Effect.fn("inspectInstalledPackageSkill")(function* 
         }),
     ),
   );
+
   if (skillName(document) !== name) {
     return yield* new PackageSkillSourceError({
       message: `package skill SKILL.md name must match directory: ${selector}`,
     });
   }
   const description = skillDescription(document);
+
   if (description === undefined) {
     return yield* new PackageSkillSourceError({
       message: `package skill SKILL.md must declare a description: ${selector}`,
     });
   }
+
   return {
     selector,
     name,
@@ -302,6 +327,7 @@ export const discoverPackageSkills = Effect.fn("discoverInstalledPackageSkills")
   const path = yield* Path.Path;
   const candidates: Array<DiscoveredPackageSkill> = [];
   const diagnostics: Array<PackageSkillDiagnostic> = [];
+
   if (!(yield* fs.exists(path.join(projectDir, "package.json")))) {
     return { candidates, diagnostics };
   }
@@ -314,18 +340,22 @@ export const discoverPackageSkills = Effect.fn("discoverInstalledPackageSkills")
       continue;
     }
     const skillsLink = path.join(projectDir, "node_modules", ...packageName.split("/"), "skills");
+
     if (!(yield* fs.exists(skillsLink))) continue;
     const installed = yield* Effect.result(loadInstalledPackageSkills(projectDir, packageName));
+
     if (Result.isFailure(installed)) {
       diagnostics.push({ package: packageName, message: installed.failure.message });
       continue;
     }
     for (const name of installed.success.names) {
       const inspected = yield* Effect.result(inspectPackageSkill(installed.success, name));
+
       if (Result.isSuccess(inspected)) candidates.push(inspected.success);
       else diagnostics.push({ package: packageName, message: inspected.failure.message });
     }
   }
+
   return {
     candidates: candidates.sort((left, right) => left.selector.localeCompare(right.selector)),
     diagnostics,
@@ -338,15 +368,18 @@ export const resolvePackageSkillSelector = Effect.fn("resolvePackageSkillSelecto
   selector: string,
 ) {
   const parsed = parseSkillSelector(selector);
+
   if (parsed?.type !== "package")
     return yield* new PackageSkillSourceError({
       message: `invalid package skill selector: ${selector}`,
     });
   const directDependencies = yield* readDirectDependencyNames(projectDir);
+
   if (!directDependencies.includes(parsed.package))
     return yield* new PackageSkillSourceError({
       message: `package skill package is not a direct dependency: ${parsed.package}`,
     });
+
   return yield* inspectPackageSkill(
     yield* loadInstalledPackageSkills(projectDir, parsed.package),
     parsed.skill,

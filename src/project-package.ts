@@ -20,6 +20,7 @@ export const readDirectDependencyNames = Effect.fn("readDirectDependencyNames")(
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const manifestPath = path.join(projectDir, "package.json");
+
   if (!(yield* fs.exists(manifestPath))) return [];
   const manifest = yield* fs.readFileString(manifestPath).pipe(
     Effect.flatMap(Schema.decodeUnknownEffect(ProjectPackageSchema)),
@@ -30,6 +31,7 @@ export const readDirectDependencyNames = Effect.fn("readDirectDependencyNames")(
         }),
     ),
   );
+
   return [
     ...new Set([
       ...Object.keys(manifest.dependencies ?? {}),

@@ -9,6 +9,7 @@ export type SymbolicLinkObservation =
 const isNotSymbolicLink = (error: PlatformError.PlatformError): boolean => {
   if (error.reason._tag !== "Unknown") return false;
   const cause = error.reason.cause;
+
   return cause instanceof Error && "code" in cause && cause.code === "EINVAL";
 };
 
@@ -16,6 +17,7 @@ export const observeSymbolicLink = Effect.fn("observeSymbolicLink")(function* (
   absolutePath: string,
 ) {
   const fs = yield* FileSystem.FileSystem;
+
   return yield* fs.readLink(absolutePath).pipe(
     Effect.map((target): SymbolicLinkObservation => ({ kind: "symlink", target })),
     Effect.catch((error) => {
@@ -25,6 +27,7 @@ export const observeSymbolicLink = Effect.fn("observeSymbolicLink")(function* (
       if (isNotSymbolicLink(error)) {
         return Effect.succeed<SymbolicLinkObservation>({ kind: "not-symlink" });
       }
+
       return Effect.fail(error);
     }),
   );

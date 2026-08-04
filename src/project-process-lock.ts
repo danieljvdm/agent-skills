@@ -38,6 +38,7 @@ export const acquireProjectProcessLock = Effect.fn("acquireProjectProcessLock")(
   return yield* Effect.acquireRelease(
     Effect.gen(function* () {
       yield* fs.makeDirectory(stateDir, { recursive: true });
+
       return yield* Effect.uninterruptible(
         Effect.gen(function* () {
           yield* fs
@@ -59,6 +60,7 @@ export const acquireProjectProcessLock = Effect.fn("acquireProjectProcessLock")(
               ),
             ),
           );
+
           return { lockDir, ownerContents };
         }),
       );
@@ -72,6 +74,7 @@ export const acquireProjectProcessLock = Effect.fn("acquireProjectProcessLock")(
               error.reason._tag === "NotFound" ? Effect.void : Effect.fail(error),
             ),
           );
+
         if (currentOwner === ownerContents) {
           yield* fs.remove(acquiredLockDir, { recursive: true, force: true });
         }

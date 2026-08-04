@@ -1,5 +1,15 @@
 # @danieljvdm/dev-kit
 
+## 0.8.0
+
+### Minor Changes
+
+- fddf528: Expand the `effect-ts` umbrella with lazy Effect DateTime and Effect Atom references. The DateTime guidance prefers Effect DateTime over JavaScript Date for domain logic and covers parsing, schemas, time zones, arithmetic, formatting, interoperability, and deterministic `TestClock` tests. The existing `effect-atom-data-fetching` selector remains as a compatibility alias.
+
+### Patch Changes
+
+- 2c51b1d: Let Vite+ quality consumers independently opt into managed config or workflow resources, including repository-specific workflow preparation and typecheck commands.
+
 ## 0.7.2
 
 ### Patch Changes

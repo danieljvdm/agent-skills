@@ -74,7 +74,10 @@ skill as `dev-kit` when project agents should carry the toolkit procedure.
   "setup": {
     "agentInstructions": { "enabled": true },
     "claudeInstructions": { "enabled": true },
-    "vitePlus": { "hooks": { "enabled": true } },
+    "vitePlus": {
+      "hooks": { "enabled": true },
+      "quality": { "enabled": true },
+    },
   },
   "targets": {
     "agents": { "enabled": true, "mode": "copy" },
@@ -105,6 +108,20 @@ project-local `vp config --no-agent` when they need convergence. This recreates
 ignored dispatchers in linked worktrees. Preserve other hook managers; Dev Kit
 refuses to replace an unrelated `core.hooksPath`. Use `VITE_GIT_HOOKS=0` or
 `HUSKY=0` to skip hook setup for an invocation.
+
+Enable `setup.vitePlus.quality` only in supported Vite+/Effect repositories
+that explicitly want Dev Kit to own the canonical root `vite.config.ts` and
+`.github/workflows/check.yml`. It requires direct Dev Kit, Vite+, Effect,
+Effect TypeScript-Go, and native TypeScript dependencies, as well as
+`setup.effectTsgo.enabled`. It refuses custom destination files and conflicting
+`check` or `typecheck` package scripts. Exact canonical files can be adopted;
+later updates and cleanup occur only while the owned files remain unchanged.
+
+The managed Vite config composes the shared formatter and linter presets,
+configures `vp staged`, and defines cached `check` and `typecheck` Vite tasks.
+The check task and GitHub Actions workflow run `vp fmt --check`, `vp lint`,
+`vp test`, and finally `vp run typecheck` so Effect diagnostics come from the
+patched native compiler.
 
 ## Ownership and conflicts
 
@@ -237,9 +254,9 @@ in the consuming project.
 ## Current boundary
 
 Manage skill outputs, the `setup.agentInstructions` wrapper, the
-`setup.claudeInstructions` link, the `setup.vitePlus.hooks` dispatcher,
-the `setup.effectSource` checkout, and the explicit `setup.effectTsgo` task. Edit
-shared `package.json` and `tsconfig.json`
-contributions deliberately. The Oxlint and Oxfmt configurations are composable
-package exports, not manifest-managed outputs. Treat broader setup tasks as
-future manifest capabilities until the installed CLI exposes them.
+`setup.claudeInstructions` link, the `setup.vitePlus.hooks` dispatcher, the
+opt-in `setup.vitePlus.quality` config and GitHub workflow, the
+`setup.effectSource` checkout, and the explicit `setup.effectTsgo` task.
+Dependency and `tsconfig.json` contributions remain deliberate user-owned
+edits. Custom Vite configs compose the Oxlint and Oxfmt package exports manually
+and leave the canonical quality task disabled.

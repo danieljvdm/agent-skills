@@ -1,6 +1,6 @@
-import { applyEdits, modify, parse as parseJsonc, type ParseError } from "jsonc-parser";
 import { Effect, FileSystem, Path, Schema } from "effect";
 import { Prompt } from "effect/unstable/cli";
+import { applyEdits, modify, parse as parseJsonc, type ParseError } from "jsonc-parser";
 
 import { isInteractiveTerminal, printLine, printStatus } from "./cli-ui.ts";
 import {

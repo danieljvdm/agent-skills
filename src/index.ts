@@ -11,6 +11,10 @@ export {
   EffectTsgoSetupSchema,
   type HarnessTarget,
   TargetConfigSchema,
+  type VitePlusQualitySetup,
+  VitePlusQualitySetupSchema,
+  type VitePlusSetup,
+  VitePlusSetupSchema,
 } from "./manifest.ts";
 export {
   applyEffectSourcePlan,
@@ -68,6 +72,7 @@ export {
   EffectTsgoLockSchema,
   ManagedAgentInstructionsOutputSchema,
   ManagedClaudeInstructionsOutputSchema,
+  ManagedGeneratedFileOutputSchema,
   ManagedInstructionOutputSchema,
   ManagedOutputSchema,
   ManagedSkillOutputSchema,
@@ -79,6 +84,7 @@ export {
   type EffectTsgoLock,
   type ManagedAgentInstructionsOutput,
   type ManagedClaudeInstructionsOutput,
+  type ManagedGeneratedFileOutput,
   type ManagedInstructionOutput,
   type ManagedOutput,
   type ManagedSkillOutput,

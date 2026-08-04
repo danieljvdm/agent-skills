@@ -1,11 +1,10 @@
-import { parse as parseJsonc, printParseErrorCode, type ParseError } from "jsonc-parser";
 import { Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
+import { parse as parseJsonc, printParseErrorCode, type ParseError } from "jsonc-parser";
 
 import { printStatus, withSpinner } from "./cli-ui.ts";
 import { observePath, type Digest } from "./path-digest.ts";
 import { acquireProjectProcessLock } from "./project-process-lock.ts";
-
 import {
   SkillSourcesLockSchema,
   SkillSourcesManifestSchema,

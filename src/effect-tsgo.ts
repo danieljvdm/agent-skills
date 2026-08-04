@@ -1,8 +1,8 @@
 import { Crypto, Effect, Encoding, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
 
-import { acquireProjectProcessLock } from "./project-process-lock.ts";
 import { printStatus, withSpinner } from "./cli-ui.ts";
+import { acquireProjectProcessLock } from "./project-process-lock.ts";
 import { isTypeScriptPackageName } from "./typescript-package-name.ts";
 
 export const EFFECT_TSGO_VERSION = "0.24.3";

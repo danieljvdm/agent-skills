@@ -1,9 +1,9 @@
-import { parse as parseJsonc, type ParseError } from "jsonc-parser";
 import { Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
+import { parse as parseJsonc, type ParseError } from "jsonc-parser";
 
-import { observePath, type Digest } from "./path-digest.ts";
 import { discoverPackageSkills, resolvePackageSkillSelector } from "./package-skill-source.ts";
+import { observePath, type Digest } from "./path-digest.ts";
 import {
   SkillSourcesLockSchema,
   type LockedSkillSource,

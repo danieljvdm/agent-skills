@@ -1,6 +1,5 @@
-import { describe, expect, it } from "vitest";
-
 import { recommendedOxlintConfig as packagedOxlintConfig } from "@danieljvdm/dev-kit/oxlint";
+import { describe, expect, it } from "vitest";
 
 import { recommendedOxlintConfig as sourceOxlintConfig } from "../src/oxlint.ts";
 

@@ -53,7 +53,6 @@
     "changeset": "changeset",
     "version-packages": "changeset version && ./bin/dev-kit.mjs apply",
     "release": "changeset publish",
-    "check": "vp fmt --check && vp lint && vp test && vp run typecheck",
     "lint": "vp lint",
     "plan": "./bin/dev-kit.mjs plan",
     "apply": "./bin/dev-kit.mjs apply",
@@ -62,7 +61,6 @@
     "test": "vp test",
     "test:watch": "vitest --config vitest.config.ts",
     "tsgo:patch": "./bin/dev-kit.mjs tsgo patch",
-    "typecheck": "tsc --noEmit",
     "catalog:refresh": "./bin/dev-kit.mjs catalog refresh",
     "catalog:check": "./bin/dev-kit.mjs catalog verify"
   },

@@ -53,8 +53,14 @@ export const VitePlusHooksSetupSchema = Schema.Struct({
   enabled: Schema.optional(Schema.Boolean),
 });
 
+export const VitePlusQualitySetupSchema = Schema.Struct({
+  enabled: Schema.optional(Schema.Boolean),
+});
+export type VitePlusQualitySetup = typeof VitePlusQualitySetupSchema.Type;
+
 export const VitePlusSetupSchema = Schema.Struct({
   hooks: Schema.optional(VitePlusHooksSetupSchema),
+  quality: Schema.optional(VitePlusQualitySetupSchema),
 });
 
 export type VitePlusSetup = typeof VitePlusSetupSchema.Type;
@@ -116,6 +122,9 @@ export type NormalizedManifest = {
       readonly hooks: {
         readonly enabled: boolean;
       };
+      readonly quality: {
+        readonly enabled: boolean;
+      };
     };
   };
   readonly targets: Readonly<Record<HarnessTarget, NormalizedTargetConfig>>;
@@ -175,6 +184,9 @@ export const normalizeManifest = (manifest: DevKitManifest): NormalizedManifest 
       vitePlus: {
         hooks: {
           enabled: manifest.setup?.vitePlus?.hooks?.enabled ?? false,
+        },
+        quality: {
+          enabled: manifest.setup?.vitePlus?.quality?.enabled ?? false,
         },
       },
     },

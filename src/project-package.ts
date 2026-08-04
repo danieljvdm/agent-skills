@@ -7,6 +7,8 @@ export class ProjectPackageError extends Schema.TaggedErrorClass<ProjectPackageE
 
 const ProjectPackageSchema = Schema.fromJsonString(
   Schema.Struct({
+    name: Schema.optional(Schema.String),
+    scripts: Schema.optional(Schema.Record(Schema.String, Schema.String)),
     dependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
     devDependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
     optionalDependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
@@ -14,14 +16,14 @@ const ProjectPackageSchema = Schema.fromJsonString(
   }),
 );
 
-export const readDirectDependencyNames = Effect.fn("readDirectDependencyNames")(function* (
-  projectDir: string,
-) {
+export const readProjectPackage = Effect.fn("readProjectPackage")(function* (projectDir: string) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const manifestPath = path.join(projectDir, "package.json");
 
-  if (!(yield* fs.exists(manifestPath))) return [];
+  if (!(yield* fs.exists(manifestPath))) {
+    return yield* new ProjectPackageError({ message: `package.json not found: ${manifestPath}` });
+  }
   const manifest = yield* fs.readFileString(manifestPath).pipe(
     Effect.flatMap(Schema.decodeUnknownEffect(ProjectPackageSchema)),
     Effect.mapError(
@@ -31,6 +33,20 @@ export const readDirectDependencyNames = Effect.fn("readDirectDependencyNames")(
         }),
     ),
   );
+
+  return manifest;
+});
+
+export const readDirectDependencyNames = Effect.fn("readDirectDependencyNames")(function* (
+  projectDir: string,
+) {
+  const manifest = yield* readProjectPackage(projectDir).pipe(
+    Effect.catchTag("ProjectPackageError", (error) =>
+      error.message.startsWith("package.json not found:") ? Effect.void : Effect.fail(error),
+    ),
+  );
+
+  if (manifest === undefined) return [];
 
   return [
     ...new Set([

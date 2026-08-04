@@ -257,6 +257,37 @@ worktree converges its own copy during install while the project-owned
 `core.hooksPath` instead of replacing another hook manager. Set
 `VITE_GIT_HOOKS=0` (or `HUSKY=0`) to skip the task for that invocation.
 
+## Vite+ quality setup
+
+Supported Vite+/Effect repositories can explicitly opt into Dev Kit's canonical
+quality configuration and GitHub Actions workflow:
+
+```jsonc
+{
+  "include": ["dev-kit", "effect"],
+  "setup": {
+    "effectTsgo": { "enabled": true },
+    "vitePlus": {
+      "hooks": { "enabled": true },
+      "quality": { "enabled": true },
+    },
+  },
+}
+```
+
+The quality task requires direct `@danieljvdm/dev-kit`, `vite-plus`, `effect`,
+`@effect/tsgo`, and native TypeScript dependencies, plus the enabled Effect
+TypeScript-Go patch. It manages `vite.config.ts` and
+`.github/workflows/check.yml` as digest-owned files. Existing custom files or
+conflicting `check`/`typecheck` package scripts are rejected instead of merged
+or overwritten. Exact canonical files can be adopted; disabling the task
+removes only unchanged owned files.
+
+The managed Vite config composes the shared Oxfmt and Oxlint presets, configures
+`vp staged`, and defines `vp run check` and `vp run typecheck`. The check task
+and CI run `vp fmt --check`, `vp lint`, `vp test`, then the Effect-patched
+compiler through `vp run typecheck`.
+
 ## Effect source checkout
 
 Enable a local checkout of the exact installed Effect release in the manifest:
@@ -319,8 +350,8 @@ native TypeScript compiler. It does not download dependencies and skips an
 installation that is already patched. Use `dev-kit tsgo patch --dry-run` when
 troubleshooting the task directly.
 
-Package and tsconfig edits remain explicit until Dev Kit can safely own parts
-of shared JSONC files.
+Dependency and `tsconfig.json` edits remain explicit. Enable the Vite+ quality
+task only when Dev Kit can own the canonical root config and GitHub workflow.
 
 ## Installed package skills
 
@@ -453,8 +484,9 @@ Use `lint.extends` rather than a shallow object spread so Vite+ composes the
 nested plugin and rule configuration correctly. Oxfmt has no `extends`, so
 spread its configuration before project-local formatter options. The shared
 lint preset enables `typeAware` for semantic lint rules but leaves `typeCheck`
-disabled. Projects using Effect TypeScript-Go should run formatting, linting,
-tests, and the patched compiler explicitly:
+disabled. The opt-in `setup.vitePlus.quality` task manages this composition for
+repositories that use the canonical config; custom configs keep the task
+disabled and compose the exports manually. Effect TypeScript-Go projects run:
 
 ```sh
 vp fmt --check
@@ -501,7 +533,6 @@ consumer-scoped because application and host boundaries differ by repository.
 ## Development
 
 ```bash
-bun install
-bun run check
-vitest run --config vitest.config.ts
+vp install
+vp run check
 ```

@@ -1,13 +1,13 @@
-import { applyEdits, modify, parse as parseJsonc, type ParseError } from "jsonc-parser";
 import { Effect, FileSystem, Path, Schema } from "effect";
 import { Prompt } from "effect/unstable/cli";
+import { applyEdits, modify, parse as parseJsonc, type ParseError } from "jsonc-parser";
 
 import { loadSkillCatalog } from "./catalog.ts";
 import { isInteractiveTerminal, printDetail, printLine, printStatus } from "./cli-ui.ts";
+import { patchProjectGitignore } from "./gitignore.ts";
 import { DevKitManifestSchema } from "./manifest.ts";
 import { observeSymbolicLink } from "./node-symbolic-link.ts";
 import { runProjectSkillPlan } from "./sync.ts";
-import { patchProjectGitignore } from "./gitignore.ts";
 
 class SkillManagerError extends Schema.TaggedErrorClass<SkillManagerError>()("SkillManagerError", {
   message: Schema.String,

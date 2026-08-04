@@ -1,8 +1,7 @@
-import { parse as parseJsonc, printParseErrorCode, type ParseError } from "jsonc-parser";
 import { Cause, Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
+import { parse as parseJsonc, printParseErrorCode, type ParseError } from "jsonc-parser";
 
-import { DevKitManifestSchema, normalizeManifest } from "./manifest.ts";
 import {
   loadSkillCatalog,
   resolveSkillSources,
@@ -16,6 +15,9 @@ import {
   planEffectTsgoPatch,
   type EffectTsgoPatchPlan,
 } from "./effect-tsgo.ts";
+import { DevKitManifestSchema, normalizeManifest } from "./manifest.ts";
+import { observeSymbolicLink } from "./node-symbolic-link.ts";
+import { resolvePackageSkillSelector } from "./package-skill-source.ts";
 import {
   digestFileContent,
   digestSymlinkTarget,
@@ -23,9 +25,8 @@ import {
   observePath,
   type ObservedPath,
 } from "./path-digest.ts";
-import { resolvePackageSkillSelector } from "./package-skill-source.ts";
 import { readDirectDependencyNames } from "./project-package.ts";
-import { parseSkillSelector } from "./skill-selector.ts";
+import { acquireProjectProcessLock, PROJECT_PROCESS_LOCK_PATH } from "./project-process-lock.ts";
 import {
   AppliedStateSchema,
   DevKitLockSchema,
@@ -33,18 +34,25 @@ import {
   type DevKitLock,
   type ManagedAgentInstructionsOutput,
   type ManagedClaudeInstructionsOutput,
+  type ManagedGeneratedFileOutput,
   type ManagedOutput,
   type ManagedSkillOutput,
   type OwnershipReceipt,
 } from "./project-state.ts";
-import { acquireProjectProcessLock, PROJECT_PROCESS_LOCK_PATH } from "./project-process-lock.ts";
-import { observeSymbolicLink } from "./node-symbolic-link.ts";
+import { parseSkillSelector } from "./skill-selector.ts";
 import { DEV_KIT_VERSION } from "./tool-metadata.ts";
 import {
   applyVitePlusHooksPlan,
   planVitePlusHooks,
   type VitePlusHooksPlan,
 } from "./vite-plus-hooks.ts";
+import {
+  validateVitePlusQualitySupport,
+  VITE_PLUS_CONFIG_PATH,
+  VITE_PLUS_CONFIG_TEMPLATE,
+  VITE_PLUS_GITHUB_ACTIONS_PATH,
+  VITE_PLUS_GITHUB_ACTIONS_TEMPLATE,
+} from "./vite-plus-quality.ts";
 
 export type SyncOptions = {
   readonly manifestPath?: string;
@@ -87,10 +95,17 @@ type DesiredClaudeInstructionsOutput = ManagedClaudeInstructionsOutput & {
   readonly linkTarget: string;
 };
 
+type DesiredGeneratedFileOutput = ManagedGeneratedFileOutput & {
+  readonly adoptIfExact: true;
+  readonly content: string;
+  readonly destination: string;
+};
+
 type DesiredOutput =
   | DesiredSkillOutput
   | DesiredAgentInstructionsOutput
-  | DesiredClaudeInstructionsOutput;
+  | DesiredClaudeInstructionsOutput
+  | DesiredGeneratedFileOutput;
 
 type SkillPlanAction =
   | {
@@ -527,6 +542,23 @@ const renderAgentInstructions = Effect.fn("renderAgentInstructions")(function* (
   return `${sections.join("\n\n")}\n`;
 });
 
+const readGeneratedFileTemplate = Effect.fn("readGeneratedFileTemplate")(function* (
+  packageRoot: string,
+  sourcePath: string,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const templatePath = path.join(packageRoot, sourcePath);
+
+  if ((yield* observePath(templatePath)).kind !== "file") {
+    return yield* new InvalidProjectStateError({
+      message: `dev-kit generated file template is not a regular file: ${sourcePath}`,
+    });
+  }
+
+  return yield* fs.readFileString(templatePath);
+});
+
 const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
   packageRoot: string,
   projectDir: string,
@@ -577,6 +609,35 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
       destination: managed.absolute,
       linkTarget,
     });
+  }
+  if (setup.vitePlus.quality.enabled) {
+    for (const generated of [
+      {
+        resourceId: "setup:vite-plus-config" as const,
+        path: VITE_PLUS_CONFIG_PATH,
+        sourcePath: VITE_PLUS_CONFIG_TEMPLATE,
+      },
+      {
+        resourceId: "setup:vite-plus-github-actions" as const,
+        path: VITE_PLUS_GITHUB_ACTIONS_PATH,
+        sourcePath: VITE_PLUS_GITHUB_ACTIONS_TEMPLATE,
+      },
+    ]) {
+      const managed = yield* resolveManagedPath(projectDir, generated.path);
+      const content = yield* readGeneratedFileTemplate(packageRoot, generated.sourcePath);
+
+      outputs.push({
+        resourceId: generated.resourceId,
+        path: managed.relative,
+        sourcePath: generated.sourcePath,
+        mode: "copy",
+        kind: "file",
+        digest: yield* digestFileContent(content),
+        destination: managed.absolute,
+        content,
+        adoptIfExact: true,
+      });
+    }
   }
   const agentsTarget = targets.agents;
   const duplicateOutput = skills.find(
@@ -687,7 +748,7 @@ const planDesiredOutputs = Effect.fn("planDesiredSkillOutputs")(function* (
     if (observed.kind === "missing") {
       actions.push({ action: "create", desired: output, observed });
     } else if (observed.kind === output.kind && observed.digest === output.digest) {
-      if (sameReceipt || adoptable) {
+      if (sameReceipt || adoptable || ("adoptIfExact" in output && output.adoptIfExact)) {
         actions.push({ action: "unchanged", desired: output, observed, adopted: !sameReceipt });
       } else {
         actions.push({
@@ -803,6 +864,20 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
   const processLockManaged = yield* resolveManagedPath(projectDir, PROJECT_PROCESS_LOCK_PATH);
   const packageRoot = yield* resolvePackageRoot();
   const manifest = normalizeManifest(yield* readManifest(manifestManaged.absolute));
+
+  if (manifest.setup.vitePlus.quality.enabled) {
+    if (!manifest.setup.effectTsgo.enabled) {
+      return yield* new InvalidProjectStateError({
+        message:
+          "setup.vitePlus.quality requires setup.effectTsgo.enabled so vp run typecheck uses the Effect-patched compiler",
+      });
+    }
+    yield* validateVitePlusQualitySupport(
+      projectDir,
+      packageRoot,
+      manifest.setup.effectTsgo.typescriptPackage,
+    );
+  }
   const effectSource = manifest.setup.effectSource.enabled
     ? yield* planEffectSource({
         packageName: manifest.setup.effectSource.packageName,
@@ -927,6 +1002,16 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
           digest: output.digest,
         };
       }
+      if (output.resourceId === "setup:claude-instructions") {
+        return {
+          resourceId: output.resourceId,
+          path: output.path,
+          sourcePath: output.sourcePath,
+          mode: output.mode,
+          kind: output.kind,
+          digest: output.digest,
+        };
+      }
 
       return {
         resourceId: output.resourceId,
@@ -1036,7 +1121,7 @@ export const printSkillPlan = Effect.fn("printSkillPlan")(function* (plan: Skill
   }
   yield* printStatus("plan", `${changes} change${changes === 1 ? "" : "s"} planned`);
   for (const action of plan.actions) {
-    if (action.action !== "unchanged") yield* printDetail(formatAction(action));
+    if (action.action !== "unchanged" || action.adopted) yield* printDetail(formatAction(action));
   }
   if (plan.effectSource?.action === "sync") {
     yield* printDetail(`+ Effect source ${plan.effectSource.tag} → ${plan.effectSource.path}`);

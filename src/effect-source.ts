@@ -1,9 +1,9 @@
 import { Config, Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
 
-import { acquireProjectProcessLock } from "./project-process-lock.ts";
 import { printStatus, withSpinner } from "./cli-ui.ts";
 import { observeSymbolicLink } from "./node-symbolic-link.ts";
+import { acquireProjectProcessLock } from "./project-process-lock.ts";
 import { isTypeScriptPackageName } from "./typescript-package-name.ts";
 
 export const DEFAULT_EFFECT_REPOSITORY = "https://github.com/Effect-TS/effect.git";

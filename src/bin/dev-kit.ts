@@ -1,20 +1,17 @@
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
-import { Argument, CliError, Command as CliCommand, Flag } from "effect/unstable/cli";
 import { Effect, Result } from "effect";
+import { Argument, CliError, Command as CliCommand, Flag } from "effect/unstable/cli";
 
-import { printError } from "../cli-ui.ts";
-import { patchEffectTsgo } from "../effect-tsgo.ts";
-import { syncEffectSource } from "../effect-source.ts";
-import { patchProjectGitignore } from "../gitignore.ts";
-import { DEFAULT_MANIFEST, runProjectSkillPlan } from "../sync.ts";
-import { DEV_KIT_VERSION } from "../tool-metadata.ts";
-import { refreshSkillCatalog } from "../vendor.ts";
 import {
   addCatalogSource,
   listCatalogSources,
   removeCatalogEntry,
   showCatalogSource,
 } from "../catalog-manager.ts";
+import { printError } from "../cli-ui.ts";
+import { syncEffectSource } from "../effect-source.ts";
+import { patchEffectTsgo } from "../effect-tsgo.ts";
+import { patchProjectGitignore } from "../gitignore.ts";
 import {
   addSkills,
   chooseSkillsToAdd,
@@ -25,6 +22,9 @@ import {
   showDashboard,
   showSkill,
 } from "../skill-manager.ts";
+import { DEFAULT_MANIFEST, runProjectSkillPlan } from "../sync.ts";
+import { DEV_KIT_VERSION } from "../tool-metadata.ts";
+import { refreshSkillCatalog } from "../vendor.ts";
 
 const projectFlags = {
   manifest: Flag.string("manifest").pipe(

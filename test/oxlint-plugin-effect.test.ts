@@ -1,6 +1,5 @@
-import { describe, expect, it } from "vitest";
-
 import effectOxlintPlugin from "@danieljvdm/dev-kit/oxlint-plugin-effect";
+import { describe, expect, it } from "vitest";
 
 const reportsFor = (ruleName: string, visitor: string, node: unknown) => {
   const reports: Array<{ messageId: string }> = [];

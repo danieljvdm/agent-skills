@@ -1,5 +1,11 @@
 # @danieljvdm/dev-kit
 
+## 0.7.2
+
+### Patch Changes
+
+- d50151b: Make opt-in Vite+ quality CI deterministic with one frozen install, locked Dev Kit convergence, compatible consumer Vite+ validation, and explicit single-project or workspace typechecking.
+
 ## 0.7.1
 
 ### Patch Changes

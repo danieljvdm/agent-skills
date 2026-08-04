@@ -3,10 +3,7 @@ import { Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
 
 import { observePath, type Digest } from "./path-digest.ts";
-import {
-  discoverPackageSkills,
-  resolvePackageSkillSelector,
-} from "./package-skill-source.ts";
+import { discoverPackageSkills, resolvePackageSkillSelector } from "./package-skill-source.ts";
 import {
   SkillSourcesLockSchema,
   type LockedSkillSource,
@@ -52,10 +49,7 @@ class CatalogError extends Schema.TaggedErrorClass<CatalogError>()("CatalogError
   message: Schema.String,
 }) {}
 
-const runGit = Effect.fn("runCatalogGit")(function* (
-  cwd: string,
-  args: ReadonlyArray<string>,
-) {
+const runGit = Effect.fn("runCatalogGit")(function* (cwd: string, args: ReadonlyArray<string>) {
   const child = yield* ChildProcess.make("git", args, {
     cwd,
     stderr: "pipe",
@@ -93,13 +87,15 @@ const readDescription = Effect.fn("readSkillDescription")(function* (skillPath: 
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const text = yield* fs.readFileString(path.join(skillPath, "SKILL.md"));
-  return text
-    .match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1]
-    ?.split(/\r?\n/)
-    .find((line) => line.startsWith("description:"))
-    ?.slice("description:".length)
-    .trim()
-    .replace(/^(['"])(.*)\1$/, "$2") ?? "";
+  return (
+    text
+      .match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1]
+      ?.split(/\r?\n/)
+      .find((line) => line.startsWith("description:"))
+      ?.slice("description:".length)
+      .trim()
+      .replace(/^(['"])(.*)\1$/, "$2") ?? ""
+  );
 });
 
 export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
@@ -113,7 +109,7 @@ export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
   if (yield* fs.exists(skillsDir)) {
     for (const name of (yield* fs.readDirectory(skillsDir)).sort()) {
       const skillPath = path.join(skillsDir, name);
-      if ((yield* fs.exists(path.join(skillPath, "SKILL.md")))) {
+      if (yield* fs.exists(path.join(skillPath, "SKILL.md"))) {
         skills.push({
           name,
           selector: name,
@@ -148,15 +144,16 @@ export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
     });
   }
   const duplicates = skills.filter(
-    (skill, index) => skills.findIndex((candidate) => candidate.selector === skill.selector) !== index,
+    (skill, index) =>
+      skills.findIndex((candidate) => candidate.selector === skill.selector) !== index,
   );
   if (duplicates.length > 0) {
     return yield* new CatalogError({
       message: `duplicate catalog skill selector: ${duplicates[0]?.selector ?? "unknown"}`,
     });
   }
-  const externalFamilies = (lock?.sources ?? []).map((source) =>
-    [source.id, source.skills] as const
+  const externalFamilies = (lock?.sources ?? []).map(
+    (source) => [source.id, source.skills] as const,
   );
   const duplicateFamily = externalFamilies.find(
     ([id], index) => externalFamilies.findIndex(([candidate]) => candidate === id) !== index,
@@ -217,18 +214,24 @@ const materializeSource = Effect.fn("materializeCatalogSource")(function* (
     yield* runGit(checkout, ["checkout", "--quiet", "--detach", "FETCH_HEAD"]);
     const actual = yield* runGit(checkout, ["rev-parse", "HEAD"]);
     if (actual !== source.resolved) {
-      return yield* new CatalogError({ message: `source ${source.id} resolved to ${actual}, expected ${source.resolved}` });
+      return yield* new CatalogError({
+        message: `source ${source.id} resolved to ${actual}, expected ${source.resolved}`,
+      });
     }
     const symlinks = yield* runGit(checkout, ["ls-files", "--stage", "--", source.skillsPath]);
     if (symlinks.split(/\r?\n/).some((line) => line.startsWith("120000 "))) {
-      return yield* new CatalogError({ message: `source ${source.id} contains symlinks; refusing to install it` });
+      return yield* new CatalogError({
+        message: `source ${source.id} contains symlinks; refusing to install it`,
+      });
     }
     for (const skill of source.skills) {
       const from = path.join(checkout, source.skillsPath, skill);
       const to = path.join(root, "skills", skill);
       const observation = yield* observePath(from);
       if (observation.kind !== "directory") {
-        return yield* new CatalogError({ message: `source ${source.id} is missing skill ${skill}` });
+        return yield* new CatalogError({
+          message: `source ${source.id} is missing skill ${skill}`,
+        });
       }
       yield* fs.copy(from, to, { overwrite: true });
       if (source.stripFrontmatter?.length) {
@@ -244,21 +247,28 @@ const materializeSource = Effect.fn("materializeCatalogSource")(function* (
   for (const skill of selected) {
     const observation = yield* observePath(path.join(root, "skills", skill));
     const approvedDigest = source.digests?.[skill];
-    if (approvedDigest !== undefined &&
-      (observation.kind !== "directory" || observation.digest !== approvedDigest)) {
+    if (
+      approvedDigest !== undefined &&
+      (observation.kind !== "directory" || observation.digest !== approvedDigest)
+    ) {
       return yield* new CatalogError({
         message: `cached skill ${skill} does not match the approved catalog; remove ${root} and retry`,
       });
     }
   }
-  return new Map(selected.map((skill) => [skill, {
-    path: path.join(root, "skills", skill),
-    catalog: {
-      source: source.id,
-      repository: source.repository,
-      resolved: source.resolved,
-    },
-  } satisfies ResolvedSkillSource]));
+  return new Map(
+    selected.map((skill) => [
+      skill,
+      {
+        path: path.join(root, "skills", skill),
+        catalog: {
+          source: source.id,
+          repository: source.repository,
+          resolved: source.resolved,
+        },
+      } satisfies ResolvedSkillSource,
+    ]),
+  );
 });
 
 export const resolveSkillSources = Effect.fn("resolveSkillSources")(function* (

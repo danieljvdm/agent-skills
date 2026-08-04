@@ -40,6 +40,7 @@ describe("project process lock", () => {
 
         assert.isTrue(yield* fs.exists(lockDir));
         assert.strictEqual(yield* fs.readFileString(ownerPath), "replacement owner\n");
-      }));
+      }),
+    );
   });
 });

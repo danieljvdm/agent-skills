@@ -2,10 +2,7 @@ import { NodeServices } from "@effect/platform-node";
 import { assert, describe, layer } from "@effect/vitest";
 import { Effect, FileSystem, Path } from "effect";
 
-import {
-  patchGitignoreContents,
-  patchProjectGitignore,
-} from "../src/gitignore.ts";
+import { patchGitignoreContents, patchProjectGitignore } from "../src/gitignore.ts";
 
 describe("gitignore patch", () => {
   layer(NodeServices.layer)((it) => {
@@ -29,7 +26,8 @@ describe("gitignore patch", () => {
         assert.include(firstContents, ".dev-kit/\n");
         assert.isFalse(second.changed);
         assert.strictEqual(yield* fs.readFileString(gitignorePath), firstContents);
-      }));
+      }),
+    );
 
     it.effect("keeps dry runs read-only", () =>
       Effect.gen(function* () {
@@ -45,7 +43,8 @@ describe("gitignore patch", () => {
         assert.isTrue(result.changed);
         assert.isFalse(yield* fs.exists(gitignorePath));
         assert.isFalse(yield* fs.exists(path.join(projectDir, ".dev-kit")));
-      }));
+      }),
+    );
 
     it.effect("refuses to follow a symlinked .gitignore", () =>
       Effect.gen(function* () {
@@ -66,7 +65,8 @@ describe("gitignore patch", () => {
         assert.strictEqual(error._tag, "UnsafeGitignorePathError");
         assert.strictEqual(yield* fs.readFileString(externalGitignore), "keep-this\n");
         assert.isFalse(yield* fs.exists(path.join(projectDir, ".dev-kit", "apply.lock")));
-      }));
+      }),
+    );
 
     it.effect("preserves CRLF and existing entries", () =>
       Effect.sync(() => {
@@ -76,6 +76,7 @@ describe("gitignore patch", () => {
           result.contents,
           "node_modules/\r\n.repos/\r\n\r\n# dev-kit managed paths\r\n.dev-kit/\r\n",
         );
-      }));
+      }),
+    );
   });
 });

@@ -1,9 +1,6 @@
 import { assert, describe, it } from "@effect/vitest";
 
-import {
-  isSkillName,
-  parseSkillSelector,
-} from "../src/skill-selector.ts";
+import { isSkillName, parseSkillSelector } from "../src/skill-selector.ts";
 
 describe("skill selectors", () => {
   it("parses canonical static and exact package selectors", () => {

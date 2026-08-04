@@ -32,7 +32,9 @@ describe("remote catalog resolution", () => {
         yield* runCommandSuccess(upstream, "git", ["commit", "-m", "initial"]);
         const resolved = (yield* runCommandSuccess(upstream, "git", ["rev-parse", "HEAD"])).trim();
         const approved = path.join(root, "approved", "remote-skill");
-        yield* fs.copy(path.join(upstream, "skills", "remote-skill"), approved, { overwrite: true });
+        yield* fs.copy(path.join(upstream, "skills", "remote-skill"), approved, {
+          overwrite: true,
+        });
         yield* fs.writeFileString(
           path.join(approved, "SKILL.md"),
           upstreamDocument.replace("disable-model-invocation: true\n", ""),
@@ -42,31 +44,34 @@ describe("remote catalog resolution", () => {
         if (approvedObservation.kind !== "directory") return;
         yield* fs.writeFileString(
           path.join(packageRoot, "skill-sources.lock.json"),
-          `${JSON.stringify({
-            version: 1,
-            sources: [{
-              id: "test-source",
-              repository: upstream,
-              ref: "main",
-              resolved,
-              skillsPath: "skills",
-              include: ["remote-skill"],
-              skills: ["remote-skill"],
-              descriptions: { "remote-skill": "A remote test skill." },
-              digests: { "remote-skill": approvedObservation.digest },
-              stripFrontmatter: ["disable-model-invocation"],
-            }],
-          }, null, 2)}\n`,
+          `${JSON.stringify(
+            {
+              version: 1,
+              sources: [
+                {
+                  id: "test-source",
+                  repository: upstream,
+                  ref: "main",
+                  resolved,
+                  skillsPath: "skills",
+                  include: ["remote-skill"],
+                  skills: ["remote-skill"],
+                  descriptions: { "remote-skill": "A remote test skill." },
+                  digests: { "remote-skill": approvedObservation.digest },
+                  stripFrontmatter: ["disable-model-invocation"],
+                },
+              ],
+            },
+            null,
+            2,
+          )}\n`,
         );
 
         const catalog = yield* loadSkillCatalog(packageRoot, projectDir);
         assert.deepEqual(catalog.families["test-source"], ["remote-skill"]);
-        const sources = yield* resolveSkillSources(
-          packageRoot,
-          projectDir,
-          catalog,
-          ["remote-skill"],
-        );
+        const sources = yield* resolveSkillSources(packageRoot, projectDir, catalog, [
+          "remote-skill",
+        ]);
         const materialized = sources.get("remote-skill");
         if (materialized === undefined) assert.fail("remote-skill was not materialized");
         const document = yield* fs.readFileString(path.join(materialized.path, "SKILL.md"));
@@ -82,12 +87,9 @@ describe("remote catalog resolution", () => {
         const cachedDocument = path.join(materialized.path, "SKILL.md");
         const cachedInfo = yield* fs.stat(cachedDocument);
         yield* fs.chmod(cachedDocument, cachedInfo.mode ^ 0o044);
-        const permissionsAdjusted = yield* resolveSkillSources(
-          packageRoot,
-          projectDir,
-          catalog,
-          ["remote-skill"],
-        );
+        const permissionsAdjusted = yield* resolveSkillSources(packageRoot, projectDir, catalog, [
+          "remote-skill",
+        ]);
         assert.isTrue(permissionsAdjusted.has("remote-skill"));
 
         yield* fs.writeFileString(path.join(materialized.path, "SKILL.md"), "tampered\n");
@@ -95,7 +97,8 @@ describe("remote catalog resolution", () => {
           resolveSkillSources(packageRoot, projectDir, catalog, ["remote-skill"]),
         );
         assert.match(error.message, /does not match the approved catalog/);
-      }));
+      }),
+    );
 
     it.effect("discovers and resolves skills from a direct installed dependency", () =>
       Effect.gen(function* () {
@@ -122,25 +125,20 @@ describe("remote catalog resolution", () => {
           "---\nname: package-skill\ndescription: Installed package skill.\n---\n\nHello.\n",
         );
         const catalog = yield* loadSkillCatalog(packageRoot, projectDir);
-        assert.deepEqual(catalog.skills.map((skill) => skill.selector), [
-          "@scope/tools#package-skill",
-        ]);
-        const resolved = yield* resolveSkillSources(
-          packageRoot,
-          projectDir,
-          catalog,
+        assert.deepEqual(
+          catalog.skills.map((skill) => skill.selector),
           ["@scope/tools#package-skill"],
         );
+        const resolved = yield* resolveSkillSources(packageRoot, projectDir, catalog, [
+          "@scope/tools#package-skill",
+        ]);
         const skill = resolved.get("@scope/tools#package-skill");
         if (skill === undefined) assert.fail("package skill was not resolved");
         assert.strictEqual(
           skill.path,
           path.join(yield* fs.realPath(installed), "skills", "package-skill"),
         );
-        assert.strictEqual(
-          skill.linkPath,
-          path.join(installed, "skills", "package-skill"),
-        );
+        assert.strictEqual(skill.linkPath, path.join(installed, "skills", "package-skill"));
         if (skill.catalog === undefined || !("package" in skill.catalog)) {
           assert.fail("package catalog provenance was not recorded");
         }
@@ -149,6 +147,7 @@ describe("remote catalog resolution", () => {
         assert.strictEqual(skill.catalog.skill, "package-skill");
         assert.match(skill.catalog.digest, /^sha256:/);
         assert.isFalse(yield* fs.exists(path.join(projectDir, ".dev-kit", "cache")));
-      }));
+      }),
+    );
   });
 });

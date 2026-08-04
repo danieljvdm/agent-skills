@@ -12,10 +12,14 @@ const writeManifest = Effect.fn("writePackageSyncManifest")(function* (
   const path = yield* Path.Path;
   yield* fs.writeFileString(
     path.join(projectDir, "dev-kit.jsonc"),
-    `${JSON.stringify({
-      include: ["@tanstack/ai#ai-core"],
-      targets: { agents: { enabled: true, mode } },
-    }, null, 2)}\n`,
+    `${JSON.stringify(
+      {
+        include: ["@tanstack/ai#ai-core"],
+        targets: { agents: { enabled: true, mode } },
+      },
+      null,
+      2,
+    )}\n`,
   );
   yield* fs.writeFileString(
     path.join(projectDir, "package.json"),
@@ -38,7 +42,11 @@ const installTanStackAiSkill = Effect.fn("installTestTanStackAiSkill")(function*
     `${JSON.stringify({
       name: "@tanstack/ai",
       version,
-      intent: { version: 1, repo: "https://github.com/TanStack/ai", docs: "https://tanstack.com/ai" },
+      intent: {
+        version: 1,
+        repo: "https://github.com/TanStack/ai",
+        docs: "https://tanstack.com/ai",
+      },
     })}\n`,
   );
   yield* fs.writeFileString(
@@ -65,9 +73,7 @@ describe("package-backed project sync", () => {
         assert.strictEqual(applied.exitCode, 0, applied.output);
         const installedSkill = path.join(projectDir, ".agents", "skills", "ai-core");
         assert.isTrue(yield* fs.exists(path.join(installedSkill, "SKILL.md")));
-        assert.isTrue(
-          yield* fs.exists(path.join(installedSkill, "chat-experience", "SKILL.md")),
-        );
+        assert.isTrue(yield* fs.exists(path.join(installedSkill, "chat-experience", "SKILL.md")));
 
         const lockPath = path.join(projectDir, "dev-kit.lock.json");
         const firstLock = JSON.parse(yield* fs.readFileString(lockPath));
@@ -111,13 +117,16 @@ describe("package-backed project sync", () => {
         ]);
         assert.notStrictEqual(changedContent.exitCode, 0);
         assert.match(changedContent.output, /manifest or packaged skills differ/);
-      }));
+      }),
+    );
 
     it.effect("fails without mutating outputs when a selected package is missing", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
-        const projectDir = yield* fs.makeTempDirectoryScoped({ prefix: "dev-kit-package-missing-" });
+        const projectDir = yield* fs.makeTempDirectoryScoped({
+          prefix: "dev-kit-package-missing-",
+        });
         yield* writeManifest(projectDir);
 
         const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
@@ -125,58 +134,64 @@ describe("package-backed project sync", () => {
         assert.match(result.output, /package skill package is not installed: @tanstack\/ai/);
         assert.isFalse(yield* fs.exists(path.join(projectDir, ".agents")));
         assert.isFalse(yield* fs.exists(path.join(projectDir, "dev-kit.lock.json")));
-      }));
+      }),
+    );
 
-    it.effect("keeps symlink locks stable across package-store relocation and detects content drift", () =>
-      Effect.gen(function* () {
-        const fs = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
-        const projectDir = yield* fs.makeTempDirectoryScoped({ prefix: "dev-kit-package-link-" });
-        yield* writeManifest(projectDir, "symlink");
-        yield* installTanStackAiSkill(projectDir, "1.2.3");
-        const packageLink = path.join(projectDir, "node_modules", "@tanstack", "ai");
-        const firstStore = path.join(projectDir, ".package-store", "first", "ai");
-        yield* fs.makeDirectory(path.dirname(firstStore), { recursive: true });
-        yield* fs.rename(packageLink, firstStore);
-        yield* fs.symlink(firstStore, packageLink);
+    it.effect(
+      "keeps symlink locks stable across package-store relocation and detects content drift",
+      () =>
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.FileSystem;
+          const path = yield* Path.Path;
+          const projectDir = yield* fs.makeTempDirectoryScoped({ prefix: "dev-kit-package-link-" });
+          yield* writeManifest(projectDir, "symlink");
+          yield* installTanStackAiSkill(projectDir, "1.2.3");
+          const packageLink = path.join(projectDir, "node_modules", "@tanstack", "ai");
+          const firstStore = path.join(projectDir, ".package-store", "first", "ai");
+          yield* fs.makeDirectory(path.dirname(firstStore), { recursive: true });
+          yield* fs.rename(packageLink, firstStore);
+          yield* fs.symlink(firstStore, packageLink);
 
-        const applied = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
-        assert.strictEqual(applied.exitCode, 0, applied.output);
-        const lock = JSON.parse(
-          yield* fs.readFileString(path.join(projectDir, "dev-kit.lock.json")),
-        );
-        assert.match(lock.outputs[0].catalog.digest, /^sha256:/);
-        assert.notStrictEqual(lock.outputs[0].catalog.digest, lock.outputs[0].digest);
+          const applied = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+          assert.strictEqual(applied.exitCode, 0, applied.output);
+          const lock = JSON.parse(
+            yield* fs.readFileString(path.join(projectDir, "dev-kit.lock.json")),
+          );
+          assert.match(lock.outputs[0].catalog.digest, /^sha256:/);
+          assert.notStrictEqual(lock.outputs[0].catalog.digest, lock.outputs[0].digest);
 
-        const secondStore = path.join(projectDir, ".package-store", "second", "ai");
-        yield* fs.makeDirectory(path.dirname(secondStore), { recursive: true });
-        yield* fs.remove(packageLink);
-        yield* fs.rename(firstStore, secondStore);
-        yield* fs.symlink(secondStore, packageLink);
-        const relocated = yield* runDevKit(projectDir, [
-          "apply",
-          "--locked",
-          "--project-dir",
-          projectDir,
-        ]);
-        assert.strictEqual(relocated.exitCode, 0, relocated.output);
+          const secondStore = path.join(projectDir, ".package-store", "second", "ai");
+          yield* fs.makeDirectory(path.dirname(secondStore), { recursive: true });
+          yield* fs.remove(packageLink);
+          yield* fs.rename(firstStore, secondStore);
+          yield* fs.symlink(secondStore, packageLink);
+          const relocated = yield* runDevKit(projectDir, [
+            "apply",
+            "--locked",
+            "--project-dir",
+            projectDir,
+          ]);
+          assert.strictEqual(relocated.exitCode, 0, relocated.output);
 
-        yield* installTanStackAiSkill(projectDir, "1.2.3", "Changed behind symlink.\n");
-        const changed = yield* runDevKit(projectDir, [
-          "apply",
-          "--locked",
-          "--project-dir",
-          projectDir,
-        ]);
-        assert.notStrictEqual(changed.exitCode, 0);
-        assert.match(changed.output, /manifest or packaged skills differ/);
-      }));
+          yield* installTanStackAiSkill(projectDir, "1.2.3", "Changed behind symlink.\n");
+          const changed = yield* runDevKit(projectDir, [
+            "apply",
+            "--locked",
+            "--project-dir",
+            projectDir,
+          ]);
+          assert.notStrictEqual(changed.exitCode, 0);
+          assert.match(changed.output, /manifest or packaged skills differ/);
+        }),
+    );
 
     it.effect("rejects selected package skills that collide at the output name", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
-        const projectDir = yield* fs.makeTempDirectoryScoped({ prefix: "dev-kit-package-collision-" });
+        const projectDir = yield* fs.makeTempDirectoryScoped({
+          prefix: "dev-kit-package-collision-",
+        });
         yield* fs.writeFileString(
           path.join(projectDir, "package.json"),
           '{"dependencies":{"one":"1","two":"1"}}\n',
@@ -193,7 +208,11 @@ describe("package-backed project sync", () => {
             JSON.stringify({
               name: packageName,
               version: "1.0.0",
-              intent: { version: 1, repo: `https://example.test/${packageName}`, docs: "https://example.test/docs" },
+              intent: {
+                version: 1,
+                repo: `https://example.test/${packageName}`,
+                docs: "https://example.test/docs",
+              },
             }),
           );
           yield* fs.writeFileString(
@@ -207,13 +226,16 @@ describe("package-backed project sync", () => {
         assert.match(result.output, /would both install as same: one#same, two#same/);
         assert.isFalse(yield* fs.exists(path.join(projectDir, ".agents")));
         assert.isFalse(yield* fs.exists(path.join(projectDir, "dev-kit.lock.json")));
-      }));
+      }),
+    );
 
     it.effect("keeps an explicitly selected valid skill when a package sibling is malformed", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
-        const projectDir = yield* fs.makeTempDirectoryScoped({ prefix: "dev-kit-package-sibling-" });
+        const projectDir = yield* fs.makeTempDirectoryScoped({
+          prefix: "dev-kit-package-sibling-",
+        });
         const packageRoot = path.join(projectDir, "node_modules", "package-skills");
         yield* fs.makeDirectory(path.join(packageRoot, "skills", "valid"), { recursive: true });
         yield* fs.makeDirectory(path.join(packageRoot, "skills", "broken"), { recursive: true });
@@ -240,7 +262,10 @@ describe("package-backed project sync", () => {
 
         const applied = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
         assert.strictEqual(applied.exitCode, 0, applied.output);
-        assert.isTrue(yield* fs.exists(path.join(projectDir, ".agents", "skills", "valid", "SKILL.md")));
-      }));
+        assert.isTrue(
+          yield* fs.exists(path.join(projectDir, ".agents", "skills", "valid", "SKILL.md")),
+        );
+      }),
+    );
   });
 });

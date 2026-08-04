@@ -119,18 +119,31 @@ const containsControlCharacter = (value: string): boolean => {
 
 const normalizeRepositoryLocator = (
   repository: string,
-): Effect.Effect<{
-  readonly repository: string;
-  readonly ref?: string;
-  readonly skillsPath?: string;
-}, InvalidSourceError> => {
+): Effect.Effect<
+  {
+    readonly repository: string;
+    readonly ref?: string;
+    readonly skillsPath?: string;
+  },
+  InvalidSourceError
+> => {
   if (containsControlCharacter(repository)) {
-    return Effect.fail(new InvalidSourceError({ source: repository, reason: "repository contains control characters" }));
+    return Effect.fail(
+      new InvalidSourceError({
+        source: repository,
+        reason: "repository contains control characters",
+      }),
+    );
   }
   try {
     const url = new URL(repository);
     if ((url.protocol === "http:" || url.protocol === "https:") && (url.username || url.password)) {
-      return Effect.fail(new InvalidSourceError({ source: repository, reason: "repository URLs must not contain credentials" }));
+      return Effect.fail(
+        new InvalidSourceError({
+          source: repository,
+          reason: "repository URLs must not contain credentials",
+        }),
+      );
     }
     if (url.hostname.toLowerCase() !== "github.com") return Effect.succeed({ repository });
     const segments = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
@@ -197,9 +210,7 @@ const readJsonc = Effect.fn("readVendorJsonc")(function* <A>(
   }
 
   return yield* Schema.decodeUnknownEffect(schema)(parsed).pipe(
-    Effect.mapError(
-      (cause) => new SourceManifestError({ path: filePath, message: cause.message }),
-    ),
+    Effect.mapError((cause) => new SourceManifestError({ path: filePath, message: cause.message })),
   );
 });
 
@@ -375,7 +386,8 @@ const prepareSource = Effect.fn("prepareSkillSource")(function* (
     });
   }
   if (
-    useLock && validateLockConfig &&
+    useLock &&
+    validateLockConfig &&
     (!lockedSource ||
       lockedSource.repository !== source.repository ||
       lockedSource.ref !== source.ref ||
@@ -404,14 +416,7 @@ const prepareSource = Effect.fn("prepareSkillSource")(function* (
       reason: "no matching lockfile entry; run catalog refresh without --locked first",
     });
   }
-  yield* runCommand(checkoutDir, "git", [
-    "fetch",
-    "--quiet",
-    "--depth",
-    "1",
-    "origin",
-    fetchRef,
-  ]);
+  yield* runCommand(checkoutDir, "git", ["fetch", "--quiet", "--depth", "1", "origin", fetchRef]);
   yield* runCommand(checkoutDir, "git", ["checkout", "--quiet", "--detach", "FETCH_HEAD"]);
   const resolved = yield* runCommand(checkoutDir, "git", ["rev-parse", "HEAD"]);
 
@@ -576,10 +581,7 @@ const validateOwnership = Effect.fn("validateSkillOwnership")(function* (
   }
 });
 
-const stripFrontmatterKeys = (
-  skillDocument: string,
-  keys: ReadonlyArray<string>,
-): string => {
+const stripFrontmatterKeys = (skillDocument: string, keys: ReadonlyArray<string>): string => {
   if (keys.length === 0) {
     return skillDocument;
   }
@@ -650,16 +652,20 @@ const buildLock = Effect.fn("buildSkillCatalogLock")(function* (
     for (const skill of skills) {
       const stagedSkill = path.join(stagedSkillsDir, skill);
       const document = yield* fs.readFileString(path.join(stagedSkill, "SKILL.md"));
-      descriptions[skill] = document
-        .match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1]
-        ?.split(/\r?\n/)
-        .find((line) => line.startsWith("description:"))
-        ?.slice("description:".length)
-        .trim()
-        .replace(/^(['"])(.*)\1$/, "$2") ?? "";
+      descriptions[skill] =
+        document
+          .match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1]
+          ?.split(/\r?\n/)
+          .find((line) => line.startsWith("description:"))
+          ?.slice("description:".length)
+          .trim()
+          .replace(/^(['"])(.*)\1$/, "$2") ?? "";
       const observation = yield* observePath(stagedSkill);
       if (observation.kind !== "directory") {
-        return yield* new InvalidSourceError({ source: source.id, reason: `could not digest ${skill}` });
+        return yield* new InvalidSourceError({
+          source: source.id,
+          reason: `could not digest ${skill}`,
+        });
       }
       digests[skill] = observation.digest;
     }
@@ -726,13 +732,14 @@ export const inspectCatalogRepository = Effect.fn("inspectCatalogRepository")(fu
     const document = yield* fs.readFileString(
       path.join(prepared.checkoutDir, source.skillsPath, name, "SKILL.md"),
     );
-    const description = document
-      .match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1]
-      ?.split(/\r?\n/)
-      .find((line) => line.startsWith("description:"))
-      ?.slice("description:".length)
-      .trim()
-      .replace(/^(['"])(.*)\1$/, "$2") ?? "";
+    const description =
+      document
+        .match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1]
+        ?.split(/\r?\n/)
+        .find((line) => line.startsWith("description:"))
+        ?.slice("description:".length)
+        .trim()
+        .replace(/^(['"])(.*)\1$/, "$2") ?? "";
     skills.push({ name, description });
   }
   let licensePath: string | undefined;
@@ -818,7 +825,9 @@ export const refreshSkillCatalog = Effect.fn("refreshSkillCatalog")(function* (
       manifest.sources,
       (source) => {
         const pinned = options.pinSourceIds?.includes(source.id) ?? false;
-        const useLock = (options.locked ?? false) || pinned ||
+        const useLock =
+          (options.locked ?? false) ||
+          pinned ||
           (options.updateSourceIds !== undefined && !options.updateSourceIds.includes(source.id));
         return prepareSource(
           tempDir,
@@ -843,7 +852,8 @@ export const refreshSkillCatalog = Effect.fn("refreshSkillCatalog")(function* (
     if (JSON.stringify(currentLock) !== JSON.stringify(nextLock)) {
       return yield* new SourceManifestError({
         path: lockfilePath,
-        message: "approved catalog metadata differs from the lock; run catalog refresh and review it",
+        message:
+          "approved catalog metadata differs from the lock; run catalog refresh and review it",
       });
     }
     yield* printStatus("success", "Catalog verified", summary);

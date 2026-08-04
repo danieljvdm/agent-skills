@@ -14,28 +14,31 @@ describe("shared Oxlint and Oxfmt configuration", () => {
         const oxlint = path.join(root, "node_modules", ".bin", "oxlint");
         const oxfmt = path.join(root, "node_modules", ".bin", "oxfmt");
         const vitePlus = path.join(root, "node_modules", ".bin", "vp");
+        const standaloneEnv = { VP_VERSION: "" };
 
-        const standaloneLint = yield* runCommand(fixture, oxlint, [
-          "--config",
-          "oxlint.config.mjs",
-          "valid.ts",
-        ]);
+        const standaloneLint = yield* runCommand(
+          fixture,
+          oxlint,
+          ["--config", "oxlint.config.mjs", "valid.ts"],
+          standaloneEnv,
+        );
         assert.strictEqual(standaloneLint.exitCode, 0, standaloneLint.output);
 
-        const effectLint = yield* runCommand(fixture, oxlint, [
-          "--config",
-          "oxlint.config.mjs",
-          "invalid.js",
-        ]);
+        const effectLint = yield* runCommand(
+          fixture,
+          oxlint,
+          ["--config", "oxlint.config.mjs", "invalid.js"],
+          standaloneEnv,
+        );
         assert.notStrictEqual(effectLint.exitCode, 0);
         assert.include(effectLint.output, "effect(no-effect-run)");
 
-        const standaloneFormat = yield* runCommand(fixture, oxfmt, [
-          "--config",
-          "oxfmt.config.mjs",
-          "valid.ts",
-          "--check",
-        ]);
+        const standaloneFormat = yield* runCommand(
+          fixture,
+          oxfmt,
+          ["--config", "oxfmt.config.mjs", "valid.ts", "--check"],
+          standaloneEnv,
+        );
         assert.strictEqual(standaloneFormat.exitCode, 0, standaloneFormat.output);
 
         const vitePlusLint = yield* runCommand(fixture, vitePlus, ["lint", "valid.ts"]);

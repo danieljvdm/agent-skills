@@ -55,9 +55,7 @@ class EffectSourceCommandError extends Schema.TaggedErrorClass<EffectSourceComma
 
 const PackageVersionSchema = Schema.fromJsonString(
   Schema.Struct({
-    version: Schema.String.check(
-      Schema.isPattern(/^[0-9A-Za-z][0-9A-Za-z.+-]*$/),
-    ),
+    version: Schema.String.check(Schema.isPattern(/^[0-9A-Za-z][0-9A-Za-z.+-]*$/)),
   }),
 );
 
@@ -86,8 +84,7 @@ const runCommand = Effect.fn("runEffectSourceCommand")(function* (
   return trimmed;
 });
 
-const runGit = (cwd: string, args: ReadonlyArray<string>) =>
-  runCommand(cwd, "git", args);
+const runGit = (cwd: string, args: ReadonlyArray<string>) => runCommand(cwd, "git", args);
 
 const readPackageVersion = Effect.fn("readEffectSourcePackageVersion")(function* (
   projectDir: string,
@@ -101,11 +98,13 @@ const readPackageVersion = Effect.fn("readEffectSourcePackageVersion")(function*
     ...packageName.split("/"),
     "package.json",
   );
-  const contents = yield* fs.readFileString(manifestPath).pipe(
-    Effect.catchReason("PlatformError", "NotFound", () =>
-      Effect.fail(new EffectSourceDependencyError({ packageName })),
-    ),
-  );
+  const contents = yield* fs
+    .readFileString(manifestPath)
+    .pipe(
+      Effect.catchReason("PlatformError", "NotFound", () =>
+        Effect.fail(new EffectSourceDependencyError({ packageName })),
+      ),
+    );
   return yield* Schema.decodeUnknownEffect(PackageVersionSchema)(contents).pipe(
     Effect.mapError(() => new EffectSourceDependencyError({ packageName })),
     Effect.map((manifest) => manifest.version),
@@ -163,10 +162,11 @@ const inspectExistingCheckout = Effect.fn("inspectExistingEffectSource")(functio
   if (!(yield* fs.exists(checkoutDir))) return "sync" as const;
 
   const actualRoot = yield* runGit(checkoutDir, ["rev-parse", "--show-toplevel"]).pipe(
-    Effect.mapError(() =>
-      new EffectSourceCheckoutError({
-        message: `Effect source destination exists but is not a Git checkout: ${checkoutDir}`,
-      }),
+    Effect.mapError(
+      () =>
+        new EffectSourceCheckoutError({
+          message: `Effect source destination exists but is not a Git checkout: ${checkoutDir}`,
+        }),
     ),
   );
   const expectedRoot = yield* fs.realPath(checkoutDir);
@@ -216,7 +216,9 @@ export const planEffectSource = Effect.fn("planEffectSource")(function* (
   }
   const repository = options.repository ?? DEFAULT_EFFECT_REPOSITORY;
   if (repository.length === 0) {
-    return yield* new EffectSourceCheckoutError({ message: "Effect source repository cannot be empty" });
+    return yield* new EffectSourceCheckoutError({
+      message: "Effect source repository cannot be empty",
+    });
   }
   const resolved = yield* resolveCheckoutPath(
     projectDir,
@@ -225,9 +227,10 @@ export const planEffectSource = Effect.fn("planEffectSource")(function* (
   const packageVersion = yield* readPackageVersion(projectDir, packageName);
   const tag = `effect@${packageVersion}`;
   const ci = yield* Config.string("CI").pipe(Config.withDefault(""));
-  const action = ci === "true" || ci === "1"
-    ? "skipped" as const
-    : yield* inspectExistingCheckout(resolved.checkoutDir, repository, tag);
+  const action =
+    ci === "true" || ci === "1"
+      ? ("skipped" as const)
+      : yield* inspectExistingCheckout(resolved.checkoutDir, repository, tag);
   return {
     action,
     checkoutDir: resolved.checkoutDir,

@@ -2,16 +2,26 @@
   "name": "@danieljvdm/dev-kit",
   "version": "0.6.0",
   "private": false,
-  "type": "module",
   "description": "Declarative project development toolkit with portable agent skills.",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/danieljvdm/dev-kit.git"
   },
-  "license": "MIT",
   "bin": {
     "dev-kit": "bin/dev-kit.mjs"
   },
+  "files": [
+    "dev-kit.example.jsonc",
+    "bin/",
+    "schema/",
+    "skills/",
+    "skill-sources.jsonc",
+    "skill-sources.lock.json",
+    "src/",
+    "templates/"
+  ],
+  "type": "module",
   "exports": {
     ".": {
       "types": "./src/index.ts",
@@ -33,29 +43,19 @@
       "default": "./src/oxlint-plugin-effect.js"
     }
   },
-  "files": [
-    "dev-kit.example.jsonc",
-    "bin/",
-    "schema/",
-    "skills/",
-    "skill-sources.jsonc",
-    "skill-sources.lock.json",
-    "src/",
-    "templates/"
-  ],
   "scripts": {
     "prepare": "./bin/dev-kit.mjs apply --locked",
     "dev-kit": "./bin/dev-kit.mjs",
     "changeset": "changeset",
     "version-packages": "changeset version && ./bin/dev-kit.mjs apply",
     "release": "changeset publish",
-    "check": "tsc --noEmit && vp lint",
+    "check": "vp check && tsc --noEmit",
     "lint": "vp lint",
     "plan": "./bin/dev-kit.mjs plan",
     "apply": "./bin/dev-kit.mjs apply",
     "gitignore": "./bin/dev-kit.mjs gitignore",
     "effect:sync": "./bin/dev-kit.mjs effect sync",
-    "test": "vitest run --config vitest.config.ts",
+    "test": "vp test",
     "test:watch": "vitest --config vitest.config.ts",
     "tsgo:patch": "./bin/dev-kit.mjs tsgo patch",
     "typecheck": "tsc --noEmit",

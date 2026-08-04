@@ -10,11 +10,7 @@ import {
   type ResolvedSkillSource,
 } from "./catalog.ts";
 import { printDetail, printStatus, withSpinner } from "./cli-ui.ts";
-import {
-  applyEffectSourcePlan,
-  planEffectSource,
-  type EffectSourcePlan,
-} from "./effect-source.ts";
+import { applyEffectSourcePlan, planEffectSource, type EffectSourcePlan } from "./effect-source.ts";
 import {
   applyEffectTsgoPatchPlan,
   planEffectTsgoPatch,
@@ -41,12 +37,14 @@ import {
   type ManagedSkillOutput,
   type OwnershipReceipt,
 } from "./project-state.ts";
-import {
-  acquireProjectProcessLock,
-  PROJECT_PROCESS_LOCK_PATH,
-} from "./project-process-lock.ts";
+import { acquireProjectProcessLock, PROJECT_PROCESS_LOCK_PATH } from "./project-process-lock.ts";
 import { observeSymbolicLink } from "./node-symbolic-link.ts";
 import { DEV_KIT_VERSION } from "./tool-metadata.ts";
+import {
+  applyVitePlusHooksPlan,
+  planVitePlusHooks,
+  type VitePlusHooksPlan,
+} from "./vite-plus-hooks.ts";
 
 export type SyncOptions = {
   readonly manifestPath?: string;
@@ -125,6 +123,7 @@ export type SkillPlan = {
   readonly actions: ReadonlyArray<SkillPlanAction>;
   readonly effectSource?: EffectSourcePlan;
   readonly effectTsgo?: EffectTsgoPatchPlan;
+  readonly vitePlusHooks?: VitePlusHooksPlan;
   readonly nextLock: DevKitLock;
   readonly nextState: AppliedState;
   readonly metadataChanged: boolean;
@@ -189,10 +188,9 @@ class LockedPlanMismatchError extends Schema.TaggedErrorClass<LockedPlanMismatch
   { message: Schema.String },
 ) {}
 
-class PlanConflictError extends Schema.TaggedErrorClass<PlanConflictError>()(
-  "PlanConflictError",
-  { conflicts: Schema.Array(Schema.String) },
-) {
+class PlanConflictError extends Schema.TaggedErrorClass<PlanConflictError>()("PlanConflictError", {
+  conflicts: Schema.Array(Schema.String),
+}) {
   override get message() {
     const heading = `plan has ${this.conflicts.length} conflict${this.conflicts.length === 1 ? "" : "s"}`;
     return `${heading}:\n${this.conflicts.map((conflict) => `  ${conflict}`).join("\n")}`;
@@ -317,12 +315,23 @@ const resolveManagedPath = Effect.fn("resolveManagedPath")(function* (
 ) {
   const path = yield* Path.Path;
   if (candidate.length === 0 || path.isAbsolute(candidate)) {
-    return yield* new UnsafeManagedPathError({ path: candidate, reason: "must be a non-empty project-relative path" });
+    return yield* new UnsafeManagedPathError({
+      path: candidate,
+      reason: "must be a non-empty project-relative path",
+    });
   }
   const absolute = path.resolve(projectDir, candidate);
   const relative = path.relative(projectDir, absolute);
-  if (relative.length === 0 || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
-    return yield* new UnsafeManagedPathError({ path: candidate, reason: "resolves outside the project" });
+  if (
+    relative.length === 0 ||
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
+    return yield* new UnsafeManagedPathError({
+      path: candidate,
+      reason: "resolves outside the project",
+    });
   }
 
   const segments = relative.split(path.sep);
@@ -395,10 +404,14 @@ const validateInventory = Effect.fn("validateManagedInventory")(function* (
   const sortedPaths: Array<string> = [];
   for (const output of outputs) {
     if (ids.has(output.resourceId)) {
-      return yield* new InvalidProjectStateError({ message: `${label} contains duplicate resource id ${output.resourceId}` });
+      return yield* new InvalidProjectStateError({
+        message: `${label} contains duplicate resource id ${output.resourceId}`,
+      });
     }
     if (paths.has(output.path)) {
-      return yield* new InvalidProjectStateError({ message: `${label} contains duplicate path ${output.path}` });
+      return yield* new InvalidProjectStateError({
+        message: `${label} contains duplicate path ${output.path}`,
+      });
     }
     ids.add(output.resourceId);
     paths.add(output.path);
@@ -410,7 +423,9 @@ const validateInventory = Effect.fn("validateManagedInventory")(function* (
     const current = sortedPaths[index];
     if (previous === undefined || current === undefined) continue;
     if (current.startsWith(`${previous}/`)) {
-      return yield* new InvalidProjectStateError({ message: `${label} contains overlapping paths ${previous} and ${current}` });
+      return yield* new InvalidProjectStateError({
+        message: `${label} contains overlapping paths ${previous} and ${current}`,
+      });
     }
   }
 });
@@ -457,21 +472,23 @@ const renderAgentInstructions = Effect.fn("renderAgentInstructions")(function* (
   }
 
   const devKitSkill = sourceBySkill.get("dev-kit");
-  const devKitSkillPath = devKitSkill === undefined
-    ? "node_modules/@danieljvdm/dev-kit/skills/dev-kit/SKILL.md"
-    : portablePath(
-        path,
-        path.relative(
-          projectDir,
-          path.join(devKitSkill.linkPath ?? devKitSkill.path, "SKILL.md"),
-        ),
-      );
+  const devKitSkillPath =
+    devKitSkill === undefined
+      ? "node_modules/@danieljvdm/dev-kit/skills/dev-kit/SKILL.md"
+      : portablePath(
+          path,
+          path.relative(
+            projectDir,
+            path.join(devKitSkill.linkPath ?? devKitSkill.path, "SKILL.md"),
+          ),
+        );
   const sections = [template.replaceAll(DEV_KIT_SKILL_PATH_PLACEHOLDER, devKitSkillPath).trimEnd()];
   if ((yield* readDirectDependencyNames(projectDir)).includes("vite-plus")) {
     const vitePlusTemplate = path.join(projectDir, "node_modules", "vite-plus", "AGENTS.md");
     if ((yield* observePath(vitePlusTemplate)).kind !== "file") {
       return yield* new InvalidProjectStateError({
-        message: "Vite+ is a direct dependency but its agent instructions are not a regular file: node_modules/vite-plus/AGENTS.md",
+        message:
+          "Vite+ is a direct dependency but its agent instructions are not a regular file: node_modules/vite-plus/AGENTS.md",
       });
     }
     sections.push((yield* fs.readFileString(vitePlusTemplate)).trim());
@@ -527,8 +544,8 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
     });
   }
   const agentsTarget = targets.agents;
-  const duplicateOutput = skills.find((skill, index) =>
-    skills.findIndex((candidate) => candidate.name === skill.name) !== index
+  const duplicateOutput = skills.find(
+    (skill, index) => skills.findIndex((candidate) => candidate.name === skill.name) !== index,
   );
   if (duplicateOutput !== undefined) {
     const selectors = skills
@@ -541,12 +558,16 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
   for (const skill of skills) {
     const resolvedSource = sourceBySkill.get(skill.selector);
     if (resolvedSource === undefined) {
-      return yield* new InvalidProjectStateError({ message: `skill source is unavailable: ${skill.selector}` });
+      return yield* new InvalidProjectStateError({
+        message: `skill source is unavailable: ${skill.selector}`,
+      });
     }
     const source = resolvedSource.path;
     const sourceObservation = yield* observePath(source);
     if (sourceObservation.kind !== "directory") {
-      return yield* new InvalidProjectStateError({ message: `skill source is not a directory: ${source}` });
+      return yield* new InvalidProjectStateError({
+        message: `skill source is not a directory: ${source}`,
+      });
     }
     for (const targetName of ["agents", "claude", "opencode"] as const) {
       const target = targets[targetName];
@@ -569,8 +590,9 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
       }
       const linkSource =
         targetName === "agents" || !agentsTarget.enabled
-          ? resolvedSource.linkPath ?? source
-          : (yield* resolveManagedPath(projectDir, path.join(agentsTarget.path, skill.name))).absolute;
+          ? (resolvedSource.linkPath ?? source)
+          : (yield* resolveManagedPath(projectDir, path.join(agentsTarget.path, skill.name)))
+              .absolute;
       const linkTarget = path.relative(path.dirname(managed.absolute), linkSource);
       const linkDigest = yield* digestSymlinkTarget(linkTarget);
       outputs.push({
@@ -606,7 +628,9 @@ const planDesiredOutputs = Effect.fn("planDesiredSkillOutputs")(function* (
   if (currentState) yield* validateInventory(projectDir, currentState.outputs, "applied state");
   yield* validateCrossInventoryPaths(projectDir, [...desired, ...(currentState?.outputs ?? [])]);
   const lockById = new Map(currentLock?.outputs.map((output) => [output.resourceId, output]) ?? []);
-  const receiptsById = new Map(currentState?.outputs.map((output) => [output.resourceId, output]) ?? []);
+  const receiptsById = new Map(
+    currentState?.outputs.map((output) => [output.resourceId, output]) ?? [],
+  );
   const desiredKeys = new Set(desired.map((output) => `${output.resourceId}\0${output.path}`));
   const actions: Array<SkillPlanAction> = [];
 
@@ -623,7 +647,11 @@ const planDesiredOutputs = Effect.fn("planDesiredSkillOutputs")(function* (
       if (sameReceipt || adoptable) {
         actions.push({ action: "unchanged", desired: output, observed, adopted: !sameReceipt });
       } else {
-        actions.push({ action: "conflict", path: output.path, reason: "destination exists but is not owned" });
+        actions.push({
+          action: "conflict",
+          path: output.path,
+          reason: "destination exists but is not owned",
+        });
       }
     } else if (
       sameReceipt &&
@@ -635,7 +663,9 @@ const planDesiredOutputs = Effect.fn("planDesiredSkillOutputs")(function* (
       actions.push({
         action: "conflict",
         path: output.path,
-        reason: sameReceipt ? "owned destination was modified" : "destination exists but is not owned",
+        reason: sameReceipt
+          ? "owned destination was modified"
+          : "destination exists but is not owned",
       });
     }
   }
@@ -646,9 +676,18 @@ const planDesiredOutputs = Effect.fn("planDesiredSkillOutputs")(function* (
     const observed = yield* observePath(managed.absolute);
     if (observed.kind === "missing") continue;
     if (observed.kind === receipt.kind && observed.digest === receipt.digest) {
-      actions.push({ action: "remove", previous: receipt, destination: managed.absolute, observed });
+      actions.push({
+        action: "remove",
+        previous: receipt,
+        destination: managed.absolute,
+        observed,
+      });
     } else {
-      actions.push({ action: "conflict", path: receipt.path, reason: "stale owned destination was modified" });
+      actions.push({
+        action: "conflict",
+        path: receipt.path,
+        reason: "stale owned destination was modified",
+      });
     }
   }
 
@@ -663,11 +702,24 @@ const planDesiredOutputs = Effect.fn("planDesiredSkillOutputs")(function* (
       digest,
     })),
   };
-  return { actions: actions.sort((left, right) => {
-    const leftPath = left.action === "remove" ? left.previous.path : left.action === "conflict" ? left.path : left.desired.path;
-    const rightPath = right.action === "remove" ? right.previous.path : right.action === "conflict" ? right.path : right.desired.path;
-    return leftPath.localeCompare(rightPath);
-  }), nextState };
+  return {
+    actions: actions.sort((left, right) => {
+      const leftPath =
+        left.action === "remove"
+          ? left.previous.path
+          : left.action === "conflict"
+            ? left.path
+            : left.desired.path;
+      const rightPath =
+        right.action === "remove"
+          ? right.previous.path
+          : right.action === "conflict"
+            ? right.path
+            : right.desired.path;
+      return leftPath.localeCompare(rightPath);
+    }),
+    nextState,
+  };
 });
 
 const lockedPlanMatches = (current: DevKitLock, next: DevKitLock): boolean =>
@@ -692,8 +744,14 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
     ),
   );
   const projectDir = yield* fs.realPath(discoveredRoot);
-  const manifestManaged = yield* resolveManagedPath(projectDir, options.manifestPath ?? DEFAULT_MANIFEST);
-  const lockManaged = yield* resolveManagedPath(projectDir, options.lockfilePath ?? DEFAULT_LOCKFILE);
+  const manifestManaged = yield* resolveManagedPath(
+    projectDir,
+    options.manifestPath ?? DEFAULT_MANIFEST,
+  );
+  const lockManaged = yield* resolveManagedPath(
+    projectDir,
+    options.lockfilePath ?? DEFAULT_LOCKFILE,
+  );
   const stateManaged = yield* resolveManagedPath(projectDir, options.statePath ?? DEFAULT_STATE);
   const processLockManaged = yield* resolveManagedPath(projectDir, PROJECT_PROCESS_LOCK_PATH);
   const packageRoot = yield* resolvePackageRoot();
@@ -713,19 +771,33 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
         typescriptPackage: manifest.setup.effectTsgo.typescriptPackage,
       })
     : undefined;
+  const vitePlusHooks = manifest.setup.vitePlus.hooks.enabled
+    ? yield* planVitePlusHooks(projectDir)
+    : undefined;
   const catalog = yield* loadSkillCatalog(packageRoot, projectDir);
   const availableSkills = catalog.skills.map((skill) => skill.selector);
   const skillFamilies = { ...SKILL_FAMILIES, ...catalog.families };
   for (const [family, familySkills] of Object.entries(skillFamilies)) {
     if (availableSkills.includes(family)) {
-      return yield* new InvalidSkillCatalogError({ family, message: `family name conflicts with a skill name: ${family}` });
+      return yield* new InvalidSkillCatalogError({
+        family,
+        message: `family name conflicts with a skill name: ${family}`,
+      });
     }
     const missing = familySkills.filter((skill) => !availableSkills.includes(skill));
     if (missing.length > 0) {
-      return yield* new InvalidSkillCatalogError({ family, message: `family references missing skills: ${missing.join(", ")}` });
+      return yield* new InvalidSkillCatalogError({
+        family,
+        message: `family references missing skills: ${missing.join(", ")}`,
+      });
     }
   }
-  const selectedSelectors = yield* expandSelection(manifest.include, manifest.exclude, availableSkills, skillFamilies);
+  const selectedSelectors = yield* expandSelection(
+    manifest.include,
+    manifest.exclude,
+    availableSkills,
+    skillFamilies,
+  );
   const catalogBySelector = new Map(catalog.skills.map((skill) => [skill.selector, skill]));
   const sourceBySkill = yield* withSpinner(
     "Resolving selected skills",
@@ -829,31 +901,36 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
   if (
     manifest.setup.claudeInstructions.enabled &&
     !manifest.setup.agentInstructions.enabled &&
-    currentState?.outputs.some(
-      (output) => output.resourceId === "setup:agent-instructions",
-    )
+    currentState?.outputs.some((output) => output.resourceId === "setup:agent-instructions")
   ) {
     return yield* new InvalidProjectStateError({
-      message: "cannot disable agentInstructions while claudeInstructions still links to its AGENTS.md wrapper",
+      message:
+        "cannot disable agentInstructions while claudeInstructions still links to its AGENTS.md wrapper",
     });
   }
-  yield* validateReservedPaths(
-    projectDir,
-    reservedPaths,
-    [
-      ...(currentLock?.outputs ?? []),
-      ...(currentState?.outputs ?? []),
-    ],
-  );
+  yield* validateReservedPaths(projectDir, reservedPaths, [
+    ...(currentLock?.outputs ?? []),
+    ...(currentState?.outputs ?? []),
+  ]);
   if (options.locked) {
     if (!currentLock) {
-      return yield* new LockedPlanMismatchError({ message: "dev-kit.lock.json is required with --locked" });
+      return yield* new LockedPlanMismatchError({
+        message: "dev-kit.lock.json is required with --locked",
+      });
     }
     if (!lockedPlanMatches(currentLock, nextLock)) {
-      return yield* new LockedPlanMismatchError({ message: "manifest or packaged skills differ from dev-kit.lock.json" });
+      return yield* new LockedPlanMismatchError({
+        message: "manifest or packaged skills differ from dev-kit.lock.json",
+      });
     }
   }
-  const planned = yield* planDesiredOutputs(projectDir, desired, currentLock, currentState, nextLock);
+  const planned = yield* planDesiredOutputs(
+    projectDir,
+    desired,
+    currentLock,
+    currentState,
+    nextLock,
+  );
   return {
     projectDir,
     lockfilePath: lockManaged.absolute,
@@ -861,6 +938,7 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
     actions: planned.actions,
     ...(effectSource === undefined ? {} : { effectSource }),
     ...(effectTsgo === undefined ? {} : { effectTsgo }),
+    ...(vitePlusHooks === undefined ? {} : { vitePlusHooks }),
     nextLock,
     nextState: planned.nextState,
     metadataChanged:
@@ -871,20 +949,20 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
 
 const formatAction = (action: SkillPlanAction): string => {
   if (action.action === "conflict") return `! ${action.path}: ${action.reason}`;
-  if (action.action === "remove") return `− ${action.previous.resourceId} → ${action.previous.path}`;
+  if (action.action === "remove")
+    return `− ${action.previous.resourceId} → ${action.previous.path}`;
   const verb = action.desired.mode === "copy" ? "copy" : "link";
   const adoption = action.action === "unchanged" && action.adopted ? " (adopt)" : "";
   const marker = action.action === "create" ? "+" : action.action === "update" ? "~" : "=";
-  const source = "skill" in action.desired
-    ? action.desired.skill
-    : action.desired.sourcePath;
+  const source = "skill" in action.desired ? action.desired.skill : action.desired.sourcePath;
   return `${marker} ${verb} ${source} → ${action.desired.path}${adoption}`;
 };
 
 const operationalChangeCount = (plan: SkillPlan): number =>
   plan.actions.filter((action) => action.action !== "unchanged").length +
   (plan.effectSource?.action === "sync" ? 1 : 0) +
-  (plan.effectTsgo !== undefined && !plan.effectTsgo.alreadyPatched ? 1 : 0);
+  (plan.effectTsgo !== undefined && !plan.effectTsgo.alreadyPatched ? 1 : 0) +
+  (plan.vitePlusHooks?.action === "configure" ? 1 : 0);
 
 const plannedChangeCount = (plan: SkillPlan): number => {
   const operational = operationalChangeCount(plan);
@@ -902,14 +980,15 @@ export const printSkillPlan = Effect.fn("printSkillPlan")(function* (plan: Skill
     if (action.action !== "unchanged") yield* printDetail(formatAction(action));
   }
   if (plan.effectSource?.action === "sync") {
-    yield* printDetail(
-      `+ Effect source ${plan.effectSource.tag} → ${plan.effectSource.path}`,
-    );
+    yield* printDetail(`+ Effect source ${plan.effectSource.tag} → ${plan.effectSource.path}`);
   }
   if (plan.effectTsgo !== undefined && !plan.effectTsgo.alreadyPatched) {
     yield* printDetail(
       `+ TypeScript patch @effect/tsgo@${plan.effectTsgo.effectTsgoVersion} → ${plan.effectTsgo.typescriptPackage}@${plan.effectTsgo.typescriptVersion}`,
     );
+  }
+  if (plan.vitePlusHooks?.action === "configure") {
+    yield* printDetail(`+ Vite+ hooks → ${plan.vitePlusHooks.hooksPath}`);
   }
   if (operationalChangeCount(plan) === 0 && plan.metadataChanged) {
     yield* printDetail("+ Dev kit metadata");
@@ -920,9 +999,7 @@ const observationsEqual = (left: ObservedPath, right: ObservedPath): boolean =>
   left.kind === right.kind &&
   (left.kind === "missing" || (right.kind !== "missing" && left.digest === right.digest));
 
-const findNestedSymbolicLink = Effect.fn("findNestedSkillSymbolicLink")(function* (
-  root: string,
-) {
+const findNestedSymbolicLink = Effect.fn("findNestedSkillSymbolicLink")(function* (root: string) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const pending = [root];
@@ -953,8 +1030,12 @@ const verifyPackageSkillSources = Effect.fn("verifyPackageSkillSources")(functio
     if (verified.has(key)) continue;
     const resolved = yield* resolvePackageSkillSelector(plan.projectDir, selector);
     const observation = yield* observePath(resolved.path);
-    if (resolved.path !== action.desired.source || resolved.version !== catalog.version ||
-      observation.kind !== "directory" || observation.digest !== catalog.digest) {
+    if (
+      resolved.path !== action.desired.source ||
+      resolved.version !== catalog.version ||
+      observation.kind !== "directory" ||
+      observation.digest !== catalog.digest
+    ) {
       return yield* new ApplyRaceError({ path: action.desired.source });
     }
     verified.add(key);
@@ -965,7 +1046,9 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
   const conflicts = plan.actions.filter((action) => action.action === "conflict");
   if (conflicts.length > 0) {
     return yield* new PlanConflictError({
-      conflicts: conflicts.map((action) => action.action === "conflict" ? `${action.path}: ${action.reason}` : ""),
+      conflicts: conflicts.map((action) =>
+        action.action === "conflict" ? `${action.path}: ${action.reason}` : "",
+      ),
     });
   }
 
@@ -976,9 +1059,12 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
       action.action === "create" || action.action === "update" || action.action === "remove",
   );
   for (const action of mutating) {
-    const destination = action.action === "remove" ? action.destination : action.desired.destination;
+    const destination =
+      action.action === "remove" ? action.destination : action.desired.destination;
     if (!observationsEqual(yield* observePath(destination), action.observed)) {
-      return yield* new ApplyRaceError({ path: action.action === "remove" ? action.previous.path : action.desired.path });
+      return yield* new ApplyRaceError({
+        path: action.action === "remove" ? action.previous.path : action.desired.path,
+      });
     }
   }
 
@@ -986,7 +1072,10 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
     return;
   }
 
-  const tempDir = yield* fs.makeTempDirectoryScoped({ directory: plan.projectDir, prefix: ".dev-kit-apply-" });
+  const tempDir = yield* fs.makeTempDirectoryScoped({
+    directory: plan.projectDir,
+    prefix: ".dev-kit-apply-",
+  });
   const stageDir = path.join(tempDir, "stage");
   const backupDir = path.join(tempDir, "backup");
   const stagedByResource = new Map<string, string>();
@@ -1012,7 +1101,9 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
     }
     const observation = yield* observePath(staged);
     if (observation.kind !== action.desired.kind || observation.digest !== action.desired.digest) {
-      return yield* new InvalidProjectStateError({ message: `staged output digest mismatch for ${action.desired.path}` });
+      return yield* new InvalidProjectStateError({
+        message: `staged output digest mismatch for ${action.desired.path}`,
+      });
     }
     stagedByResource.set(action.desired.resourceId, staged);
   }
@@ -1034,9 +1125,8 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
   const replacements: Array<Replacement> = [];
   let replacementIndex = 0;
   for (const action of mutating) {
-    const staged = action.action === "remove"
-      ? undefined
-      : stagedByResource.get(action.desired.resourceId);
+    const staged =
+      action.action === "remove" ? undefined : stagedByResource.get(action.desired.resourceId);
     if (action.action !== "remove" && staged === undefined) {
       return yield* new InvalidProjectStateError({
         message: `missing staged output for ${action.desired.resourceId}`,
@@ -1099,25 +1189,31 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
     }
   });
 
-  yield* Effect.uninterruptible(apply.pipe(
-    Effect.catchCause((applyCause) =>
-      rollback.pipe(
-        Effect.catchCause((rollbackCause) =>
-          Effect.failCause(Cause.combine(applyCause, rollbackCause)),
+  yield* Effect.uninterruptible(
+    apply.pipe(
+      Effect.catchCause((applyCause) =>
+        rollback.pipe(
+          Effect.catchCause((rollbackCause) =>
+            Effect.failCause(Cause.combine(applyCause, rollbackCause)),
+          ),
+          Effect.andThen(Effect.failCause(applyCause)),
         ),
-        Effect.andThen(Effect.failCause(applyCause)),
       ),
     ),
-  ));
+  );
 });
 
-export const runProjectSkillPlan = Effect.fn("runProjectSkillPlan")(function* (options: SyncOptions) {
+export const runProjectSkillPlan = Effect.fn("runProjectSkillPlan")(function* (
+  options: SyncOptions,
+) {
   const plan = yield* planProjectSkills(options);
   if (options.dryRun) yield* printSkillPlan(plan);
   const conflicts = plan.actions.filter((action) => action.action === "conflict");
   if (conflicts.length > 0) {
     return yield* new PlanConflictError({
-      conflicts: conflicts.map((action) => action.action === "conflict" ? `${action.path}: ${action.reason}` : ""),
+      conflicts: conflicts.map((action) =>
+        action.action === "conflict" ? `${action.path}: ${action.reason}` : "",
+      ),
     });
   }
   if (options.dryRun) return;
@@ -1128,6 +1224,7 @@ export const runProjectSkillPlan = Effect.fn("runProjectSkillPlan")(function* (o
     actions: plan.actions,
     effectSource: plan.effectSource,
     effectTsgo: plan.effectTsgo,
+    vitePlusHooks: plan.vitePlusHooks,
     nextLock: plan.nextLock,
     nextState: plan.nextState,
   });
@@ -1135,6 +1232,7 @@ export const runProjectSkillPlan = Effect.fn("runProjectSkillPlan")(function* (o
     actions: replanned.actions,
     effectSource: replanned.effectSource,
     effectTsgo: replanned.effectTsgo,
+    vitePlusHooks: replanned.vitePlusHooks,
     nextLock: replanned.nextLock,
     nextState: replanned.nextState,
   });
@@ -1150,6 +1248,9 @@ export const runProjectSkillPlan = Effect.fn("runProjectSkillPlan")(function* (o
       }
       if (replanned.effectTsgo !== undefined) {
         yield* applyEffectTsgoPatchPlan(replanned.effectTsgo);
+      }
+      if (replanned.vitePlusHooks !== undefined) {
+        yield* applyVitePlusHooksPlan(replanned.vitePlusHooks);
       }
       yield* applyPlannedSkillChanges(replanned);
     }),

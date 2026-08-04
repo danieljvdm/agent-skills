@@ -9,10 +9,9 @@ import { observeSymbolicLink } from "./node-symbolic-link.ts";
 import { runProjectSkillPlan } from "./sync.ts";
 import { patchProjectGitignore } from "./gitignore.ts";
 
-class SkillManagerError extends Schema.TaggedErrorClass<SkillManagerError>()(
-  "SkillManagerError",
-  { message: Schema.String },
-) {}
+class SkillManagerError extends Schema.TaggedErrorClass<SkillManagerError>()("SkillManagerError", {
+  message: Schema.String,
+}) {}
 
 type ManagerOptions = {
   readonly projectDir?: string;
@@ -25,9 +24,7 @@ const packageRoot = Effect.fn("skillManagerPackageRoot")(function* () {
   return path.resolve(path.dirname(yield* path.fromFileUrl(new URL(import.meta.url))), "..");
 });
 
-const resolvePaths = Effect.fn("resolveSkillManagerPaths")(function* (
-  options: ManagerOptions,
-) {
+const resolvePaths = Effect.fn("resolveSkillManagerPaths")(function* (options: ManagerOptions) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const projectDir = path.resolve(options.projectDir ?? ".");
@@ -39,11 +36,7 @@ const resolvePaths = Effect.fn("resolveSkillManagerPaths")(function* (
   }
   const manifestPath = path.resolve(projectDir, candidate);
   const relative = path.relative(projectDir, manifestPath);
-  if (
-    relative === ".." ||
-    relative.startsWith(`..${path.sep}`) ||
-    path.isAbsolute(relative)
-  ) {
+  if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
     return yield* new SkillManagerError({
       message: "--manifest must resolve inside the project",
     });
@@ -73,24 +66,35 @@ const resolvePaths = Effect.fn("resolveSkillManagerPaths")(function* (
 const renderDefaultManifest = (projectDir: string, manifestPath: string, path: Path.Path) => {
   const rawSchemaPath = path.relative(
     path.dirname(manifestPath),
-    path.join(projectDir, "node_modules", "@danieljvdm", "dev-kit", "schema", "dev-kit.schema.json"),
+    path.join(
+      projectDir,
+      "node_modules",
+      "@danieljvdm",
+      "dev-kit",
+      "schema",
+      "dev-kit.schema.json",
+    ),
   );
-  const portableSchemaPath = path.sep === "/"
-    ? rawSchemaPath
-    : rawSchemaPath.split(path.sep).join("/");
+  const portableSchemaPath =
+    path.sep === "/" ? rawSchemaPath : rawSchemaPath.split(path.sep).join("/");
   const schemaPath = portableSchemaPath.startsWith(".")
     ? portableSchemaPath
     : `./${portableSchemaPath}`;
-  return `${JSON.stringify({
-    $schema: schemaPath,
-    include: [],
-    targets: { agents: { enabled: true, mode: "copy" } },
-  }, null, 2)}\n`;
+  return `${JSON.stringify(
+    {
+      $schema: schemaPath,
+      include: [],
+      targets: { agents: { enabled: true, mode: "copy" } },
+    },
+    null,
+    2,
+  )}\n`;
 };
 
-const createDefaultManifest = Effect.fn("createDefaultSkillManifest")(function* (
-  paths: { readonly projectDir: string; readonly manifestPath: string },
-) {
+const createDefaultManifest = Effect.fn("createDefaultSkillManifest")(function* (paths: {
+  readonly projectDir: string;
+  readonly manifestPath: string;
+}) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   yield* fs.makeDirectory(path.dirname(paths.manifestPath), { recursive: true });
@@ -141,7 +145,9 @@ const writeArray = Effect.fn("writeManifestArray")(function* (
   const fs = yield* FileSystem.FileSystem;
   const parsed = parseJsonc(raw) as Record<string, unknown>;
   const current = Array.isArray(parsed[property])
-    ? (parsed[property] as Array<unknown>).filter((value): value is string => typeof value === "string")
+    ? (parsed[property] as Array<unknown>).filter(
+        (value): value is string => typeof value === "string",
+      )
     : undefined;
   if (current === undefined) {
     if (values.length === 0) return;
@@ -156,18 +162,24 @@ const writeArray = Effect.fn("writeManifestArray")(function* (
   for (let index = current.length - 1; index >= 0; index -= 1) {
     const currentValue = current[index];
     if (currentValue !== undefined && !values.includes(currentValue)) {
-      next = applyEdits(next, modify(next, [property, index], undefined, {
-        formattingOptions: { insertSpaces: true, tabSize: 2 },
-      }));
+      next = applyEdits(
+        next,
+        modify(next, [property, index], undefined, {
+          formattingOptions: { insertSpaces: true, tabSize: 2 },
+        }),
+      );
       retained.splice(index, 1);
     }
   }
   for (const value of values) {
     if (retained.includes(value)) continue;
-    next = applyEdits(next, modify(next, [property, retained.length], value, {
-      formattingOptions: { insertSpaces: true, tabSize: 2 },
-      isArrayInsertion: true,
-    }));
+    next = applyEdits(
+      next,
+      modify(next, [property, retained.length], value, {
+        formattingOptions: { insertSpaces: true, tabSize: 2 },
+        isArrayInsertion: true,
+      }),
+    );
     retained.push(value);
   }
   if (next !== raw) yield* fs.writeFileString(manifestPath, next);
@@ -189,10 +201,14 @@ const selectedNames = (
 };
 
 const displayValue = (value: string): string =>
-  [...value].map((character) => {
-    const code = character.charCodeAt(0);
-    return code <= 31 || (code >= 127 && code <= 159) ? " " : character;
-  }).join("").replace(/\s+/g, " ").trim();
+  [...value]
+    .map((character) => {
+      const code = character.charCodeAt(0);
+      return code <= 31 || (code >= 127 && code <= 159) ? " " : character;
+    })
+    .join("")
+    .replace(/\s+/g, " ")
+    .trim();
 
 const summary = (description: string, defaultDescription: string): string => {
   const text = displayValue(description || defaultDescription);
@@ -226,7 +242,10 @@ export const addSkills = Effect.fn("addManagedSkills")(function* (
 ) {
   const current = yield* readManifest(options, true);
   const catalog = yield* loadSkillCatalog(yield* packageRoot(), current.projectDir);
-  const known = new Set([...catalog.skills.map((skill) => skill.selector), ...Object.keys(catalog.families)]);
+  const known = new Set([
+    ...catalog.skills.map((skill) => skill.selector),
+    ...Object.keys(catalog.families),
+  ]);
   const unknown = names.filter((name) => !known.has(name));
   if (unknown.length > 0) {
     return yield* new SkillManagerError({
@@ -268,7 +287,9 @@ export const removeSkills = Effect.fn("removeManagedSkills")(function* (
     current.manifest.exclude ?? [],
     catalog.families,
   );
-  const absent = names.filter((name) => !before.has(name) && !current.manifest.include.includes(name));
+  const absent = names.filter(
+    (name) => !before.has(name) && !current.manifest.include.includes(name),
+  );
   if (absent.length > 0) {
     return yield* new SkillManagerError({ message: `not selected: ${absent.join(", ")}` });
   }
@@ -300,13 +321,16 @@ export const listSkills = Effect.fn("listManagedSkills")(function* (
     : { include: [], exclude: [] };
   const selected = selectedNames(manifest.include, manifest.exclude ?? [], catalog.families);
   const query = options.query?.toLowerCase();
-  const visible = catalog.skills.filter((skill) =>
-    (options.all || selected.has(skill.selector)) &&
-    (!query || `${skill.selector} ${skill.description} ${skill.source}`.toLowerCase().includes(query)),
+  const visible = catalog.skills.filter(
+    (skill) =>
+      (options.all || selected.has(skill.selector)) &&
+      (!query ||
+        `${skill.selector} ${skill.description} ${skill.source}`.toLowerCase().includes(query)),
   );
   const catalogSelectors = new Set(catalog.skills.map((skill) => skill.selector));
-  const unavailable = [...selected].filter((selector) =>
-    !catalogSelectors.has(selector) && (!query || selector.toLowerCase().includes(query))
+  const unavailable = [...selected].filter(
+    (selector) =>
+      !catalogSelectors.has(selector) && (!query || selector.toLowerCase().includes(query)),
   );
   if (visible.length === 0 && unavailable.length === 0) {
     yield* printStatus("info", query ? "No matching skills" : "No skills selected");
@@ -318,11 +342,17 @@ export const listSkills = Effect.fn("listManagedSkills")(function* (
     const origin = skill.bundled ? "built in" : skill.source;
     const provenance = skill.package
       ? ` [installed ${displayValue(skill.package.version)}]`
-      : skill.bundled ? "" : ` [${skill.source}]`;
-    yield* printLine(`${marker} ${skill.selector}${provenance}  ${summary(skill.description, origin)}`);
+      : skill.bundled
+        ? ""
+        : ` [${skill.source}]`;
+    yield* printLine(
+      `${marker} ${skill.selector}${provenance}  ${summary(skill.description, origin)}`,
+    );
   }
   for (const selector of unavailable) {
-    yield* printLine(`! ${selector} [unavailable]  install or repair the selected direct dependency`);
+    yield* printLine(
+      `! ${selector} [unavailable]  install or repair the selected direct dependency`,
+    );
   }
   yield* printLine();
   yield* printLine(`${selected.size} selected · ${catalog.skills.length} available`);
@@ -369,7 +399,9 @@ export const chooseSkillsToAdd = Effect.fn("chooseSkillsToAdd")(function* (
   options: ManagerOptions,
 ) {
   if (!(yield* isInteractiveTerminal)) {
-    return yield* new SkillManagerError({ message: "pass one or more skill names, or run this command in a terminal" });
+    return yield* new SkillManagerError({
+      message: "pass one or more skill names, or run this command in a terminal",
+    });
   }
   const current = yield* readManifest(options, true);
   const catalog = yield* loadSkillCatalog(yield* packageRoot(), current.projectDir);
@@ -399,7 +431,9 @@ export const chooseSkillsToRemove = Effect.fn("chooseSkillsToRemove")(function* 
   options: ManagerOptions,
 ) {
   if (!(yield* isInteractiveTerminal)) {
-    return yield* new SkillManagerError({ message: "pass one or more skill names, or run this command in a terminal" });
+    return yield* new SkillManagerError({
+      message: "pass one or more skill names, or run this command in a terminal",
+    });
   }
   const current = yield* readManifest(options);
   const catalog = yield* loadSkillCatalog(yield* packageRoot(), current.projectDir);
@@ -415,11 +449,13 @@ export const chooseSkillsToRemove = Effect.fn("chooseSkillsToRemove")(function* 
   const names = yield* Prompt.multiSelect({
     message: "Choose skills to remove",
     choices: [
-      ...catalog.skills.filter((skill) => selected.has(skill.selector)).map((skill) => ({
-        title: skill.selector,
-        value: skill.selector,
-        description: summary(skill.description, skill.source),
-      })),
+      ...catalog.skills
+        .filter((skill) => selected.has(skill.selector))
+        .map((skill) => ({
+          title: skill.selector,
+          value: skill.selector,
+          description: summary(skill.description, skill.source),
+        })),
       ...[...selected]
         .filter((selector) => !catalog.skills.some((skill) => skill.selector === selector))
         .map((selector) => ({

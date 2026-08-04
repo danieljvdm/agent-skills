@@ -10,11 +10,7 @@ import {
   type SkillSourcesLock,
   type SkillSourcesManifest,
 } from "./source-manifest.ts";
-import {
-  inspectCatalogRepository,
-  refreshSkillCatalog,
-  type CatalogInspection,
-} from "./vendor.ts";
+import { inspectCatalogRepository, refreshSkillCatalog, type CatalogInspection } from "./vendor.ts";
 
 type CatalogPaths = {
   readonly repoDir: string;
@@ -79,9 +75,7 @@ const readJsonc = Effect.fn("readCatalogManagerJsonc")(function* <A>(
   return { raw, value };
 });
 
-const readState = Effect.fn("readCatalogManagerState")(function* (
-  options: CatalogCommandOptions,
-) {
+const readState = Effect.fn("readCatalogManagerState")(function* (options: CatalogCommandOptions) {
   const fs = yield* FileSystem.FileSystem;
   const paths = yield* resolvePaths(options);
   const sources = yield* readJsonc(paths.sourcesPath, SkillSourcesManifestSchema);
@@ -112,7 +106,8 @@ const selectSkills = Effect.fn("selectCatalogSkills")(function* (
     const selected = inspection.skills.map((skill) => skill.name);
     return { include: selected, selected };
   }
-  if (requested.length > 0) return { include: [...new Set(requested)], selected: [...new Set(requested)] };
+  if (requested.length > 0)
+    return { include: [...new Set(requested)], selected: [...new Set(requested)] };
   if (!(yield* isInteractiveTerminal)) {
     return yield* new CatalogManagerError({
       message: "choose skills with --skill <name>, or pass --all",
@@ -195,11 +190,7 @@ export const addCatalogSource = Effect.fn("addCatalogSource")(function* (
     ...(options.ref ? { ref: options.ref } : {}),
     ...(options.skillsPath ? { skillsPath: options.skillsPath } : {}),
   });
-  const selection = yield* selectSkills(
-    inspection,
-    options.skills ?? [],
-    options.all ?? false,
-  );
+  const selection = yield* selectSkills(inspection, options.skills ?? [], options.all ?? false);
   const sources = state.sources.value.sources;
   const byId = sources.findIndex((source) => source.id === inspection.id);
   const byRepository = sources.findIndex((source) => source.repository === inspection.repository);
@@ -220,16 +211,26 @@ export const addCatalogSource = Effect.fn("addCatalogSource")(function* (
     if (existing === undefined) {
       return yield* new CatalogManagerError({ message: "catalog source index is out of bounds" });
     }
-    const approved = state.lock?.value.sources.find((source) => source.id === existing.id)?.skills ?? [];
+    const approved =
+      state.lock?.value.sources.find((source) => source.id === existing.id)?.skills ?? [];
     const currentInclude = existing.include.includes("*") ? approved : existing.include;
     const include = [...new Set([...currentInclude, ...selection.include])].sort();
     const exclude = (existing.exclude ?? []).filter((skill) => !selection.selected.includes(skill));
-    next = applyEdits(next, modify(next, ["sources", existingIndex, "include"], include, { formattingOptions }));
+    next = applyEdits(
+      next,
+      modify(next, ["sources", existingIndex, "include"], include, { formattingOptions }),
+    );
     if (exclude.length > 0 || existing.exclude !== undefined) {
-      next = applyEdits(next, modify(next, ["sources", existingIndex, "exclude"], exclude, { formattingOptions }));
+      next = applyEdits(
+        next,
+        modify(next, ["sources", existingIndex, "exclude"], exclude, { formattingOptions }),
+      );
     }
     if (existing.ref === "HEAD" && inspection.ref !== "HEAD") {
-      next = applyEdits(next, modify(next, ["sources", existingIndex, "ref"], inspection.ref, { formattingOptions }));
+      next = applyEdits(
+        next,
+        modify(next, ["sources", existingIndex, "ref"], inspection.ref, { formattingOptions }),
+      );
     }
   } else {
     const source: ExternalSkillSource = {
@@ -241,16 +242,19 @@ export const addCatalogSource = Effect.fn("addCatalogSource")(function* (
       ...(options.licensePath
         ? { licensePath: options.licensePath }
         : inspection.licensePath
-        ? { licensePath: inspection.licensePath }
-        : {}),
+          ? { licensePath: inspection.licensePath }
+          : {}),
       ...(options.stripFrontmatter?.length
         ? { stripFrontmatter: [...new Set(options.stripFrontmatter)] }
         : {}),
     };
-    next = applyEdits(next, modify(next, ["sources", sources.length], source, {
-      formattingOptions,
-      isArrayInsertion: true,
-    }));
+    next = applyEdits(
+      next,
+      modify(next, ["sources", sources.length], source, {
+        formattingOptions,
+        isArrayInsertion: true,
+      }),
+    );
   }
   if (options.dryRun) {
     yield* printStatus(
@@ -274,22 +278,34 @@ export const removeCatalogEntry = Effect.fn("removeCatalogEntry")(function* (
   let label: string;
   let pinSourceIds: ReadonlyArray<string> = [];
   if (sourceIndex >= 0) {
-    next = applyEdits(next, modify(next, ["sources", sourceIndex], undefined, { formattingOptions }));
+    next = applyEdits(
+      next,
+      modify(next, ["sources", sourceIndex], undefined, { formattingOptions }),
+    );
     label = `source ${name}`;
   } else {
     const owner = state.lock?.value.sources.find((source) => source.skills.includes(name));
-    if (!owner) return yield* new CatalogManagerError({ message: `catalog entry not found: ${name}` });
+    if (!owner)
+      return yield* new CatalogManagerError({ message: `catalog entry not found: ${name}` });
     const index = sources.findIndex((source) => source.id === owner.id);
     const source = sources[index];
-    if (!source) return yield* new CatalogManagerError({ message: `source not found: ${owner.id}` });
+    if (!source)
+      return yield* new CatalogManagerError({ message: `source not found: ${owner.id}` });
     if (source.include.includes("*")) {
       const exclude = [...new Set([...(source.exclude ?? []), name])];
-      next = applyEdits(next, modify(next, ["sources", index, "exclude"], exclude, { formattingOptions }));
+      next = applyEdits(
+        next,
+        modify(next, ["sources", index, "exclude"], exclude, { formattingOptions }),
+      );
     } else {
       const include = source.include.filter((skill) => skill !== name);
-      next = include.length === 0
-        ? applyEdits(next, modify(next, ["sources", index], undefined, { formattingOptions }))
-        : applyEdits(next, modify(next, ["sources", index, "include"], include, { formattingOptions }));
+      next =
+        include.length === 0
+          ? applyEdits(next, modify(next, ["sources", index], undefined, { formattingOptions }))
+          : applyEdits(
+              next,
+              modify(next, ["sources", index, "include"], include, { formattingOptions }),
+            );
     }
     label = `skill ${name}`;
     pinSourceIds = [owner.id];
@@ -327,7 +343,9 @@ export const listCatalogSources = Effect.fn("listCatalogSources")(function* (
   for (const source of state.sources.value.sources) {
     const locked = state.lock?.value.sources.find((candidate) => candidate.id === source.id);
     yield* printLine(`${source.id}  ${source.repository}`);
-    yield* printLine(`  ${locked?.skills.length ?? 0} skills · ${locked?.resolved.slice(0, 12) ?? "not refreshed"}`);
+    yield* printLine(
+      `  ${locked?.skills.length ?? 0} skills · ${locked?.resolved.slice(0, 12) ?? "not refreshed"}`,
+    );
   }
 });
 
@@ -337,7 +355,8 @@ export const showCatalogSource = Effect.fn("showCatalogSource")(function* (
 ) {
   const state = yield* readState(options);
   const source = state.sources.value.sources.find((candidate) => candidate.id === id);
-  if (!source) return yield* new CatalogManagerError({ message: `catalog source not found: ${id}` });
+  if (!source)
+    return yield* new CatalogManagerError({ message: `catalog source not found: ${id}` });
   const locked = state.lock?.value.sources.find((candidate) => candidate.id === id);
   yield* printLine(source.id);
   yield* printLine(`Repository: ${source.repository}`);

@@ -24,11 +24,7 @@ const createFixture = Effect.fn("createEffectSourceFixture")(function* () {
   yield* fs.makeDirectory(project);
   yield* runCommandSuccess(upstream, "git", ["init", "-b", "main"]);
   yield* runCommandSuccess(upstream, "git", ["config", "user.name", "Dev Kit Test"]);
-  yield* runCommandSuccess(upstream, "git", [
-    "config",
-    "user.email",
-    "dev-kit@example.test",
-  ]);
+  yield* runCommandSuccess(upstream, "git", ["config", "user.email", "dev-kit@example.test"]);
   yield* fs.writeFileString(path.join(upstream, "source.txt"), "version one\n");
   yield* commitAll(upstream, "version one");
   yield* runCommandSuccess(upstream, "git", ["tag", "effect@1.2.3"]);
@@ -51,14 +47,8 @@ const writeInstalledVersion = Effect.fn("writeInstalledEffectVersion")(function*
   );
 });
 
-const effectSyncArgs = (project: string, upstream: string) => [
-  "effect",
-  "sync",
-  "--project-dir",
-  project,
-  "--repository",
-  upstream,
-] as const;
+const effectSyncArgs = (project: string, upstream: string) =>
+  ["effect", "sync", "--project-dir", project, "--repository", upstream] as const;
 
 const writeManifest = Effect.fn("writeEffectSourceManifest")(function* (
   project: string,
@@ -68,16 +58,20 @@ const writeManifest = Effect.fn("writeEffectSourceManifest")(function* (
   const path = yield* Path.Path;
   yield* fs.writeFileString(
     path.join(project, "dev-kit.jsonc"),
-    `${JSON.stringify({
-      include: ["effect"],
-      setup: {
-        effectSource: {
-          enabled: true,
-          repository: upstream,
+    `${JSON.stringify(
+      {
+        include: ["effect"],
+        setup: {
+          effectSource: {
+            enabled: true,
+            repository: upstream,
+          },
         },
+        targets: { agents: { enabled: false } },
       },
-      targets: { agents: { enabled: false } },
-    }, null, 2)}\n`,
+      null,
+      2,
+    )}\n`,
   );
 });
 
@@ -105,9 +99,16 @@ describe("Effect source checkout", () => {
         assert.strictEqual(applied.exitCode, 0, applied.output);
         assert.match(applied.output, /✓ Effect source ready effect@1\.2\.3 → \.repos\/effect/);
         assert.notMatch(applied.output, /Cloning into|detached HEAD/);
-        assert.strictEqual(yield* fs.readFileString(path.join(checkout, "source.txt")), "version one\n");
         assert.strictEqual(
-          (yield* runCommandSuccess(checkout, "git", ["describe", "--tags", "--exact-match"])).trim(),
+          yield* fs.readFileString(path.join(checkout, "source.txt")),
+          "version one\n",
+        );
+        assert.strictEqual(
+          (yield* runCommandSuccess(checkout, "git", [
+            "describe",
+            "--tags",
+            "--exact-match",
+          ])).trim(),
           "effect@1.2.3",
         );
         assert.strictEqual(
@@ -121,7 +122,8 @@ describe("Effect source checkout", () => {
         );
         assert.strictEqual(second.exitCode, 0, second.output);
         assert.match(second.output, /Effect source up to date effect@1\.2\.3/);
-      }));
+      }),
+    );
 
     it.effect("integrates with manifest locking and locked convergence", () =>
       Effect.gen(function* () {
@@ -164,7 +166,8 @@ describe("Effect source checkout", () => {
         assert.strictEqual(locked.exitCode, 0, locked.output);
         assert.match(locked.output, /Dev kit up to date/);
         assert.strictEqual(yield* fs.readFileString(lockPath), firstLock);
-      }));
+      }),
+    );
 
     it.effect("rejects locked version drift before updating, then advances unlocked", () =>
       Effect.gen(function* () {
@@ -173,11 +176,7 @@ describe("Effect source checkout", () => {
         const fixture = yield* createFixture();
         yield* writeManifest(fixture.project, fixture.upstream);
         assert.strictEqual(
-          (yield* runDevKit(fixture.project, [
-            "apply",
-            "--project-dir",
-            fixture.project,
-          ])).exitCode,
+          (yield* runDevKit(fixture.project, ["apply", "--project-dir", fixture.project])).exitCode,
           0,
         );
 
@@ -195,7 +194,10 @@ describe("Effect source checkout", () => {
         ]);
         assert.notStrictEqual(locked.exitCode, 0);
         assert.match(locked.output, /manifest or packaged skills differ/);
-        assert.strictEqual(yield* fs.readFileString(path.join(checkout, "source.txt")), "version one\n");
+        assert.strictEqual(
+          yield* fs.readFileString(path.join(checkout, "source.txt")),
+          "version one\n",
+        );
 
         const updated = yield* runDevKit(fixture.project, [
           "apply",
@@ -203,13 +205,17 @@ describe("Effect source checkout", () => {
           fixture.project,
         ]);
         assert.strictEqual(updated.exitCode, 0, updated.output);
-        assert.strictEqual(yield* fs.readFileString(path.join(checkout, "source.txt")), "version two\n");
+        assert.strictEqual(
+          yield* fs.readFileString(path.join(checkout, "source.txt")),
+          "version two\n",
+        );
         assert.strictEqual(
           JSON.parse(yield* fs.readFileString(path.join(fixture.project, "dev-kit.lock.json")))
             .setup.effectSource.tag,
           "effect@2.0.0",
         );
-      }));
+      }),
+    );
 
     it.effect("refuses to switch a dirty checkout when the installed version moves", () =>
       Effect.gen(function* () {
@@ -230,8 +236,12 @@ describe("Effect source checkout", () => {
         assert.notStrictEqual(result.exitCode, 0);
         assert.match(result.output, /local changes; refusing to switch/);
         assert.strictEqual(yield* fs.readFileString(path.join(checkout, "local.txt")), "keep me\n");
-        assert.strictEqual(yield* fs.readFileString(path.join(checkout, "source.txt")), "version one\n");
-      }));
+        assert.strictEqual(
+          yield* fs.readFileString(path.join(checkout, "source.txt")),
+          "version one\n",
+        );
+      }),
+    );
 
     it.effect("skips source checkout setup in CI", () =>
       Effect.gen(function* () {
@@ -246,7 +256,8 @@ describe("Effect source checkout", () => {
         assert.strictEqual(result.exitCode, 0, result.output);
         assert.match(result.output, /Effect source skipped CI/);
         assert.isFalse(yield* fs.exists(path.join(fixture.project, ".repos", "effect")));
-      }));
+      }),
+    );
 
     it.effect("leaves no checkout behind when the version tag is missing", () =>
       Effect.gen(function* () {
@@ -261,6 +272,7 @@ describe("Effect source checkout", () => {
         );
         assert.notStrictEqual(result.exitCode, 0);
         assert.isFalse(yield* fs.exists(path.join(fixture.project, ".repos", "effect")));
-      }));
+      }),
+    );
   });
 });

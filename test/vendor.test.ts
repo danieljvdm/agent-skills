@@ -2,10 +2,7 @@ import { NodeServices } from "@effect/platform-node";
 import { assert, describe, layer } from "@effect/vitest";
 import { Effect, FileSystem, Path } from "effect";
 
-import {
-  runCommandSuccess,
-  runDevKit,
-} from "./test-platform.ts";
+import { runCommandSuccess, runDevKit } from "./test-platform.ts";
 
 const writeSkill = Effect.fn("writeVendorTestSkill")(function* (
   root: string,
@@ -70,16 +67,8 @@ const createFixture = Effect.fn("createVendorTestFixture")(function* () {
   yield* fs.makeDirectory(upstream);
   yield* fs.makeDirectory(aggregate);
   yield* runCommandSuccess(upstream, "git", ["init", "-b", "main"]);
-  yield* runCommandSuccess(upstream, "git", [
-    "config",
-    "user.name",
-    "Dev Kit Test",
-  ]);
-  yield* runCommandSuccess(upstream, "git", [
-    "config",
-    "user.email",
-    "dev-kit@example.test",
-  ]);
+  yield* runCommandSuccess(upstream, "git", ["config", "user.name", "Dev Kit Test"]);
+  yield* runCommandSuccess(upstream, "git", ["config", "user.email", "dev-kit@example.test"]);
   yield* writeSkill(upstream, "one", "version one");
   yield* writeSkill(upstream, "two", "second skill");
   yield* fs.writeFileString(path.join(upstream, "LICENSE"), "test license\n");
@@ -100,11 +89,16 @@ describe("approved skill catalog", () => {
         yield* fs.writeFileString(sourcesPath, '{\n  // Approved upstreams.\n  "sources": []\n}\n');
 
         const added = yield* runDevKit(fixture.aggregate, [
-          "catalog", "add", fixture.upstream,
+          "catalog",
+          "add",
+          fixture.upstream,
           "--all",
-          "--id", "fixture-skills",
-          "--ref", "main",
-          "--repo-dir", fixture.aggregate,
+          "--id",
+          "fixture-skills",
+          "--ref",
+          "main",
+          "--repo-dir",
+          fixture.aggregate,
         ]);
         assert.strictEqual(added.exitCode, 0, added.output);
         const manifestText = yield* fs.readFileString(sourcesPath);
@@ -115,21 +109,33 @@ describe("approved skill catalog", () => {
         assert.isFalse(yield* fs.exists(path.join(fixture.aggregate, "skills", "one")));
 
         const listed = yield* runDevKit(fixture.aggregate, [
-          "catalog", "list", "--repo-dir", fixture.aggregate,
+          "catalog",
+          "list",
+          "--repo-dir",
+          fixture.aggregate,
         ]);
         assert.strictEqual(listed.exitCode, 0, listed.output);
         assert.match(listed.output, /fixture-skills[\s\S]*2 skills/);
 
         const beforeRemoval = yield* fs.readFileString(sourcesPath);
         const unconfirmed = yield* runDevKit(fixture.aggregate, [
-          "catalog", "remove", "two", "--repo-dir", fixture.aggregate,
+          "catalog",
+          "remove",
+          "two",
+          "--repo-dir",
+          fixture.aggregate,
         ]);
         assert.notStrictEqual(unconfirmed.exitCode, 0);
         assert.match(unconfirmed.output, /requires --yes outside a terminal/);
         assert.strictEqual(yield* fs.readFileString(sourcesPath), beforeRemoval);
 
         const removedSkill = yield* runDevKit(fixture.aggregate, [
-          "catalog", "remove", "two", "--yes", "--repo-dir", fixture.aggregate,
+          "catalog",
+          "remove",
+          "two",
+          "--yes",
+          "--repo-dir",
+          fixture.aggregate,
         ]);
         assert.strictEqual(removedSkill.exitCode, 0, removedSkill.output);
         const afterSkill = JSON.parse(
@@ -138,7 +144,12 @@ describe("approved skill catalog", () => {
         assert.deepEqual(afterSkill.sources[0].include, ["one"]);
 
         const removedSource = yield* runDevKit(fixture.aggregate, [
-          "catalog", "remove", "fixture-skills", "--yes", "--repo-dir", fixture.aggregate,
+          "catalog",
+          "remove",
+          "fixture-skills",
+          "--yes",
+          "--repo-dir",
+          fixture.aggregate,
         ]);
         assert.strictEqual(removedSource.exitCode, 0, removedSource.output);
         const afterSource = JSON.parse(
@@ -149,7 +160,8 @@ describe("approved skill catalog", () => {
           yield* fs.readFileString(path.join(fixture.aggregate, "skill-sources.lock.json")),
         );
         assert.deepEqual(lock.sources, []);
-      }));
+      }),
+    );
 
     it.effect("requires an explicit approval selection outside a terminal", () =>
       Effect.gen(function* () {
@@ -161,17 +173,23 @@ describe("approved skill catalog", () => {
         yield* fs.writeFileString(sourcesPath, original);
 
         const result = yield* runDevKit(fixture.aggregate, [
-          "catalog", "add", fixture.upstream,
-          "--id", "fixture-skills",
-          "--ref", "main",
-          "--repo-dir", fixture.aggregate,
+          "catalog",
+          "add",
+          fixture.upstream,
+          "--id",
+          "fixture-skills",
+          "--ref",
+          "main",
+          "--repo-dir",
+          fixture.aggregate,
         ]);
 
         assert.notStrictEqual(result.exitCode, 0);
         assert.match(result.output, /choose skills with --skill <name>, or pass --all/);
         assert.strictEqual(yield* fs.readFileString(sourcesPath), original);
         assert.isFalse(yield* fs.exists(path.join(fixture.aggregate, "skill-sources.lock.json")));
-      }));
+      }),
+    );
 
     it.effect("pins source metadata without copying upstream trees into the distro", () =>
       Effect.gen(function* () {
@@ -189,10 +207,7 @@ describe("approved skill catalog", () => {
         assert.isFalse(yield* fs.exists(path.join(fixture.aggregate, "skills", "one")));
         assert.isFalse(yield* fs.exists(path.join(fixture.aggregate, "third-party")));
 
-        const firstLockPath = path.join(
-          fixture.aggregate,
-          "skill-sources.lock.json",
-        );
+        const firstLockPath = path.join(fixture.aggregate, "skill-sources.lock.json");
         const firstLockText = yield* fs.readFileString(firstLockPath);
         const firstLock = JSON.parse(firstLockText);
         assert.deepEqual(firstLock.sources[0].skills, ["one"]);
@@ -200,10 +215,7 @@ describe("approved skill catalog", () => {
         assert.strictEqual(firstLock.sources[0].descriptions.one, "Test skill one.");
         assert.strictEqual(
           firstLock.sources[0].resolved,
-          (yield* runCommandSuccess(fixture.upstream, "git", [
-            "rev-parse",
-            "HEAD",
-          ])).trim(),
+          (yield* runCommandSuccess(fixture.upstream, "git", ["rev-parse", "HEAD"])).trim(),
         );
 
         yield* writeSkill(fixture.upstream, "one", "version two");
@@ -239,7 +251,8 @@ describe("approved skill catalog", () => {
         assert.strictEqual(updatedRun.exitCode, 0, updatedRun.output);
         const updatedLock = JSON.parse(yield* fs.readFileString(firstLockPath));
         assert.notStrictEqual(updatedLock.sources[0].resolved, firstLock.sources[0].resolved);
-      }));
+      }),
+    );
 
     it.effect("rejects symlinks in approved skill paths", () =>
       Effect.gen(function* () {
@@ -260,16 +273,8 @@ describe("approved skill catalog", () => {
         );
         yield* fs.symlink(outside, path.join(upstream, "skills", "escaped"));
         yield* runCommandSuccess(upstream, "git", ["init", "-b", "main"]);
-        yield* runCommandSuccess(upstream, "git", [
-          "config",
-          "user.name",
-          "Dev Kit Test",
-        ]);
-        yield* runCommandSuccess(upstream, "git", [
-          "config",
-          "user.email",
-          "dev-kit@example.test",
-        ]);
+        yield* runCommandSuccess(upstream, "git", ["config", "user.name", "Dev Kit Test"]);
+        yield* runCommandSuccess(upstream, "git", ["config", "user.email", "dev-kit@example.test"]);
         yield* commitAll(upstream, "symlink");
         yield* fs.writeFileString(
           path.join(aggregate, "skill-sources.jsonc"),
@@ -286,16 +291,12 @@ describe("approved skill catalog", () => {
           })}\n`,
         );
 
-        const result = yield* runDevKit(aggregate, [
-          "catalog",
-          "refresh",
-          "--repo-dir",
-          aggregate,
-        ]);
+        const result = yield* runDevKit(aggregate, ["catalog", "refresh", "--repo-dir", aggregate]);
 
         assert.notStrictEqual(result.exitCode, 0);
         assert.include(yield* fs.readFileString(path.join(outside, "SKILL.md")), "Escaped");
-      }));
+      }),
+    );
 
     it.effect("rejects unsafe paths from a tampered lock before deleting files", () =>
       Effect.gen(function* () {
@@ -325,7 +326,8 @@ describe("approved skill catalog", () => {
 
         assert.notStrictEqual(result.exitCode, 0);
         assert.strictEqual(yield* fs.readFileString(protectedFile), "keep me\n");
-      }));
+      }),
+    );
 
     it.effect("refuses to refresh while another dev-kit operation holds the lock", () =>
       Effect.gen(function* () {
@@ -338,18 +340,17 @@ describe("approved skill catalog", () => {
         yield* fs.writeFileString(ownerPath, '{"token":"other-process"}\n');
 
         const result = yield* runDevKit(fixture.aggregate, [
-          "catalog", "refresh", "--repo-dir", fixture.aggregate,
+          "catalog",
+          "refresh",
+          "--repo-dir",
+          fixture.aggregate,
         ]);
 
         assert.notStrictEqual(result.exitCode, 0);
         assert.match(result.output, /another dev-kit operation may be active/);
-        assert.isFalse(
-          yield* fs.exists(path.join(fixture.aggregate, "skill-sources.lock.json")),
-        );
-        assert.strictEqual(
-          yield* fs.readFileString(ownerPath),
-          '{"token":"other-process"}\n',
-        );
-      }));
+        assert.isFalse(yield* fs.exists(path.join(fixture.aggregate, "skill-sources.lock.json")));
+        assert.strictEqual(yield* fs.readFileString(ownerPath), '{"token":"other-process"}\n');
+      }),
+    );
   });
 });

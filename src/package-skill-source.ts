@@ -25,32 +25,46 @@ export type DiscoveredPackageSkill = {
   readonly linkPath: string;
 };
 
-const PackageMetadataSchema = Schema.fromJsonString(Schema.Struct({
-  name: Schema.String,
-  version: Schema.String,
-  intent: Schema.optional(Schema.Unknown),
-  repository: Schema.optional(Schema.Unknown),
-}));
+const PackageMetadataSchema = Schema.fromJsonString(
+  Schema.Struct({
+    name: Schema.String,
+    version: Schema.String,
+    intent: Schema.optional(Schema.Unknown),
+    repository: Schema.optional(Schema.Unknown),
+  }),
+);
 
 const nonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0;
 
 const hasIntentDiscoveryMetadata = (metadata: typeof PackageMetadataSchema.Type): boolean => {
   const intent = metadata.intent;
-  if (typeof intent === "object" && intent !== null &&
-    "version" in intent && intent.version === 1 &&
-    "repo" in intent && nonEmptyString(intent.repo) &&
-    "docs" in intent && nonEmptyString(intent.docs)) {
+  if (
+    typeof intent === "object" &&
+    intent !== null &&
+    "version" in intent &&
+    intent.version === 1 &&
+    "repo" in intent &&
+    nonEmptyString(intent.repo) &&
+    "docs" in intent &&
+    nonEmptyString(intent.docs)
+  ) {
     return true;
   }
   const repository = metadata.repository;
-  return nonEmptyString(repository) ||
-    (typeof repository === "object" && repository !== null &&
-      "url" in repository && nonEmptyString(repository.url));
+  return (
+    nonEmptyString(repository) ||
+    (typeof repository === "object" &&
+      repository !== null &&
+      "url" in repository &&
+      nonEmptyString(repository.url))
+  );
 };
 
 const isSafePackageVersion = (value: string): boolean =>
-  value.length > 0 && value.trim() === value && ![...value].some((character) => {
+  value.length > 0 &&
+  value.trim() === value &&
+  ![...value].some((character) => {
     const code = character.charCodeAt(0);
     return code <= 32 || (code >= 127 && code <= 159);
   });
@@ -82,8 +96,7 @@ const frontmatterScalar = (document: string, key: string): string | undefined =>
   return value.length > 0 ? value : undefined;
 };
 
-const skillName = (document: string): string | undefined =>
-  frontmatterScalar(document, "name");
+const skillName = (document: string): string | undefined => frontmatterScalar(document, "name");
 
 const skillDescription = (document: string): string | undefined =>
   frontmatterScalar(document, "description");
@@ -96,15 +109,28 @@ const rejectNestedSymlinks = Effect.fn("rejectPackageSkillSymlinks")(function* (
     const current = pending.pop();
     if (current === undefined) continue;
     if ((yield* observeSymbolicLink(current)).kind === "symlink") {
-      return yield* new PackageSkillSourceError({ message: `package skill contains a symlink: ${current}` });
+      return yield* new PackageSkillSourceError({
+        message: `package skill contains a symlink: ${current}`,
+      });
     }
-    const info = yield* fs.stat(current).pipe(
-      Effect.mapError(() => new PackageSkillSourceError({ message: `could not inspect package skill: ${current}` })),
-    );
+    const info = yield* fs
+      .stat(current)
+      .pipe(
+        Effect.mapError(
+          () =>
+            new PackageSkillSourceError({ message: `could not inspect package skill: ${current}` }),
+        ),
+      );
     if (info.type !== "Directory") continue;
-    for (const entry of yield* fs.readDirectory(current).pipe(
-      Effect.mapError(() => new PackageSkillSourceError({ message: `could not read package skill: ${current}` })),
-    )) pending.push(path.join(current, entry));
+    for (const entry of yield* fs
+      .readDirectory(current)
+      .pipe(
+        Effect.mapError(
+          () =>
+            new PackageSkillSourceError({ message: `could not read package skill: ${current}` }),
+        ),
+      ))
+      pending.push(path.join(current, entry));
   }
 });
 
@@ -124,33 +150,79 @@ const loadInstalledPackageSkills = Effect.fn("loadInstalledPackageSkills")(funct
   const path = yield* Path.Path;
   const packageLink = path.join(projectDir, "node_modules", ...packageName.split("/"));
   const packageRoot = yield* fs.realPath(packageLink).pipe(
-    Effect.mapError(() => new PackageSkillSourceError({ message: `package skill package is not installed: ${packageName}` })),
+    Effect.mapError(
+      () =>
+        new PackageSkillSourceError({
+          message: `package skill package is not installed: ${packageName}`,
+        }),
+    ),
   );
   const packageInfo = yield* fs.stat(packageRoot).pipe(
-    Effect.mapError(() => new PackageSkillSourceError({ message: `could not inspect package skill package: ${packageName}` })),
+    Effect.mapError(
+      () =>
+        new PackageSkillSourceError({
+          message: `could not inspect package skill package: ${packageName}`,
+        }),
+    ),
   );
-  if (packageInfo.type !== "Directory") return yield* new PackageSkillSourceError({ message: `package skill package is not a directory: ${packageName}` });
+  if (packageInfo.type !== "Directory")
+    return yield* new PackageSkillSourceError({
+      message: `package skill package is not a directory: ${packageName}`,
+    });
   const metadata = yield* fs.readFileString(path.join(packageRoot, "package.json")).pipe(
     Effect.flatMap(Schema.decodeUnknownEffect(PackageMetadataSchema)),
-    Effect.mapError(() => new PackageSkillSourceError({ message: `invalid package.json for package skill package: ${packageName}` })),
+    Effect.mapError(
+      () =>
+        new PackageSkillSourceError({
+          message: `invalid package.json for package skill package: ${packageName}`,
+        }),
+    ),
   );
-  if (metadata.name !== packageName) return yield* new PackageSkillSourceError({ message: `package.json name does not match package skill package: ${packageName}` });
-  if (!isSafePackageVersion(metadata.version)) return yield* new PackageSkillSourceError({ message: `package.json has an invalid version for package skill package: ${packageName}` });
-  if (!hasIntentDiscoveryMetadata(metadata)) return yield* new PackageSkillSourceError({ message: `package does not declare Intent-compatible discovery metadata: ${packageName}` });
+  if (metadata.name !== packageName)
+    return yield* new PackageSkillSourceError({
+      message: `package.json name does not match package skill package: ${packageName}`,
+    });
+  if (!isSafePackageVersion(metadata.version))
+    return yield* new PackageSkillSourceError({
+      message: `package.json has an invalid version for package skill package: ${packageName}`,
+    });
+  if (!hasIntentDiscoveryMetadata(metadata))
+    return yield* new PackageSkillSourceError({
+      message: `package does not declare Intent-compatible discovery metadata: ${packageName}`,
+    });
   const skillsPath = "skills";
   const skillsLink = path.join(packageLink, skillsPath);
-  if ((yield* observeSymbolicLink(skillsLink)).kind === "symlink") return yield* new PackageSkillSourceError({ message: `package skills path is a symlink: ${packageName}/${skillsPath}` });
+  if ((yield* observeSymbolicLink(skillsLink)).kind === "symlink")
+    return yield* new PackageSkillSourceError({
+      message: `package skills path is a symlink: ${packageName}/${skillsPath}`,
+    });
   const skillsRoot = yield* fs.realPath(skillsLink).pipe(
-    Effect.mapError(() => new PackageSkillSourceError({ message: `package skill package has no skills directory: ${packageName}` })),
+    Effect.mapError(
+      () =>
+        new PackageSkillSourceError({
+          message: `package skill package has no skills directory: ${packageName}`,
+        }),
+    ),
   );
-  if (!isContained(path, packageRoot, skillsRoot)) return yield* new PackageSkillSourceError({ message: `package skills path resolves outside package root: ${packageName}/${skillsPath}` });
+  if (!isContained(path, packageRoot, skillsRoot))
+    return yield* new PackageSkillSourceError({
+      message: `package skills path resolves outside package root: ${packageName}/${skillsPath}`,
+    });
   const skillsInfo = yield* fs.stat(skillsRoot);
-  if (skillsInfo.type !== "Directory") return yield* new PackageSkillSourceError({ message: `package skills path is not a directory: ${packageName}/${skillsPath}` });
+  if (skillsInfo.type !== "Directory")
+    return yield* new PackageSkillSourceError({
+      message: `package skills path is not a directory: ${packageName}/${skillsPath}`,
+    });
   const names = (yield* fs.readDirectory(skillsRoot).pipe(
-    Effect.mapError(() => new PackageSkillSourceError({
-      message: `package skill package has no readable skills directory: ${packageName}`,
-    })),
-  )).filter(isSkillName).sort();
+    Effect.mapError(
+      () =>
+        new PackageSkillSourceError({
+          message: `package skill package has no readable skills directory: ${packageName}`,
+        }),
+    ),
+  ))
+    .filter(isSkillName)
+    .sort();
   return {
     package: packageName,
     version: metadata.version,
@@ -172,18 +244,33 @@ const inspectPackageSkill = Effect.fn("inspectInstalledPackageSkill")(function* 
   const selector = `${installed.package}#${name}`;
   const linkPath = path.join(installed.packageLink, "skills", name);
   if ((yield* observeSymbolicLink(linkPath)).kind === "symlink") {
-    return yield* new PackageSkillSourceError({ message: `package skill contains a symlink: ${selector}` });
+    return yield* new PackageSkillSourceError({
+      message: `package skill contains a symlink: ${selector}`,
+    });
   }
-  const skillRoot = yield* fs.realPath(linkPath).pipe(
-    Effect.mapError(() => new PackageSkillSourceError({ message: `package skill does not exist: ${selector}` })),
-  );
-  if (!isContained(path, installed.skillsRoot, skillRoot) ||
-    (yield* fs.stat(skillRoot)).type !== "Directory") {
-    return yield* new PackageSkillSourceError({ message: `package skill is not a contained directory: ${selector}` });
+  const skillRoot = yield* fs
+    .realPath(linkPath)
+    .pipe(
+      Effect.mapError(
+        () => new PackageSkillSourceError({ message: `package skill does not exist: ${selector}` }),
+      ),
+    );
+  if (
+    !isContained(path, installed.skillsRoot, skillRoot) ||
+    (yield* fs.stat(skillRoot)).type !== "Directory"
+  ) {
+    return yield* new PackageSkillSourceError({
+      message: `package skill is not a contained directory: ${selector}`,
+    });
   }
   yield* rejectNestedSymlinks(skillRoot);
   const document = yield* fs.readFileString(path.join(skillRoot, "SKILL.md")).pipe(
-    Effect.mapError(() => new PackageSkillSourceError({ message: `package skill is missing SKILL.md: ${selector}` })),
+    Effect.mapError(
+      () =>
+        new PackageSkillSourceError({
+          message: `package skill is missing SKILL.md: ${selector}`,
+        }),
+    ),
   );
   if (skillName(document) !== name) {
     return yield* new PackageSkillSourceError({
@@ -208,7 +295,9 @@ const inspectPackageSkill = Effect.fn("inspectInstalledPackageSkill")(function* 
 });
 
 /** Read direct project dependencies only; malformed packages are returned as diagnostics, never executed. */
-export const discoverPackageSkills = Effect.fn("discoverInstalledPackageSkills")(function* (projectDir: string) {
+export const discoverPackageSkills = Effect.fn("discoverInstalledPackageSkills")(function* (
+  projectDir: string,
+) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const candidates: Array<DiscoveredPackageSkill> = [];
@@ -218,7 +307,10 @@ export const discoverPackageSkills = Effect.fn("discoverInstalledPackageSkills")
   }
   for (const packageName of yield* readDirectDependencyNames(projectDir)) {
     if (!isTypeScriptPackageName(packageName)) {
-      diagnostics.push({ package: packageName, message: `invalid direct dependency package name: ${packageName}` });
+      diagnostics.push({
+        package: packageName,
+        message: `invalid direct dependency package name: ${packageName}`,
+      });
       continue;
     }
     const skillsLink = path.join(projectDir, "node_modules", ...packageName.split("/"), "skills");
@@ -234,15 +326,27 @@ export const discoverPackageSkills = Effect.fn("discoverInstalledPackageSkills")
       else diagnostics.push({ package: packageName, message: inspected.failure.message });
     }
   }
-  return { candidates: candidates.sort((left, right) => left.selector.localeCompare(right.selector)), diagnostics };
+  return {
+    candidates: candidates.sort((left, right) => left.selector.localeCompare(right.selector)),
+    diagnostics,
+  };
 });
 
 /** Resolve one explicitly selected package skill. Unlike browsing, every malformed or missing part is an error. */
-export const resolvePackageSkillSelector = Effect.fn("resolvePackageSkillSelector")(function* (projectDir: string, selector: string) {
+export const resolvePackageSkillSelector = Effect.fn("resolvePackageSkillSelector")(function* (
+  projectDir: string,
+  selector: string,
+) {
   const parsed = parseSkillSelector(selector);
-  if (parsed?.type !== "package") return yield* new PackageSkillSourceError({ message: `invalid package skill selector: ${selector}` });
+  if (parsed?.type !== "package")
+    return yield* new PackageSkillSourceError({
+      message: `invalid package skill selector: ${selector}`,
+    });
   const directDependencies = yield* readDirectDependencyNames(projectDir);
-  if (!directDependencies.includes(parsed.package)) return yield* new PackageSkillSourceError({ message: `package skill package is not a direct dependency: ${parsed.package}` });
+  if (!directDependencies.includes(parsed.package))
+    return yield* new PackageSkillSourceError({
+      message: `package skill package is not a direct dependency: ${parsed.package}`,
+    });
   return yield* inspectPackageSkill(
     yield* loadInstalledPackageSkills(projectDir, parsed.package),
     parsed.skill,

@@ -35,10 +35,7 @@ const captureSpinner = Effect.fn("captureCliSpinner")(function* () {
     display: (text) => Ref.update(output, (current) => current + text),
   });
   const provider = ConfigProvider.fromEnv({ env: { TERM: "xterm-256color" } });
-  yield* withSpinner(
-    "Working",
-    Effect.yieldNow.pipe(Effect.andThen(Effect.yieldNow)),
-  ).pipe(
+  yield* withSpinner("Working", Effect.yieldNow.pipe(Effect.andThen(Effect.yieldNow))).pipe(
     Effect.provideService(Terminal.Terminal, terminal),
     Effect.provideService(ConfigProvider.ConfigProvider, provider),
   );
@@ -52,7 +49,8 @@ describe("CLI presentation", () => {
         const output = yield* captureStatus(0);
         assert.strictEqual(output, "✓ Dev kit ready 2 changes\n");
         assert.notInclude(output, "\u001b[");
-      }));
+      }),
+    );
 
     it.effect("uses restrained color only for interactive terminals", () =>
       Effect.gen(function* () {
@@ -65,7 +63,8 @@ describe("CLI presentation", () => {
           TERM: "xterm-256color",
         });
         assert.strictEqual(disabled, "✓ Dev kit ready 2 changes\n");
-      }));
+      }),
+    );
 
     it.effect("animates transient work and clears the progress line", () =>
       Effect.gen(function* () {
@@ -73,7 +72,8 @@ describe("CLI presentation", () => {
         assert.include(output, "Working");
         assert.match(output, /⠋|⠙|⠹/);
         assert.isTrue(output.endsWith("\r\u001b[2K"));
-      }));
+      }),
+    );
 
     it.effect("treats subcommand help as normal control flow", () =>
       Effect.gen(function* () {
@@ -81,6 +81,7 @@ describe("CLI presentation", () => {
         assert.strictEqual(result.exitCode, 0, result.output);
         assert.match(result.output, /SUBCOMMANDS[\s\S]*patch/);
         assert.notInclude(result.output, "Help requested");
-      }));
+      }),
+    );
   });
 });

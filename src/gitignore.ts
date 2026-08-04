@@ -64,13 +64,14 @@ export const patchGitignoreContents = (
   if (added.length === 0) return { contents: current, added };
 
   const newline = current.includes("\r\n") ? "\r\n" : "\n";
-  const separator = current.length === 0
-    ? ""
-    : current.endsWith(`${newline}${newline}`)
+  const separator =
+    current.length === 0
       ? ""
-      : current.endsWith(newline)
-        ? newline
-        : `${newline}${newline}`;
+      : current.endsWith(`${newline}${newline}`)
+        ? ""
+        : current.endsWith(newline)
+          ? newline
+          : `${newline}${newline}`;
   const block = ["# dev-kit managed paths", ...added].join(newline);
   return {
     contents: `${current}${separator}${block}${newline}`,

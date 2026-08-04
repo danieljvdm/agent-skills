@@ -28,7 +28,7 @@ stores explicit skill names and exact commit/content digests.
    repository actually uses; do not infer capabilities from a product or
    company name alone.
 2. Run `dev-kit list --all`, then use `dev-kit search <terms>` and `dev-kit info
-   <skill>` for each capability in the inventory. Compare every candidate's
+<skill>` for each capability in the inventory. Compare every candidate's
    trigger description with concrete repository evidence. Keep explicitly
    requested creative or advisory skills even when they have no mechanical
    dependency signal.
@@ -73,13 +73,14 @@ skill as `dev-kit` when project agents should carry the toolkit procedure.
   "exclude": [],
   "setup": {
     "agentInstructions": { "enabled": true },
-    "claudeInstructions": { "enabled": true }
+    "claudeInstructions": { "enabled": true },
+    "vitePlus": { "hooks": { "enabled": true } },
   },
   "targets": {
     "agents": { "enabled": true, "mode": "copy" },
     "claude": { "enabled": true, "mode": "symlink" },
-    "opencode": { "enabled": false, "mode": "symlink" }
-  }
+    "opencode": { "enabled": false, "mode": "symlink" },
+  },
 }
 ```
 
@@ -96,6 +97,14 @@ project-root instructions; it manages `CLAUDE.md` as a relative symlink to the
 wrapper or to an existing regular `AGENTS.md`. Preserve conflicting paths;
 when disabled, dev-kit removes only unchanged outputs recorded in local
 ownership state.
+
+Enable `setup.vitePlus.hooks` when an installed direct `vite-plus` dependency
+should manage Git hooks. Each apply checks the local `.vite-hooks/_` dispatcher,
+the portable `.vite-hooks/pre-commit` hook, and `core.hooksPath`, then runs the
+project-local `vp config --no-agent` when they need convergence. This recreates
+ignored dispatchers in linked worktrees. Preserve other hook managers; Dev Kit
+refuses to replace an unrelated `core.hooksPath`. Use `VITE_GIT_HOOKS=0` or
+`HUSKY=0` to skip hook setup for an invocation.
 
 ## Ownership and conflicts
 
@@ -126,8 +135,8 @@ For one lifecycle entry point, configure:
 ```jsonc
 {
   "scripts": {
-    "postinstall": "dev-kit apply"
-  }
+    "postinstall": "dev-kit apply",
+  },
 }
 ```
 
@@ -145,8 +154,8 @@ installed Effect package:
 ```jsonc
 {
   "setup": {
-    "effectSource": { "enabled": true }
-  }
+    "effectSource": { "enabled": true },
+  },
 }
 ```
 
@@ -165,8 +174,8 @@ Enable the setup task in the same manifest:
 ```jsonc
 {
   "setup": {
-    "effectTsgo": { "enabled": true }
-  }
+    "effectTsgo": { "enabled": true },
+  },
 }
 ```
 
@@ -219,8 +228,8 @@ in the consuming project.
 ## Current boundary
 
 Manage skill outputs, the `setup.agentInstructions` wrapper, the
-`setup.claudeInstructions` link, the
-`setup.effectSource` checkout, and the explicit `setup.effectTsgo` task. Edit
+`setup.claudeInstructions` link, the `setup.vitePlus.hooks` dispatcher,
+the `setup.effectSource` checkout, and the explicit `setup.effectTsgo` task. Edit
 shared `package.json` and `tsconfig.json`
 contributions deliberately. The Oxlint and Oxfmt configurations are composable
 package exports, not manifest-managed outputs. Treat broader setup tasks as

@@ -65,9 +65,7 @@ export class InvalidEffectTsgoPackageNameError extends Schema.TaggedErrorClass<I
   }
 }
 
-const PackageVersionSchema = Schema.fromJsonString(
-  Schema.Struct({ version: Schema.String }),
-);
+const PackageVersionSchema = Schema.fromJsonString(Schema.Struct({ version: Schema.String }));
 
 const packagePath = (path: Path.Path, projectDir: string, packageName: string): string =>
   path.join(projectDir, "node_modules", ...packageName.split("/"), "package.json");
@@ -80,17 +78,15 @@ const readExactPackageVersion = Effect.fn("readExactEffectTsgoPackageVersion")(f
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const manifestPath = packagePath(path, projectDir, packageName);
-  const contents = yield* fs.readFileString(manifestPath).pipe(
-    Effect.catchReason(
-      "PlatformError",
-      "NotFound",
-      () => Effect.fail(new EffectTsgoDependencyError({ packageName, expectedVersion })),
-    ),
-  );
+  const contents = yield* fs
+    .readFileString(manifestPath)
+    .pipe(
+      Effect.catchReason("PlatformError", "NotFound", () =>
+        Effect.fail(new EffectTsgoDependencyError({ packageName, expectedVersion })),
+      ),
+    );
   const manifest = yield* Schema.decodeUnknownEffect(PackageVersionSchema)(contents).pipe(
-    Effect.mapError(() =>
-      new EffectTsgoDependencyError({ packageName, expectedVersion }),
-    ),
+    Effect.mapError(() => new EffectTsgoDependencyError({ packageName, expectedVersion })),
   );
   if (manifest.version !== expectedVersion) {
     return yield* new EffectTsgoDependencyError({
@@ -108,9 +104,10 @@ const resolveEffectTsgoExecutable = Effect.fn("resolveEffectTsgoExecutable")(fun
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const binDir = path.join(projectDir, "node_modules", ".bin");
-  const candidates = path.sep === "\\"
-    ? [path.join(binDir, "effect-tsgo.cmd"), path.join(binDir, "effect-tsgo")]
-    : [path.join(binDir, "effect-tsgo"), path.join(binDir, "effect-tsgo.cmd")];
+  const candidates =
+    path.sep === "\\"
+      ? [path.join(binDir, "effect-tsgo.cmd"), path.join(binDir, "effect-tsgo")]
+      : [path.join(binDir, "effect-tsgo"), path.join(binDir, "effect-tsgo.cmd")];
   for (const candidate of candidates) {
     if (yield* fs.exists(candidate)) return candidate;
   }
@@ -120,18 +117,13 @@ const resolveEffectTsgoExecutable = Effect.fn("resolveEffectTsgoExecutable")(fun
   });
 });
 
-const digestFileContents = Effect.fn("digestEffectTsgoFileContents")(function* (
-  filePath: string,
-) {
+const digestFileContents = Effect.fn("digestEffectTsgoFileContents")(function* (filePath: string) {
   const crypto = yield* Crypto.Crypto;
   const fs = yield* FileSystem.FileSystem;
   return Encoding.encodeHex(yield* crypto.digest("SHA-256", yield* fs.readFile(filePath)));
 });
 
-const findNodeModulesRoot = (
-  path: Path.Path,
-  packageJsonPath: string,
-): string | undefined => {
+const findNodeModulesRoot = (path: Path.Path, packageJsonPath: string): string | undefined => {
   let current = path.dirname(packageJsonPath);
   while (true) {
     if (path.basename(current) === "node_modules") return current;
@@ -150,24 +142,18 @@ const isEffectTsgoPatched = Effect.fn("isEffectTsgoPatched")(function* (
   const typescriptPackageJson = yield* fs.realPath(
     packagePath(path, projectDir, typescriptPackage),
   );
-  const effectTsgoPackageJson = yield* fs.realPath(
-    packagePath(path, projectDir, "@effect/tsgo"),
-  );
+  const effectTsgoPackageJson = yield* fs.realPath(packagePath(path, projectDir, "@effect/tsgo"));
   const typescriptNodeModules = findNodeModulesRoot(path, typescriptPackageJson);
   const effectNodeModules = findNodeModulesRoot(path, effectTsgoPackageJson);
-  if (
-    typescriptNodeModules === undefined ||
-    effectNodeModules === undefined
-  ) return false;
+  if (typescriptNodeModules === undefined || effectNodeModules === undefined) return false;
 
   const typescriptScope = path.join(typescriptNodeModules, "@typescript");
   const effectScope = path.join(effectNodeModules, "@effect");
   if (!(yield* fs.exists(typescriptScope)) || !(yield* fs.exists(effectScope))) return false;
 
   const executableName = path.sep === "\\" ? "tsc.exe" : "tsc";
-  const effectExecutableNames = path.sep === "\\"
-    ? ["tsc.exe", "tsc-next.exe"]
-    : ["tsc", "tsc-next"];
+  const effectExecutableNames =
+    path.sep === "\\" ? ["tsc.exe", "tsc-next.exe"] : ["tsc", "tsc-next"];
   for (const entry of yield* fs.readDirectory(typescriptScope)) {
     if (!entry.startsWith("typescript-")) continue;
     const platform = entry.slice("typescript-".length);
@@ -220,9 +206,7 @@ export const planEffectTsgoPatch = Effect.fn("planEffectTsgoPatch")(function* (
     args: [
       "patch",
       ...(options.force ? ["--force"] : []),
-      ...(typescriptPackage === "typescript"
-        ? []
-        : ["--typescript-package", typescriptPackage]),
+      ...(typescriptPackage === "typescript" ? [] : ["--typescript-package", typescriptPackage]),
     ],
     effectTsgoVersion,
     typescriptPackage,

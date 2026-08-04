@@ -48,9 +48,7 @@
         "review-animations": "sha256:d78c312f4102c0243fb524f85d1fd999e8c413a5afbef9ac3c7fe054fbb84570"
       },
       "licensePath": "LICENSE",
-      "stripFrontmatter": [
-        "disable-model-invocation"
-      ]
+      "stripFrontmatter": ["disable-model-invocation"]
     },
     {
       "id": "cloudflare-skills",
@@ -118,12 +116,8 @@
       "ref": "main",
       "resolved": "14ad57ff922551bf7be81e907ddfcfa6191e64f2",
       "skillsPath": "skills",
-      "include": [
-        "serve-sim"
-      ],
-      "skills": [
-        "serve-sim"
-      ],
+      "include": ["serve-sim"],
+      "skills": ["serve-sim"],
       "descriptions": {
         "serve-sim": "Control and stream a running iOS, iPad, or Apple Watch Simulator with npx serve-sim. Use for simulator preview, taps, gestures, hardware buttons, rotation, camera injection, permissions, accessibility, and CoreAnimation debug."
       },

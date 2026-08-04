@@ -1,7 +1,7 @@
 {
   "version": 1,
   "toolVersion": "0.6.0",
-  "manifestDigest": "sha256:95e7c13e4f77cbbbc3fb710798d2b94228da26e9fe9c6ed9b1dc0a61c9c49b5b",
+  "manifestDigest": "sha256:bd23ba3b8f64915cd3ca41e459a27423562731adbff169021fb2ede9cbc15fdd",
   "setup": {
     "effectSource": {
       "packageName": "effect",

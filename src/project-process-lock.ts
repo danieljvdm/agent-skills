@@ -40,13 +40,15 @@ export const acquireProjectProcessLock = Effect.fn("acquireProjectProcessLock")(
       yield* fs.makeDirectory(stateDir, { recursive: true });
       return yield* Effect.uninterruptible(
         Effect.gen(function* () {
-          yield* fs.makeDirectory(lockDir).pipe(
-            Effect.mapError((error) =>
-              error.reason._tag === "AlreadyExists"
-                ? new ProjectAlreadyLockedError({ path: lockDir })
-                : error,
-            ),
-          );
+          yield* fs
+            .makeDirectory(lockDir)
+            .pipe(
+              Effect.mapError((error) =>
+                error.reason._tag === "AlreadyExists"
+                  ? new ProjectAlreadyLockedError({ path: lockDir })
+                  : error,
+              ),
+            );
           yield* fs.writeFileString(ownerPath, ownerContents).pipe(
             Effect.catchCause((writeCause) =>
               fs.remove(lockDir, { recursive: true, force: true }).pipe(
@@ -63,11 +65,13 @@ export const acquireProjectProcessLock = Effect.fn("acquireProjectProcessLock")(
     }),
     ({ lockDir: acquiredLockDir, ownerContents }) =>
       Effect.gen(function* () {
-        const currentOwner = yield* fs.readFileString(ownerPath).pipe(
-          Effect.catch((error) =>
-            error.reason._tag === "NotFound" ? Effect.void : Effect.fail(error),
-          ),
-        );
+        const currentOwner = yield* fs
+          .readFileString(ownerPath)
+          .pipe(
+            Effect.catch((error) =>
+              error.reason._tag === "NotFound" ? Effect.void : Effect.fail(error),
+            ),
+          );
         if (currentOwner === ownerContents) {
           yield* fs.remove(acquiredLockDir, { recursive: true, force: true });
         }

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Effect Atom Data Fetching"
+  short_description: "Cache HTTP data safely with Effect Atom"
+  default_prompt: "Use $effect-atom-data-fetching to design or debug Effect Atom HTTP queries, caching, polling, invalidation, and SSR integration in a React app."

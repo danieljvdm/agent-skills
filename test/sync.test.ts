@@ -117,18 +117,32 @@ const installFakeEffectTsgo = Effect.fn("installFakeEffectTsgo")(function* (
     EFFECT_TSGO_TYPESCRIPT_VERSION,
   );
 
+  const platform = "test-platform";
+  const typescriptPlatformPackage = `@typescript/typescript-${platform}`;
+  const effectPlatformPackage = `@effect/tsgo-${platform}`;
+  yield* writePackageVersion(
+    projectDir,
+    typescriptPlatformPackage,
+    EFFECT_TSGO_TYPESCRIPT_VERSION,
+  );
+  yield* writePackageVersion(
+    projectDir,
+    effectPlatformPackage,
+    EFFECT_TSGO_VERSION,
+  );
+
   const platformLib = path.join(
     projectDir,
     "node_modules",
     "@typescript",
-    "typescript-test",
+    `typescript-${platform}`,
     "lib",
   );
   const effectPlatformLib = path.join(
     projectDir,
     "node_modules",
     "@effect",
-    "tsgo-test",
+    `tsgo-${platform}`,
     "lib",
   );
   yield* fs.makeDirectory(platformLib, { recursive: true });
@@ -146,8 +160,8 @@ marker="$PWD/tsgo-patch-count.txt"
 count=0
 if [ -f "$marker" ]; then count="$(tr -d '\\n' < "$marker")"; fi
 printf '%s' "$((count + 1))" > "$marker"
-cp "$PWD/node_modules/@typescript/typescript-test/lib/tsc" "$PWD/node_modules/@typescript/typescript-test/lib/tsc.original"
-cp "$PWD/node_modules/@effect/tsgo-test/lib/tsc" "$PWD/node_modules/@typescript/typescript-test/lib/tsc"
+cp "$PWD/node_modules/${typescriptPlatformPackage}/lib/tsc" "$PWD/node_modules/${typescriptPlatformPackage}/lib/tsc.original"
+cp "$PWD/node_modules/${effectPlatformPackage}/lib/tsc" "$PWD/node_modules/${typescriptPlatformPackage}/lib/tsc"
 printf 'Verification succeeded.\\n'
 `,
     { mode: 0o755 },
@@ -232,7 +246,7 @@ describe("project apply", () => {
         assert.strictEqual(yield* fs.readFileString(statePath), firstState);
       }));
 
-    it.effect("runs the manifest-driven Effect tsgo setup task exactly once", () =>
+    it.effect("runs the Effect tsgo setup once with a hoisted npm toolchain", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;

@@ -8,7 +8,10 @@
     "effectTsgo": { "enabled": true },
     "vitePlus": {
       "hooks": { "enabled": true },
-      "quality": { "enabled": true },
+      "quality": {
+        "enabled": true,
+        "typecheck": { "strategy": "single-project" },
+      },
     },
   },
   "targets": {

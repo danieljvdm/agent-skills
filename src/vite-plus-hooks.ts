@@ -1,7 +1,7 @@
 import { Config, Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
 
-import { readDirectDependencyNames } from "./project-package.ts";
+import { validateInstalledVitePlus } from "./vite-plus-dependency.ts";
 
 export const VITE_PLUS_HOOKS_DIR = ".vite-hooks";
 export const VITE_PLUS_HOOKS_PATH = `${VITE_PLUS_HOOKS_DIR}/_`;
@@ -121,23 +121,14 @@ const inspectVitePlusHooks = Effect.fn("inspectVitePlusHooks")(function* (projec
 });
 
 export const planVitePlusHooks = Effect.fn("planVitePlusHooks")(function* (projectDir: string) {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  const dependencies = yield* readDirectDependencyNames(projectDir);
-
-  if (!dependencies.includes("vite-plus")) {
-    return yield* new VitePlusHooksDependencyError({
-      message: "vite-plus must be a direct project dependency before enabling setup.vitePlus.hooks",
-    });
-  }
-  const vpBin = path.join(projectDir, "node_modules", ".bin", "vp");
-
-  if (!(yield* fs.exists(vpBin))) {
-    return yield* new VitePlusHooksDependencyError({
-      message:
-        "vite-plus must be installed before enabling setup.vitePlus.hooks: node_modules/.bin/vp is missing",
-    });
-  }
+  const { vpBin } = yield* validateInstalledVitePlus(projectDir).pipe(
+    Effect.mapError(
+      (error) =>
+        new VitePlusHooksDependencyError({
+          message: `${error.message} before enabling setup.vitePlus.hooks`,
+        }),
+    ),
+  );
   const viteGitHooks = yield* Config.string("VITE_GIT_HOOKS").pipe(Config.withDefault(""));
   const husky = yield* Config.string("HUSKY").pipe(Config.withDefault(""));
   const action =

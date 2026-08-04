@@ -13,8 +13,12 @@ export {
   TargetConfigSchema,
   type VitePlusQualitySetup,
   VitePlusQualitySetupSchema,
+  type VitePlusQualityTypecheckSetup,
+  VitePlusQualityTypecheckSetupSchema,
   type VitePlusSetup,
   VitePlusSetupSchema,
+  type VitePlusTypecheckStrategy,
+  VitePlusTypecheckStrategySchema,
 } from "./manifest.ts";
 export {
   applyEffectSourcePlan,

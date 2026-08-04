@@ -13,6 +13,7 @@ const ProjectPackageSchema = Schema.fromJsonString(
     devDependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
     optionalDependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
     peerDependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+    workspaces: Schema.optional(Schema.Unknown),
   }),
 );
 

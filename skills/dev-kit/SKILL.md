@@ -116,12 +116,27 @@ Effect TypeScript-Go, and native TypeScript dependencies, as well as
 `setup.effectTsgo.enabled`. It refuses custom destination files and conflicting
 `check` or `typecheck` package scripts. Exact canonical files can be adopted;
 later updates and cleanup occur only while the owned files remain unchanged.
+The installed Vite+ version must satisfy Dev Kit's package peer range; generated
+CI resolves the consumer's locked Vite+ rather than carrying a second version
+literal.
 
 The managed Vite config composes the shared formatter and linter presets,
-configures `vp staged`, and defines cached `check` and `typecheck` Vite tasks.
-The check task and GitHub Actions workflow run `vp fmt --check`, `vp lint`,
-`vp test`, and finally `vp run typecheck` so Effect diagnostics come from the
-patched native compiler.
+configures `vp staged`, and defines separate cached `check` and pure `typecheck`
+Vite tasks. The default `single-project` typecheck strategy runs
+`tsc --noEmit` and rejects root TypeScript project references. An explicit
+`workspace` strategy requires explicit package directories with consumer-owned
+`typecheck` scripts, then runs exactly that filter scope in workspace dependency
+order with caching enabled, unmatched-filter failure, and configurable bounded
+concurrency. Project-reference builds remain custom because they need
+repository-specific `.tsbuildinfo` inputs and outputs.
+
+The GitHub Actions workflow uses one frozen, script-suppressed install through
+an exact `setup-vp` release, then runs `vp exec dev-kit apply --locked`. This
+verifies the committed setup and converges the Effect TypeScript-Go patch before
+formatting, linting, tests, and typechecking. Vite+ maps the frozen and
+ignore-scripts flags to the detected package manager. Keep the exact setup
+action release commit current with Renovate or Dependabot; do not switch back
+to the frozen `v1` tag.
 
 ## Ownership and conflicts
 

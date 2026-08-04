@@ -1,4 +1,4 @@
-# Cache lifecycle
+# Effect Atom cache lifecycle
 
 ## Registry and runtime scope
 

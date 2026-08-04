@@ -1,8 +1,3 @@
----
-name: effect-atom-data-fetching
-description: Design, implement, debug, or review HTTP data fetching with Effect Atom in React applications. Use for AtomHttpApi.Service queries and mutations, parameterized Atom.family caches, RegistryProvider and runtime placement, TTL/SWR/polling behavior, reactivity-key invalidation, framework-appropriate SSR and focus handling, AsyncResult aggregation resets, and deterministic cache lifecycle tests.
----
-
 # Effect Atom Data Fetching
 
 Model server data as stable atoms owned outside React renders. Give the application one intentional registry boundary and one compatible runtime factory; then choose cache retention, freshness, polling, and invalidation independently.
@@ -27,13 +22,6 @@ Model server data as stable atoms owned outside React renders. Give the applicat
 - Never allocate a query atom in render. For parameterized queries, use a stable scalar or Effect `Hash`/`Equal` value as the family argument.
 - Ensure every input to a route-level `AsyncResult.all` has stable atom identity and compatible retention. One newly allocated or immediately evicted input returns to `Initial` and makes the whole aggregate appear reset even when the other inputs remain cached.
 - Do not describe manual refresh or polling as freshness caching. Refresh is forceful; `staleTime` only gates SWR's automatic mount/focus decisions.
-
-## References
-
-- Read `./references/cache-lifecycle.md` for registry scope, runtime memoization, families, TTL, SWR, polling, and the aggregation trap.
-- Read `./references/http-and-invalidation.md` for `AtomHttpApi.Service`, query/mutation ownership, reactivity-key vocabulary, and invalidation.
-- Read `./references/tanstack-start.md` only for its framework-specific provider placement, SSR isolation, hydration, and focus guidance.
-- Read `./references/testing.md` when adding or diagnosing lifecycle tests.
 
 ## Completion check
 

@@ -234,10 +234,7 @@ describe("project apply", () => {
 
         assert.strictEqual(result.exitCode, 0, result.output);
         assert.match(result.output, /\+ copy effect-ts → \.agents\/skills\/effect-ts/);
-        assert.match(
-          result.output,
-          /\+ copy effect-atom-data-fetching → \.agents\/skills\/effect-atom-data-fetching/,
-        );
+        assert.notMatch(result.output, /copy effect-atom-data-fetching|copy effect-datetime/);
         assert.isFalse(yield* fs.exists(path.join(projectDir, ".agents")));
         assert.isFalse(yield* fs.exists(path.join(projectDir, "AGENTS.md")));
         assert.isFalse(yield* fs.exists(path.join(projectDir, "dev-kit.lock.json")));
@@ -254,14 +251,9 @@ describe("project apply", () => {
         const first = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
 
         assert.strictEqual(first.exitCode, 0, first.output);
-        assert.match(first.output, /Dev kit ready 2 changes/);
+        assert.match(first.output, /Dev kit ready 1 change/);
         assert.isTrue(
           yield* fs.exists(path.join(projectDir, ".agents", "skills", "effect-ts", "SKILL.md")),
-        );
-        assert.isTrue(
-          yield* fs.exists(
-            path.join(projectDir, ".agents", "skills", "effect-atom-data-fetching", "SKILL.md"),
-          ),
         );
 
         const lockPath = path.join(projectDir, "dev-kit.lock.json");
@@ -275,10 +267,7 @@ describe("project apply", () => {
             output.resourceId,
             output.path,
           ]),
-          [
-            ["skill:effect-atom-data-fetching@agents", ".agents/skills/effect-atom-data-fetching"],
-            ["skill:effect-ts@agents", ".agents/skills/effect-ts"],
-          ],
+          [["skill:effect-ts@agents", ".agents/skills/effect-ts"]],
         );
 
         const second = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
@@ -312,7 +301,7 @@ describe("project apply", () => {
         const applied = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
 
         assert.strictEqual(applied.exitCode, 0, applied.output);
-        assert.match(applied.output, /✓ Dev kit ready 3 changes/);
+        assert.match(applied.output, /✓ Dev kit ready 2 changes/);
         assert.notMatch(applied.output, /Verification succeeded|Backed up original binary/);
         assert.strictEqual(yield* fs.readFileString(marker), "1");
 
@@ -392,7 +381,6 @@ describe("project apply", () => {
 
         assert.strictEqual(planned.exitCode, 0, planned.output);
         assert.match(planned.output, /− skill:effect-ts@agents/);
-        assert.match(planned.output, /− skill:effect-atom-data-fetching@agents/);
         assert.isTrue(yield* fs.exists(path.join(projectDir, ".agents", "skills", "effect-ts")));
 
         const applied = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
@@ -432,7 +420,7 @@ describe("project apply", () => {
         assert.match(yield* fs.readFileString(skillDocument), /local edit/);
         assert.lengthOf(
           JSON.parse(yield* fs.readFileString(path.join(projectDir, "dev-kit.lock.json"))).outputs,
-          2,
+          1,
         );
       }),
     );
@@ -982,7 +970,7 @@ describe("project apply", () => {
         assert.isTrue(yield* fs.exists(path.join(projectDir, ".agents", "skills", "effect-ts")));
         assert.lengthOf(
           JSON.parse(yield* fs.readFileString(path.join(projectDir, "dev-kit.lock.json"))).outputs,
-          2,
+          1,
         );
       }),
     );
@@ -1017,7 +1005,7 @@ describe("project apply", () => {
         ]);
 
         assert.strictEqual(result.exitCode, 0, result.output);
-        assert.match(result.output, /Dev kit ready 2 changes/);
+        assert.match(result.output, /Dev kit ready 1 change/);
         assert.isFalse(yield* fs.exists(path.join(projectDir, ".agents", "skills", "effect-ts")));
         assert.deepEqual(
           JSON.parse(yield* fs.readFileString(path.join(projectDir, ".dev-kit", "state.json")))

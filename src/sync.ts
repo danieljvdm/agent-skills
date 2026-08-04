@@ -223,7 +223,8 @@ class ApplyRaceError extends Schema.TaggedErrorClass<ApplyRaceError>()("ApplyRac
 }
 
 const SKILL_FAMILIES: SkillCatalog = {
-  effect: ["effect-ts", "effect-atom-data-fetching"],
+  effect: ["effect-ts"],
+  "effect-atom-data-fetching": ["effect-ts"],
 };
 
 export const DEFAULT_MANIFEST = "dev-kit.jsonc";

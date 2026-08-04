@@ -47,5 +47,13 @@
       "include": ["serve-sim"],
       "licensePath": "LICENSE",
     },
+    {
+      "id": "mattpocock-skills",
+      "repository": "https://github.com/mattpocock/skills.git",
+      "ref": "main",
+      "skillsPath": "skills/engineering",
+      "include": ["tdd", "improve-codebase-architecture"],
+      "licensePath": "LICENSE",
+    },
   ],
 }

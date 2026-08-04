@@ -125,6 +125,24 @@
         "serve-sim": "sha256:782f41d4d79100d5bfc9ec1211e5d4766e978299bbb93fd8e34c6f8d2ecf2114"
       },
       "licensePath": "LICENSE"
+    },
+    {
+      "id": "mattpocock-skills",
+      "repository": "https://github.com/mattpocock/skills.git",
+      "ref": "main",
+      "resolved": "2ab958093e83e0ec752e6c1c5932da465bf23e0c",
+      "skillsPath": "skills/engineering",
+      "include": ["tdd", "improve-codebase-architecture"],
+      "skills": ["improve-codebase-architecture", "tdd"],
+      "descriptions": {
+        "improve-codebase-architecture": "Scan a codebase for deepening opportunities, present them as a visual HTML report, then grill through whichever one you pick.",
+        "tdd": "Test-driven development. Use when the user wants to build features or fix bugs test-first, mentions \"red-green-refactor\", or wants integration tests."
+      },
+      "digests": {
+        "improve-codebase-architecture": "sha256:43721b6125a4c703810414e649fbbab252f1f85a62385cdb23f313e0e06ba26a",
+        "tdd": "sha256:ea2d26eda005b10a2de4bdb7de44d33072f2a8e82dbf670952ce30a9c2d7c475"
+      },
+      "licensePath": "LICENSE"
     }
   ]
 }

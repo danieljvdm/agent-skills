@@ -53,7 +53,7 @@
     "changeset": "changeset",
     "version-packages": "changeset version && ./bin/dev-kit.mjs apply",
     "release": "changeset publish",
-    "check": "vp check",
+    "check": "vp fmt --check && vp lint && vp test && vp run typecheck",
     "lint": "vp lint",
     "plan": "./bin/dev-kit.mjs plan",
     "apply": "./bin/dev-kit.mjs apply",

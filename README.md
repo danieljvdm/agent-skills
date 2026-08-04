@@ -452,8 +452,16 @@ export default defineConfig({
 Use `lint.extends` rather than a shallow object spread so Vite+ composes the
 nested plugin and rule configuration correctly. Oxfmt has no `extends`, so
 spread its configuration before project-local formatter options. The shared
-lint preset enables both `typeAware` and `typeCheck`, so `vp check` covers
-formatting, linting, and TypeScript without a separate `tsc` invocation.
+lint preset enables `typeAware` for semantic lint rules but leaves `typeCheck`
+disabled. Projects using Effect TypeScript-Go should run formatting, linting,
+tests, and the patched compiler explicitly:
+
+```sh
+vp fmt --check
+vp lint
+vp test
+vp run typecheck
+```
 
 Standalone projects import the same objects from their native config files:
 
@@ -480,7 +488,7 @@ export default defineConfig({
 The Oxlint preset enables `stylistic/padding-line-between-statements`: adjacent
 variable declarations remain grouped, while the next logical statement and
 all `return` statements require a separating blank line. The rule is fixable,
-so `vp check --fix` repairs missing spacing automatically.
+so `vp lint --fix` repairs missing spacing automatically.
 
 The preset also registers the shared `effect` JavaScript plugin. Effect
 projects opt into its rules in path-specific overrides, for example

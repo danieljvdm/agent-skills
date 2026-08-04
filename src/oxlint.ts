@@ -10,7 +10,6 @@ import type { OxlintConfig } from "oxlint";
 export const recommendedOxlintConfig = {
   options: {
     typeAware: true,
-    typeCheck: true,
   },
   jsPlugins: [
     {

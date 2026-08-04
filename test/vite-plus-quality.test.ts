@@ -76,7 +76,13 @@ cp "$PWD/node_modules/${effectPlatformPackage}/lib/tsc" "$PWD/node_modules/${typ
 const writeFixture = Effect.fn("writeQualityTestFixture")(function* (
   projectDir: string,
   options: {
-    readonly quality?: boolean;
+    readonly configQuality?: boolean;
+    readonly workflowQuality?: boolean;
+    readonly workflowBeforeChecks?: ReadonlyArray<{
+      readonly name: string;
+      readonly run: ReadonlyArray<string>;
+    }>;
+    readonly workflowTypecheck?: ReadonlyArray<string>;
     readonly effectTsgo?: boolean;
     readonly packageScripts?: Readonly<Record<string, string>>;
     readonly completeDependencies?: boolean;
@@ -100,15 +106,26 @@ const writeFixture = Effect.fn("writeQualityTestFixture")(function* (
           effectTsgo: { enabled: options.effectTsgo ?? true },
           vitePlus: {
             quality: {
-              enabled: options.quality ?? true,
-              typecheck: {
-                strategy: options.typecheckStrategy ?? "single-project",
-                ...(options.typecheckConcurrency === undefined
+              config: {
+                enabled: options.configQuality ?? true,
+                typecheck: {
+                  strategy: options.typecheckStrategy ?? "single-project",
+                  ...(options.typecheckConcurrency === undefined
+                    ? {}
+                    : { concurrency: options.typecheckConcurrency }),
+                  ...(options.workspacePackages === undefined
+                    ? {}
+                    : { packages: options.workspacePackages }),
+                },
+              },
+              workflow: {
+                enabled: options.workflowQuality ?? true,
+                ...(options.workflowBeforeChecks === undefined
                   ? {}
-                  : { concurrency: options.typecheckConcurrency }),
-                ...(options.workspacePackages === undefined
+                  : { beforeChecks: options.workflowBeforeChecks }),
+                ...(options.workflowTypecheck === undefined
                   ? {}
-                  : { packages: options.workspacePackages }),
+                  : { typecheck: options.workflowTypecheck }),
               },
             },
           },
@@ -207,7 +224,8 @@ describe("Vite+ quality setup", () => {
         const projectDir = yield* createFixture();
 
         yield* writeFixture(projectDir, {
-          quality: false,
+          configQuality: false,
+          workflowQuality: false,
           typecheckStrategy: "workspace",
           typecheckConcurrency: 0,
           projectReferences: true,
@@ -219,6 +237,73 @@ describe("Vite+ quality setup", () => {
         assert.notMatch(result.output, /templates\/vite-plus/);
         assert.isFalse(yield* fs.exists(path.join(projectDir, VITE_PLUS_CONFIG_PATH)));
         assert.isFalse(yield* fs.exists(path.join(projectDir, VITE_PLUS_GITHUB_ACTIONS_PATH)));
+      }),
+    );
+
+    it.effect("manages the Vite config and workflow as independent opt-ins", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const configProject = yield* createFixture();
+
+        yield* writeFixture(configProject, {
+          configQuality: true,
+          workflowQuality: false,
+        });
+        const configApplied = yield* runDevKit(configProject, [
+          "apply",
+          "--project-dir",
+          configProject,
+        ]);
+
+        assert.strictEqual(configApplied.exitCode, 0, configApplied.output);
+        assert.isTrue(yield* fs.exists(path.join(configProject, VITE_PLUS_CONFIG_PATH)));
+        assert.isFalse(yield* fs.exists(path.join(configProject, VITE_PLUS_GITHUB_ACTIONS_PATH)));
+        const workflowProject = yield* createFixture();
+        const customConfig = "export default { custom: true };\n";
+
+        yield* fs.writeFileString(path.join(workflowProject, VITE_PLUS_CONFIG_PATH), customConfig);
+        yield* writeFixture(workflowProject, {
+          configQuality: false,
+          workflowQuality: true,
+          packageScripts: { check: "vp run custom-check", typecheck: "tsc -b" },
+          projectReferences: true,
+          workflowBeforeChecks: [
+            {
+              name: "Install media tools",
+              run: ["sudo apt-get update", "sudo apt-get install --yes ffmpeg"],
+            },
+          ],
+          workflowTypecheck: [
+            "vp run -F './apps/*' -F './packages/*' check",
+            "vp exec tsc --noEmit -p scripts/tsconfig.json",
+          ],
+        });
+        const workflowApplied = yield* runDevKit(workflowProject, [
+          "apply",
+          "--project-dir",
+          workflowProject,
+        ]);
+
+        assert.strictEqual(workflowApplied.exitCode, 0, workflowApplied.output);
+        assert.strictEqual(
+          yield* fs.readFileString(path.join(workflowProject, VITE_PLUS_CONFIG_PATH)),
+          customConfig,
+        );
+        const workflow = yield* fs.readFileString(
+          path.join(workflowProject, VITE_PLUS_GITHUB_ACTIONS_PATH),
+        );
+
+        assert.include(workflow, '- name: "Install media tools"');
+        assert.include(workflow, "sudo apt-get install --yes ffmpeg");
+        assert.include(workflow, "vp run -F './apps/*' -F './packages/*' check");
+        assert.include(workflow, "vp exec tsc --noEmit -p scripts/tsconfig.json");
+        assert.strictEqual((workflow.match(/run-install:/g) ?? []).length, 1);
+        assert.include(workflow, "vp exec dev-kit apply --locked");
+        assert.isBelow(
+          workflow.indexOf("vp exec dev-kit apply --locked"),
+          workflow.indexOf("Install media tools"),
+        );
       }),
     );
 
@@ -243,7 +328,9 @@ describe("Vite+ quality setup", () => {
         assert.isBelow(workflow.indexOf("run-install:"), workflow.indexOf("apply --locked"));
         assert.notMatch(workflow, /dev-kit apply(?! --locked)/);
         assert.include(
-          renderVitePlusWorkflowTemplate(workflow, "./bin/dev-kit.mjs apply --locked"),
+          renderVitePlusWorkflowTemplate(workflow, {
+            devKitCommand: "./bin/dev-kit.mjs apply --locked",
+          }),
           "run: ./bin/dev-kit.mjs apply --locked",
         );
       }),
@@ -268,6 +355,32 @@ describe("Vite+ quality setup", () => {
                 strategy: "workspace",
                 concurrency: 4,
                 packages: ["packages/core"],
+              },
+            ),
+          /expected exactly one generated template marker/,
+        );
+        assert.throws(
+          () =>
+            renderVitePlusWorkflowTemplate(
+              "run: vp exec dev-kit apply --locked\n\n" +
+                "      - name: Type check with Effect TypeScript-Go\n" +
+                "        run: vp run typecheck\n",
+              {
+                workflow: {
+                  beforeChecks: [{ name: "Prepare", run: ["true"] }],
+                  typecheck: ["vp run typecheck"],
+                },
+              },
+            ),
+          /expected exactly one generated template marker/,
+        );
+        assert.throws(
+          () =>
+            renderVitePlusWorkflowTemplate(
+              "run: vp exec dev-kit apply --locked\n\n" +
+                "      # Dev Kit inserts configured quality.workflow.beforeChecks steps here.\n\n",
+              {
+                workflow: { beforeChecks: [], typecheck: ["vp exec tsc --noEmit"] },
               },
             ),
           /expected exactly one generated template marker/,
@@ -299,7 +412,10 @@ describe("Vite+ quality setup", () => {
         );
         assert.strictEqual(
           yield* fs.readFileString(path.join(projectDir, VITE_PLUS_GITHUB_ACTIONS_PATH)),
-          yield* fs.readFileString(path.join(root, VITE_PLUS_GITHUB_ACTIONS_TEMPLATE)),
+          renderVitePlusWorkflowTemplate(
+            yield* fs.readFileString(path.join(root, VITE_PLUS_GITHUB_ACTIONS_TEMPLATE)),
+            { workflow: { beforeChecks: [], typecheck: ["vp run typecheck"] } },
+          ),
         );
         const lock = JSON.parse(
           yield* fs.readFileString(path.join(projectDir, "dev-kit.lock.json")),
@@ -323,7 +439,36 @@ describe("Vite+ quality setup", () => {
         ]);
 
         assert.strictEqual(converged.exitCode, 0, converged.output);
-        yield* writeFixture(projectDir, { quality: false });
+        yield* writeFixture(projectDir, {
+          configQuality: true,
+          workflowQuality: false,
+        });
+        const workflowRemoved = yield* runDevKit(projectDir, [
+          "apply",
+          "--project-dir",
+          projectDir,
+        ]);
+
+        assert.strictEqual(workflowRemoved.exitCode, 0, workflowRemoved.output);
+        assert.isTrue(yield* fs.exists(path.join(projectDir, VITE_PLUS_CONFIG_PATH)));
+        assert.isFalse(yield* fs.exists(path.join(projectDir, VITE_PLUS_GITHUB_ACTIONS_PATH)));
+        yield* writeFixture(projectDir, {
+          configQuality: true,
+          workflowQuality: true,
+        });
+        const workflowRestored = yield* runDevKit(projectDir, [
+          "apply",
+          "--project-dir",
+          projectDir,
+        ]);
+
+        assert.strictEqual(workflowRestored.exitCode, 0, workflowRestored.output);
+        assert.isTrue(yield* fs.exists(path.join(projectDir, VITE_PLUS_CONFIG_PATH)));
+        assert.isTrue(yield* fs.exists(path.join(projectDir, VITE_PLUS_GITHUB_ACTIONS_PATH)));
+        yield* writeFixture(projectDir, {
+          configQuality: false,
+          workflowQuality: false,
+        });
         const removed = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
 
         assert.strictEqual(removed.exitCode, 0, removed.output);
@@ -396,12 +541,16 @@ describe("Vite+ quality setup", () => {
           [VITE_PLUS_GITHUB_ACTIONS_PATH, VITE_PLUS_GITHUB_ACTIONS_TEMPLATE],
         ] as const) {
           const destinationPath = path.join(projectDir, destination);
+          const templateContent = yield* fs.readFileString(path.join(root, template));
+          const content =
+            destination === VITE_PLUS_GITHUB_ACTIONS_PATH
+              ? renderVitePlusWorkflowTemplate(templateContent, {
+                  workflow: { beforeChecks: [], typecheck: ["vp run typecheck"] },
+                })
+              : templateContent;
 
           yield* fs.makeDirectory(path.dirname(destinationPath), { recursive: true });
-          yield* fs.writeFileString(
-            destinationPath,
-            yield* fs.readFileString(path.join(root, template)),
-          );
+          yield* fs.writeFileString(destinationPath, content);
         }
         const planned = yield* runDevKit(projectDir, ["plan", "--project-dir", projectDir]);
 
@@ -415,7 +564,45 @@ describe("Vite+ quality setup", () => {
       }),
     );
 
-    it.effect("preserves modified owned files when quality setup is disabled", () =>
+    it.effect("adopts only the selected workflow while preserving a custom config", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const projectDir = yield* createFixture();
+        const root = yield* repositoryRoot();
+        const customConfig = "export default { custom: true };\n";
+
+        yield* writeFixture(projectDir, {
+          configQuality: false,
+          workflowQuality: true,
+          packageScripts: { check: "custom" },
+          projectReferences: true,
+        });
+        yield* fs.writeFileString(path.join(projectDir, VITE_PLUS_CONFIG_PATH), customConfig);
+        const workflowPath = path.join(projectDir, VITE_PLUS_GITHUB_ACTIONS_PATH);
+        const workflow = renderVitePlusWorkflowTemplate(
+          yield* fs.readFileString(path.join(root, VITE_PLUS_GITHUB_ACTIONS_TEMPLATE)),
+          { workflow: { beforeChecks: [], typecheck: ["vp run typecheck"] } },
+        );
+
+        yield* fs.makeDirectory(path.dirname(workflowPath), { recursive: true });
+        yield* fs.writeFileString(workflowPath, workflow);
+        const planned = yield* runDevKit(projectDir, ["plan", "--project-dir", projectDir]);
+
+        assert.strictEqual(planned.exitCode, 0, planned.output);
+        assert.match(planned.output, /github-actions-check\.yml.*\(adopt\)/);
+        assert.notMatch(planned.output, /vite\.config\.ts/);
+        const applied = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
+        assert.strictEqual(applied.exitCode, 0, applied.output);
+        assert.strictEqual(
+          yield* fs.readFileString(path.join(projectDir, VITE_PLUS_CONFIG_PATH)),
+          customConfig,
+        );
+      }),
+    );
+
+    it.effect("preserves a modified owned config when only config is disabled", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
@@ -427,7 +614,10 @@ describe("Vite+ quality setup", () => {
         const modified = `${yield* fs.readFileString(configPath)}// user change\n`;
 
         yield* fs.writeFileString(configPath, modified);
-        yield* writeFixture(projectDir, { quality: false });
+        yield* writeFixture(projectDir, {
+          configQuality: false,
+          workflowQuality: true,
+        });
         const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
 
         assert.notStrictEqual(result.exitCode, 0);

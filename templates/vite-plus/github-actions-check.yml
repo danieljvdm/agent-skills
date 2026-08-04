@@ -36,6 +36,8 @@ jobs:
       - name: Verify locked Dev Kit setup
         run: vp exec dev-kit apply --locked
 
+      # Dev Kit inserts configured quality.workflow.beforeChecks steps here.
+
       - name: Check formatting
         run: vp fmt --check
 

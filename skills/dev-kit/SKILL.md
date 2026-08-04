@@ -76,7 +76,10 @@ skill as `dev-kit` when project agents should carry the toolkit procedure.
     "claudeInstructions": { "enabled": true },
     "vitePlus": {
       "hooks": { "enabled": true },
-      "quality": { "enabled": true },
+      "quality": {
+        "config": { "enabled": true },
+        "workflow": { "enabled": true },
+      },
     },
   },
   "targets": {
@@ -109,34 +112,26 @@ ignored dispatchers in linked worktrees. Preserve other hook managers; Dev Kit
 refuses to replace an unrelated `core.hooksPath`. Use `VITE_GIT_HOOKS=0` or
 `HUSKY=0` to skip hook setup for an invocation.
 
-Enable `setup.vitePlus.quality` only in supported Vite+/Effect repositories
-that explicitly want Dev Kit to own the canonical root `vite.config.ts` and
-`.github/workflows/check.yml`. It requires direct Dev Kit, Vite+, Effect,
-Effect TypeScript-Go, and native TypeScript dependencies, as well as
-`setup.effectTsgo.enabled`. It refuses custom destination files and conflicting
-`check` or `typecheck` package scripts. Exact canonical files can be adopted;
-later updates and cleanup occur only while the owned files remain unchanged.
-The installed Vite+ version must satisfy Dev Kit's package peer range; generated
-CI resolves the consumer's locked Vite+ rather than carrying a second version
-literal.
+Enable `setup.vitePlus.quality.config` and
+`setup.vitePlus.quality.workflow` independently in supported Vite+/Effect
+repositories. Config owns canonical root `vite.config.ts`; workflow owns
+`.github/workflows/check.yml`; selecting one must not constrain the other's
+config, scripts, or TypeScript topology. Both require direct Dev Kit, compatible
+Vite+, Effect, Effect TypeScript-Go, and native TypeScript dependencies with
+`setup.effectTsgo.enabled`. Preserve unowned destinations and adopt only exact
+rendered matches.
 
-The managed Vite config composes the shared formatter and linter presets,
-configures `vp staged`, and defines separate cached `check` and pure `typecheck`
-Vite tasks. The default `single-project` typecheck strategy runs
-`tsc --noEmit` and rejects root TypeScript project references. An explicit
-`workspace` strategy requires explicit package directories with consumer-owned
-`typecheck` scripts, then runs exactly that filter scope in workspace dependency
-order with caching enabled, unmatched-filter failure, and configurable bounded
-concurrency. Project-reference builds remain custom because they need
-repository-specific `.tsbuildinfo` inputs and outputs.
+Managed config defines separate `check` and pure `typecheck` Vite tasks. Its
+default single-project strategy rejects project references; workspace mode
+requires explicit package directories with `typecheck` scripts and generates
+cached, dependency-ordered, bounded-concurrency filters. Keep project-reference
+builds custom. Workflow-only consumers may configure `workflow.beforeChecks`
+and `workflow.typecheck`; treat these commands as trusted manifest input.
 
-The GitHub Actions workflow uses one frozen, script-suppressed install through
-an exact `setup-vp` release, then runs `vp exec dev-kit apply --locked`. This
-verifies the committed setup and converges the Effect TypeScript-Go patch before
-formatting, linting, tests, and typechecking. Vite+ maps the frozen and
-ignore-scripts flags to the detected package manager. Keep the exact setup
-action release commit current with Renovate or Dependabot; do not switch back
-to the frozen `v1` tag.
+The workflow must use one frozen, script-suppressed install, then locked Dev Kit
+convergence before preparation or checks. Keep `setup-vp` pinned to a reviewed
+release commit—the `v1` tag is frozen—and let Vite+ resolve the consumer's
+compatible locked version.
 
 ## Ownership and conflicts
 
@@ -270,8 +265,8 @@ in the consuming project.
 
 Manage skill outputs, the `setup.agentInstructions` wrapper, the
 `setup.claudeInstructions` link, the `setup.vitePlus.hooks` dispatcher, the
-opt-in `setup.vitePlus.quality` config and GitHub workflow, the
+independently opt-in `setup.vitePlus.quality` config and GitHub workflow, the
 `setup.effectSource` checkout, and the explicit `setup.effectTsgo` task.
 Dependency and `tsconfig.json` contributions remain deliberate user-owned
-edits. Custom Vite configs compose the Oxlint and Oxfmt package exports manually
-and leave the canonical quality task disabled.
+edits. Custom Vite configs compose the Oxlint and Oxfmt package exports
+manually, leave managed config disabled, and may still use the managed workflow.

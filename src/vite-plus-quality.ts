@@ -1,7 +1,7 @@
 import { Effect, FileSystem, Path, Schema } from "effect";
 import { parse as parseJsonc, type ParseError } from "jsonc-parser";
 
-import type { VitePlusTypecheckStrategy } from "./manifest.ts";
+import type { VitePlusQualityWorkflowStep, VitePlusTypecheckStrategy } from "./manifest.ts";
 import { readDirectDependencyNames, readProjectPackage } from "./project-package.ts";
 import { validateInstalledVitePlus } from "./vite-plus-dependency.ts";
 
@@ -21,8 +21,22 @@ export type VitePlusQualityTypecheck = {
   readonly packages: ReadonlyArray<string>;
 };
 
+export type VitePlusQualityWorkflow = {
+  readonly beforeChecks: ReadonlyArray<VitePlusQualityWorkflowStep>;
+  readonly typecheck: ReadonlyArray<string>;
+};
+
+export type VitePlusQualitySelection = {
+  readonly config?: VitePlusQualityTypecheck;
+  readonly workflow?: VitePlusQualityWorkflow;
+};
+
 const SINGLE_PROJECT_TYPECHECK_TASK = '      typecheck: "tsc --noEmit",';
 const LOCKED_DEV_KIT_COMMAND = "vp exec dev-kit apply --locked";
+const BEFORE_CHECKS_MARKER =
+  "      # Dev Kit inserts configured quality.workflow.beforeChecks steps here.\n\n";
+const DEFAULT_WORKFLOW_TYPECHECK = `      - name: Type check with Effect TypeScript-Go
+        run: vp run typecheck`;
 
 const replaceUniqueTemplateMarker = (
   template: string,
@@ -62,18 +76,65 @@ export const renderVitePlusConfigTemplate = (
 
 export const renderVitePlusWorkflowTemplate = (
   template: string,
-  devKitCommand = LOCKED_DEV_KIT_COMMAND,
-): string =>
-  devKitCommand === LOCKED_DEV_KIT_COMMAND
-    ? template
-    : replaceUniqueTemplateMarker(template, LOCKED_DEV_KIT_COMMAND, devKitCommand);
+  options: {
+    readonly devKitCommand?: string;
+    readonly workflow?: VitePlusQualityWorkflow;
+  } = {},
+): string => {
+  const devKitCommand = options.devKitCommand;
+  const workflow = options.workflow;
+  let rendered =
+    devKitCommand === undefined || devKitCommand === LOCKED_DEV_KIT_COMMAND
+      ? template
+      : replaceUniqueTemplateMarker(template, LOCKED_DEV_KIT_COMMAND, devKitCommand);
+
+  if (workflow !== undefined) {
+    const steps = workflow.beforeChecks
+      .map((step) => {
+        const commands = step.run
+          .flatMap((command) => command.split("\n"))
+          .map((line) => `          ${line}`)
+          .join("\n");
+
+        return `      - name: ${JSON.stringify(step.name)}
+        run: |
+${commands}`;
+      })
+      .join("\n\n");
+
+    rendered = replaceUniqueTemplateMarker(
+      rendered,
+      BEFORE_CHECKS_MARKER,
+      steps.length === 0 ? "" : `${steps}\n\n`,
+    );
+  }
+  if (
+    workflow !== undefined &&
+    (workflow.typecheck.length !== 1 || workflow.typecheck[0] !== "vp run typecheck")
+  ) {
+    const commands = workflow.typecheck
+      .flatMap((command) => command.split("\n"))
+      .map((line) => `          ${line}`)
+      .join("\n");
+
+    rendered = replaceUniqueTemplateMarker(
+      rendered,
+      DEFAULT_WORKFLOW_TYPECHECK,
+      `      - name: Type check with Effect TypeScript-Go
+        run: |
+${commands}`,
+    );
+  }
+
+  return rendered;
+};
 
 export const validateVitePlusQualitySupport = Effect.fn("validateVitePlusQualitySupport")(
   function* (
     projectDir: string,
     packageRoot: string,
     typescriptPackage: string,
-    typecheck: VitePlusQualityTypecheck,
+    selection: VitePlusQualitySelection,
   ) {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
@@ -93,24 +154,54 @@ export const validateVitePlusQualitySupport = Effect.fn("validateVitePlusQuality
         message: `setup.vitePlus.quality requires direct dependencies: ${missing.join(", ")}`,
       });
     }
+    if (selection.workflow !== undefined) {
+      if (selection.workflow.typecheck.length === 0) {
+        return yield* new VitePlusQualitySupportError({
+          message: "setup.vitePlus.quality.workflow.typecheck requires at least one command",
+        });
+      }
+      for (const command of selection.workflow.typecheck) {
+        if (command.trim().length === 0) {
+          return yield* new VitePlusQualitySupportError({
+            message: "setup.vitePlus.quality.workflow.typecheck commands must not be empty",
+          });
+        }
+      }
+      for (const step of selection.workflow.beforeChecks) {
+        if (step.name.trim().length === 0 || step.run.length === 0) {
+          return yield* new VitePlusQualitySupportError({
+            message:
+              "setup.vitePlus.quality.workflow.beforeChecks steps require a name and at least one command",
+          });
+        }
+        if (step.run.some((command) => command.trim().length === 0)) {
+          return yield* new VitePlusQualitySupportError({
+            message: "setup.vitePlus.quality.workflow.beforeChecks commands must not be empty",
+          });
+        }
+      }
+    }
+    const typecheck = selection.config;
+
+    if (typecheck === undefined) return;
     const conflictingScripts = ["check", "typecheck"].filter(
       (script) => packageJson.scripts?.[script] !== undefined,
     );
 
     if (conflictingScripts.length > 0) {
       return yield* new VitePlusQualitySupportError({
-        message: `setup.vitePlus.quality defines Vite tasks that conflict with package scripts: ${conflictingScripts.join(", ")}`,
+        message: `setup.vitePlus.quality.config defines Vite tasks that conflict with package scripts: ${conflictingScripts.join(", ")}`,
       });
     }
     if (typecheck.concurrency < 1 || typecheck.concurrency > 32) {
       return yield* new VitePlusQualitySupportError({
-        message: "setup.vitePlus.quality typecheck concurrency must be between 1 and 32",
+        message: "setup.vitePlus.quality.config typecheck concurrency must be between 1 and 32",
       });
     }
     if (typecheck.strategy === "single-project" && typecheck.packages.length > 0) {
       return yield* new VitePlusQualitySupportError({
         message:
-          "setup.vitePlus.quality single-project typechecking does not accept workspace packages",
+          "setup.vitePlus.quality.config single-project typechecking does not accept workspace packages",
       });
     }
     const workspacePatterns = Array.isArray(packageJson.workspaces)
@@ -126,21 +217,22 @@ export const validateVitePlusQualitySupport = Effect.fn("validateVitePlusQuality
         !workspacePatterns.every((pattern) => typeof pattern === "string"))
     ) {
       return yield* new VitePlusQualitySupportError({
-        message: "setup.vitePlus.quality workspace typechecking requires package.json workspaces",
+        message:
+          "setup.vitePlus.quality.config workspace typechecking requires package.json workspaces",
       });
     }
     if (typecheck.strategy === "workspace") {
       if (typecheck.packages.length === 0) {
         return yield* new VitePlusQualitySupportError({
           message:
-            "setup.vitePlus.quality workspace typechecking requires explicit package directories",
+            "setup.vitePlus.quality.config workspace typechecking requires explicit package directories",
         });
       }
       const uniquePackages = new Set(typecheck.packages);
 
       if (uniquePackages.size !== typecheck.packages.length) {
         return yield* new VitePlusQualitySupportError({
-          message: "setup.vitePlus.quality workspace typecheck packages must be unique",
+          message: "setup.vitePlus.quality.config workspace typecheck packages must be unique",
         });
       }
       for (const packageDir of typecheck.packages) {
@@ -155,21 +247,21 @@ export const validateVitePlusQualitySupport = Effect.fn("validateVitePlusQuality
           relative.startsWith(`..${path.sep}`)
         ) {
           return yield* new VitePlusQualitySupportError({
-            message: `setup.vitePlus.quality workspace package must be a project-relative subdirectory: ${packageDir}`,
+            message: `setup.vitePlus.quality.config workspace package must be a project-relative subdirectory: ${packageDir}`,
           });
         }
         const workspacePackage = yield* readProjectPackage(absolute).pipe(
           Effect.mapError(
             () =>
               new VitePlusQualitySupportError({
-                message: `setup.vitePlus.quality workspace package is missing a valid package.json: ${packageDir}`,
+                message: `setup.vitePlus.quality.config workspace package is missing a valid package.json: ${packageDir}`,
               }),
           ),
         );
 
         if (workspacePackage.scripts?.typecheck === undefined) {
           return yield* new VitePlusQualitySupportError({
-            message: `setup.vitePlus.quality workspace package requires a typecheck script: ${packageDir}`,
+            message: `setup.vitePlus.quality.config workspace package requires a typecheck script: ${packageDir}`,
           });
         }
       }
@@ -179,7 +271,8 @@ export const validateVitePlusQualitySupport = Effect.fn("validateVitePlusQuality
 
       if (!(yield* fs.exists(tsconfigPath))) {
         return yield* new VitePlusQualitySupportError({
-          message: "setup.vitePlus.quality single-project typechecking requires tsconfig.json",
+          message:
+            "setup.vitePlus.quality.config single-project typechecking requires tsconfig.json",
         });
       }
       const errors: Array<ParseError> = [];
@@ -189,7 +282,7 @@ export const validateVitePlusQualitySupport = Effect.fn("validateVitePlusQuality
 
       if (errors.length > 0 || typeof tsconfig !== "object" || tsconfig === null) {
         return yield* new VitePlusQualitySupportError({
-          message: "setup.vitePlus.quality requires a valid root tsconfig.json",
+          message: "setup.vitePlus.quality.config requires a valid root tsconfig.json",
         });
       }
       const references = (tsconfig as { readonly references?: unknown }).references;
@@ -197,7 +290,7 @@ export const validateVitePlusQualitySupport = Effect.fn("validateVitePlusQuality
       if (Array.isArray(references) && references.length > 0) {
         return yield* new VitePlusQualitySupportError({
           message:
-            "setup.vitePlus.quality single-project typechecking does not support tsconfig project references; select the workspace strategy or use a custom Vite config",
+            "setup.vitePlus.quality.config single-project typechecking does not support tsconfig project references; select the workspace strategy or use a custom Vite config",
         });
       }
     }

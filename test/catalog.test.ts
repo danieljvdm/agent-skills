@@ -79,6 +79,17 @@ describe("remote catalog resolution", () => {
         assert.strictEqual(materialized.catalog.resolved, resolved);
         assert.isFalse(yield* fs.exists(path.join(packageRoot, "skills", "remote-skill")));
 
+        const cachedDocument = path.join(materialized.path, "SKILL.md");
+        const cachedInfo = yield* fs.stat(cachedDocument);
+        yield* fs.chmod(cachedDocument, cachedInfo.mode ^ 0o044);
+        const permissionsAdjusted = yield* resolveSkillSources(
+          packageRoot,
+          projectDir,
+          catalog,
+          ["remote-skill"],
+        );
+        assert.isTrue(permissionsAdjusted.has("remote-skill"));
+
         yield* fs.writeFileString(path.join(materialized.path, "SKILL.md"), "tampered\n");
         const error = yield* Effect.flip(
           resolveSkillSources(packageRoot, projectDir, catalog, ["remote-skill"]),

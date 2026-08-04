@@ -1,5 +1,16 @@
 # @danieljvdm/dev-kit
 
+## 0.7.0
+
+### Minor Changes
+
+- 8fd5e6f: Add opt-in Vite+ Git hook and quality convergence, including worktree-local dispatcher setup, digest-owned canonical config and GitHub Actions files for supported Effect repositories, and readable statement spacing in the shared Oxlint preset.
+
+### Patch Changes
+
+- a43887e: Make Effect TypeScript-Go patch detection converge across npm, pnpm, and Bun installs.
+- 091a24e: Normalize regular file permissions to Git executable semantics when digesting managed paths, preventing catalog integrity false positives across different umasks.
+
 ## 0.6.0
 
 ### Minor Changes

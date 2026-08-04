@@ -26,6 +26,11 @@ export class PathInspectionError extends Schema.TaggedErrorClass<PathInspectionE
 
 const textEncoder = new TextEncoder();
 
+// Git preserves only the executable distinction for regular files. Canonicalizing
+// the remaining bits keeps digests stable across checkout and copy umasks.
+const canonicalFileMode = (mode: number): number =>
+  (mode & 0o111) === 0 ? 0o644 : 0o755;
+
 const frame = (value: string | Uint8Array): Uint8Array => {
   const bytes = typeof value === "string" ? textEncoder.encode(value) : value;
   const framed = new Uint8Array(4 + bytes.length);
@@ -90,7 +95,7 @@ const digestFileSystemPath = Effect.fn("digestFileSystemPath")(function* (
       kind: "file",
       digest: yield* digestFrames([
         "file-v1",
-        String(info.mode & 0o777),
+        String(canonicalFileMode(info.mode)),
         yield* fs.readFile(absolutePath),
       ]),
     };
@@ -139,7 +144,7 @@ export const digestFileContent = Effect.fn("digestFileContent")(function* (
   value: string,
   mode = 0o644,
 ) {
-  return yield* digestFrames(["file-v1", String(mode), value]);
+  return yield* digestFrames(["file-v1", String(canonicalFileMode(mode)), value]);
 });
 
 export const digestSymlinkTarget = Effect.fn("digestSymlinkTarget")(function* (target: string) {

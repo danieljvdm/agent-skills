@@ -14,12 +14,10 @@
         "improve-animations",
         "pick-ui-library",
         "prototype",
-        "review-animations"
+        "review-animations",
       ],
       "licensePath": "LICENSE",
-      "stripFrontmatter": [
-        "disable-model-invocation"
-      ]
+      "stripFrontmatter": ["disable-model-invocation"],
     },
     {
       "id": "cloudflare-skills",
@@ -37,19 +35,17 @@
         "turnstile-spin",
         "web-perf",
         "workers-best-practices",
-        "wrangler"
+        "wrangler",
       ],
-      "licensePath": "LICENSE"
+      "licensePath": "LICENSE",
     },
     {
       "id": "evanbacon-serve-sim",
       "repository": "https://github.com/EvanBacon/serve-sim.git",
       "ref": "main",
       "skillsPath": "skills",
-      "include": [
-        "serve-sim"
-      ],
-      "licensePath": "LICENSE"
-    }
-  ]
+      "include": ["serve-sim"],
+      "licensePath": "LICENSE",
+    },
+  ],
 }

@@ -29,6 +29,7 @@ describe("project process lock", () => {
             const owner = yield* Schema.decodeUnknownEffect(
               Schema.fromJsonString(ProcessLockOwnerSchema),
             )(yield* fs.readFileString(ownerPath));
+
             assert.isString(owner.token);
             assert.isString(owner.startedAt);
             assert.notProperty(owner, "pid");
@@ -40,6 +41,7 @@ describe("project process lock", () => {
 
         assert.isTrue(yield* fs.exists(lockDir));
         assert.strictEqual(yield* fs.readFileString(ownerPath), "replacement owner\n");
-      }));
+      }),
+    );
   });
 });

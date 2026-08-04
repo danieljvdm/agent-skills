@@ -49,16 +49,35 @@ export const ClaudeInstructionsSetupSchema = Schema.Struct({
 
 export type ClaudeInstructionsSetup = typeof ClaudeInstructionsSetupSchema.Type;
 
+export const VitePlusHooksSetupSchema = Schema.Struct({
+  enabled: Schema.optional(Schema.Boolean),
+});
+
+export const VitePlusQualitySetupSchema = Schema.Struct({
+  enabled: Schema.optional(Schema.Boolean),
+});
+export type VitePlusQualitySetup = typeof VitePlusQualitySetupSchema.Type;
+
+export const VitePlusSetupSchema = Schema.Struct({
+  hooks: Schema.optional(VitePlusHooksSetupSchema),
+  quality: Schema.optional(VitePlusQualitySetupSchema),
+});
+
+export type VitePlusSetup = typeof VitePlusSetupSchema.Type;
+
 export const DevKitManifestSchema = Schema.Struct({
   $schema: Schema.optional(Schema.String),
   include: Schema.Array(Schema.String.check(Schema.isPattern(SKILL_SELECTOR_PATTERN))),
-  exclude: Schema.optional(Schema.Array(Schema.String.check(Schema.isPattern(SKILL_SELECTOR_PATTERN)))),
+  exclude: Schema.optional(
+    Schema.Array(Schema.String.check(Schema.isPattern(SKILL_SELECTOR_PATTERN))),
+  ),
   setup: Schema.optional(
     Schema.Struct({
       agentInstructions: Schema.optional(AgentInstructionsSetupSchema),
       claudeInstructions: Schema.optional(ClaudeInstructionsSetupSchema),
       effectSource: Schema.optional(EffectSourceSetupSchema),
       effectTsgo: Schema.optional(EffectTsgoSetupSchema),
+      vitePlus: Schema.optional(VitePlusSetupSchema),
     }),
   ),
   targets: Schema.optional(
@@ -99,6 +118,14 @@ export type NormalizedManifest = {
       readonly force: boolean;
       readonly typescriptPackage: string;
     };
+    readonly vitePlus: {
+      readonly hooks: {
+        readonly enabled: boolean;
+      };
+      readonly quality: {
+        readonly enabled: boolean;
+      };
+    };
   };
   readonly targets: Readonly<Record<HarnessTarget, NormalizedTargetConfig>>;
 };
@@ -122,6 +149,7 @@ export const normalizeManifest = (manifest: DevKitManifest): NormalizedManifest 
 
   for (const key of ["agents", "claude", "opencode"] as const) {
     const override = manifest.targets?.[key];
+
     if (override) {
       targets[key] = {
         enabled: override.enabled ?? DEFAULT_TARGETS[key].enabled,
@@ -146,13 +174,20 @@ export const normalizeManifest = (manifest: DevKitManifest): NormalizedManifest 
         packageName: manifest.setup?.effectSource?.packageName ?? "effect",
         path: manifest.setup?.effectSource?.path ?? ".repos/effect",
         repository:
-          manifest.setup?.effectSource?.repository ??
-          "https://github.com/Effect-TS/effect.git",
+          manifest.setup?.effectSource?.repository ?? "https://github.com/Effect-TS/effect.git",
       },
       effectTsgo: {
         enabled: manifest.setup?.effectTsgo?.enabled ?? false,
         force: manifest.setup?.effectTsgo?.force ?? false,
         typescriptPackage: manifest.setup?.effectTsgo?.typescriptPackage ?? "typescript",
+      },
+      vitePlus: {
+        hooks: {
+          enabled: manifest.setup?.vitePlus?.hooks?.enabled ?? false,
+        },
+        quality: {
+          enabled: manifest.setup?.vitePlus?.quality?.enabled ?? false,
+        },
       },
     },
     targets,

@@ -23,9 +23,11 @@ describe("path digest", () => {
           observePath(first),
           observePath(second),
         ]);
+
         assert.strictEqual(firstDigest.kind, "directory");
         assert.deepEqual(firstDigest, secondDigest);
-      }));
+      }),
+    );
 
     it.effect("uses exact symlink text and Effect Crypto", () =>
       Effect.gen(function* () {
@@ -36,6 +38,7 @@ describe("path digest", () => {
 
         yield* fs.symlink("first-target", link);
         const first = yield* observePath(link);
+
         yield* fs.remove(link);
         yield* fs.symlink("second-target", link);
         const second = yield* observePath(link);
@@ -44,7 +47,8 @@ describe("path digest", () => {
         assert.strictEqual(second.kind, "symlink");
         assert.notDeepEqual(first, second);
         assert.strictEqual(yield* digestText("same"), yield* digestText("same"));
-      }));
+      }),
+    );
 
     it.effect("normalizes regular file permissions to Git modes", () =>
       Effect.gen(function* () {
@@ -67,6 +71,7 @@ describe("path digest", () => {
           observePath(readable),
           observePath(executable),
         ]);
+
         assert.deepEqual(restrictedDigest, readableDigest);
         assert.notDeepEqual(executableDigest, readableDigest);
 
@@ -80,6 +85,7 @@ describe("path digest", () => {
           yield* digestFileContent("same\n", 0o700),
           yield* digestFileContent("same\n", 0o755),
         );
-      }));
+      }),
+    );
   });
 });

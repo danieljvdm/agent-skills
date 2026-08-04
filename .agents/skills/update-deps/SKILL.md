@@ -12,7 +12,7 @@ primary sources at execution time.
 ## Establish the baseline
 
 1. Read `package.json`, `bun.lock`, `tsconfig.json`, and the working-tree status.
-2. Run the current `bun run check` and the narrowest relevant tests before
+2. Run the current `vp run check` and the narrowest relevant tests before
    changing versions. Record any pre-existing failures.
 3. Inventory direct dependencies with `bun outdated` and exact registry data
    with `npm view`. Do not infer current versions from this skill.
@@ -126,7 +126,7 @@ Run all of the following after the final group:
 
 ```bash
 bun run tsgo:patch
-bun run check
+vp run check
 bun run test
 ./bin/dev-kit.mjs tsgo patch --dry-run --project-dir .
 npm pack --dry-run --json

@@ -9,6 +9,7 @@ export type TestCommandResult = {
 export const repositoryRoot = Effect.fn("testRepositoryRoot")(function* () {
   const path = yield* Path.Path;
   const helperPath = yield* path.fromFileUrl(new URL(import.meta.url));
+
   return path.resolve(path.dirname(helperPath), "..");
 });
 
@@ -28,6 +29,7 @@ export const runCommand = Effect.fn("runTestCommand")(function* (
     Stream.mkString(Stream.decodeText(child.all)),
     child.exitCode,
   ]);
+
   return { exitCode, output } satisfies TestCommandResult;
 });
 
@@ -37,11 +39,13 @@ export const runCommandSuccess = Effect.fn("runSuccessfulTestCommand")(function*
   args: ReadonlyArray<string>,
 ) {
   const result = yield* runCommand(cwd, command, args);
+
   if (result.exitCode !== 0) {
     return yield* Effect.die(
       new Error(`${command} ${args.join(" ")} failed (${result.exitCode}): ${result.output}`),
     );
   }
+
   return result.output;
 });
 
@@ -53,10 +57,11 @@ export const runDevKit = Effect.fn("runTestDevKit")(function* (
   const path = yield* Path.Path;
   const root = yield* repositoryRoot();
   const tsx = yield* path.fromFileUrl(new URL(import.meta.resolve("tsx")));
-  return yield* runCommand(cwd, "node", [
-    "--import",
-    tsx,
-    path.join(root, "src", "bin", "dev-kit.ts"),
-    ...args,
-  ], env);
+
+  return yield* runCommand(
+    cwd,
+    "node",
+    ["--import", tsx, path.join(root, "src", "bin", "dev-kit.ts"), ...args],
+    env,
+  );
 });

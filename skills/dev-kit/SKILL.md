@@ -28,7 +28,7 @@ stores explicit skill names and exact commit/content digests.
    repository actually uses; do not infer capabilities from a product or
    company name alone.
 2. Run `dev-kit list --all`, then use `dev-kit search <terms>` and `dev-kit info
-   <skill>` for each capability in the inventory. Compare every candidate's
+<skill>` for each capability in the inventory. Compare every candidate's
    trigger description with concrete repository evidence. Keep explicitly
    requested creative or advisory skills even when they have no mechanical
    dependency signal.
@@ -73,13 +73,17 @@ skill as `dev-kit` when project agents should carry the toolkit procedure.
   "exclude": [],
   "setup": {
     "agentInstructions": { "enabled": true },
-    "claudeInstructions": { "enabled": true }
+    "claudeInstructions": { "enabled": true },
+    "vitePlus": {
+      "hooks": { "enabled": true },
+      "quality": { "enabled": true },
+    },
   },
   "targets": {
     "agents": { "enabled": true, "mode": "copy" },
     "claude": { "enabled": true, "mode": "symlink" },
-    "opencode": { "enabled": false, "mode": "symlink" }
-  }
+    "opencode": { "enabled": false, "mode": "symlink" },
+  },
 }
 ```
 
@@ -96,6 +100,28 @@ project-root instructions; it manages `CLAUDE.md` as a relative symlink to the
 wrapper or to an existing regular `AGENTS.md`. Preserve conflicting paths;
 when disabled, dev-kit removes only unchanged outputs recorded in local
 ownership state.
+
+Enable `setup.vitePlus.hooks` when an installed direct `vite-plus` dependency
+should manage Git hooks. Each apply checks the local `.vite-hooks/_` dispatcher,
+the portable `.vite-hooks/pre-commit` hook, and `core.hooksPath`, then runs the
+project-local `vp config --no-agent` when they need convergence. This recreates
+ignored dispatchers in linked worktrees. Preserve other hook managers; Dev Kit
+refuses to replace an unrelated `core.hooksPath`. Use `VITE_GIT_HOOKS=0` or
+`HUSKY=0` to skip hook setup for an invocation.
+
+Enable `setup.vitePlus.quality` only in supported Vite+/Effect repositories
+that explicitly want Dev Kit to own the canonical root `vite.config.ts` and
+`.github/workflows/check.yml`. It requires direct Dev Kit, Vite+, Effect,
+Effect TypeScript-Go, and native TypeScript dependencies, as well as
+`setup.effectTsgo.enabled`. It refuses custom destination files and conflicting
+`check` or `typecheck` package scripts. Exact canonical files can be adopted;
+later updates and cleanup occur only while the owned files remain unchanged.
+
+The managed Vite config composes the shared formatter and linter presets,
+configures `vp staged`, and defines cached `check` and `typecheck` Vite tasks.
+The check task and GitHub Actions workflow run `vp fmt --check`, `vp lint`,
+`vp test`, and finally `vp run typecheck` so Effect diagnostics come from the
+patched native compiler.
 
 ## Ownership and conflicts
 
@@ -126,8 +152,8 @@ For one lifecycle entry point, configure:
 ```jsonc
 {
   "scripts": {
-    "postinstall": "dev-kit apply"
-  }
+    "postinstall": "dev-kit apply",
+  },
 }
 ```
 
@@ -145,8 +171,8 @@ installed Effect package:
 ```jsonc
 {
   "setup": {
-    "effectSource": { "enabled": true }
-  }
+    "effectSource": { "enabled": true },
+  },
 }
 ```
 
@@ -165,8 +191,8 @@ Enable the setup task in the same manifest:
 ```jsonc
 {
   "setup": {
-    "effectTsgo": { "enabled": true }
-  }
+    "effectTsgo": { "enabled": true },
+  },
 }
 ```
 
@@ -205,7 +231,16 @@ Use `lint.extends` instead of spreading the object so Vite+ composes nested
 rule maps correctly. Oxfmt has no inheritance mechanism, so spread its object
 before project-local options. Standalone `oxlint.config.ts` uses the same
 `extends: [recommendedOxlintConfig]`; standalone `oxfmt.config.ts` spreads the
-same `recommendedOxfmtConfig`.
+same `recommendedOxfmtConfig`. The shared lint preset enables `typeAware` for
+semantic lint rules but leaves `typeCheck` disabled. Effect TypeScript-Go
+projects must run the patched native compiler separately with
+`vp run typecheck` after `vp fmt --check`, `vp lint`, and `vp test`; Oxlint's
+bundled `tsgolint` does not use the Effect patch.
+
+The Oxlint preset enables the fixable
+`stylistic/padding-line-between-statements` rule. It keeps adjacent variable
+declarations grouped, requires a blank line before the next logical statement,
+and separates every `return` statement from the preceding statement.
 
 The Oxlint preset registers Dev Kit's shared Effect plugin as `effect`, but
 does not enable its scope-sensitive rules globally. Effect projects should
@@ -219,9 +254,9 @@ in the consuming project.
 ## Current boundary
 
 Manage skill outputs, the `setup.agentInstructions` wrapper, the
-`setup.claudeInstructions` link, the
-`setup.effectSource` checkout, and the explicit `setup.effectTsgo` task. Edit
-shared `package.json` and `tsconfig.json`
-contributions deliberately. The Oxlint and Oxfmt configurations are composable
-package exports, not manifest-managed outputs. Treat broader setup tasks as
-future manifest capabilities until the installed CLI exposes them.
+`setup.claudeInstructions` link, the `setup.vitePlus.hooks` dispatcher, the
+opt-in `setup.vitePlus.quality` config and GitHub workflow, the
+`setup.effectSource` checkout, and the explicit `setup.effectTsgo` task.
+Dependency and `tsconfig.json` contributions remain deliberate user-owned
+edits. Custom Vite configs compose the Oxlint and Oxfmt package exports manually
+and leave the canonical quality task disabled.

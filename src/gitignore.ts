@@ -61,17 +61,20 @@ export const patchGitignoreContents = (
 ): { readonly contents: string; readonly added: ReadonlyArray<string> } => {
   const lines = current.split(/\r?\n/);
   const added = DEV_KIT_GITIGNORE_ENTRIES.filter((entry) => !lines.includes(entry));
+
   if (added.length === 0) return { contents: current, added };
 
   const newline = current.includes("\r\n") ? "\r\n" : "\n";
-  const separator = current.length === 0
-    ? ""
-    : current.endsWith(`${newline}${newline}`)
+  const separator =
+    current.length === 0
       ? ""
-      : current.endsWith(newline)
-        ? newline
-        : `${newline}${newline}`;
+      : current.endsWith(`${newline}${newline}`)
+        ? ""
+        : current.endsWith(newline)
+          ? newline
+          : `${newline}${newline}`;
   const block = ["# dev-kit managed paths", ...added].join(newline);
+
   return {
     contents: `${current}${separator}${block}${newline}`,
     added,
@@ -89,6 +92,7 @@ const planGitignorePatch = Effect.fn("planGitignorePatch")(function* (
   const path = yield* Path.Path;
   const gitignorePath = path.join(projectDir, ".gitignore");
   const observation = yield* observeSymbolicLink(gitignorePath);
+
   if (observation.kind === "symlink") {
     return yield* new UnsafeGitignorePathError({
       path: gitignorePath,
@@ -98,8 +102,10 @@ const planGitignorePatch = Effect.fn("planGitignorePatch")(function* (
 
   let current = "";
   let mode: number | undefined;
+
   if (observation.kind !== "missing") {
     const info = yield* fs.stat(gitignorePath);
+
     if (info.type !== "File") {
       return yield* new UnsafeGitignorePathError({
         path: gitignorePath,
@@ -111,6 +117,7 @@ const planGitignorePatch = Effect.fn("planGitignorePatch")(function* (
   }
 
   const patch = patchGitignoreContents(current);
+
   return {
     path: gitignorePath,
     changed: patch.added.length > 0,
@@ -135,6 +142,7 @@ const applyGitignorePatch = Effect.fn("applyGitignorePatch")(function* (
   });
   const staged = path.join(tempDir, "next.gitignore");
   const backup = path.join(tempDir, "previous.gitignore");
+
   yield* fs.writeFileString(staged, patch.contents, { mode: patch.mode ?? 0o666 });
 
   const currentObservation = yield* observeSymbolicLink(patch.path);
@@ -142,6 +150,7 @@ const applyGitignorePatch = Effect.fn("applyGitignorePatch")(function* (
     ? currentObservation.kind !== "not-symlink" ||
       (yield* fs.readFileString(patch.path)) !== patch.previousContents
     : currentObservation.kind !== "missing";
+
   if (changed) {
     return yield* new GitignoreConflictError({ path: patch.path });
   }
@@ -188,11 +197,13 @@ export const patchProjectGitignore = Effect.fn("patchProjectGitignore")(function
 
   if (options.dryRun) {
     const patch = yield* planGitignorePatch(projectDir);
+
     yield* printStatus(
       patch.changed ? "plan" : "success",
       patch.changed ? "Would update .gitignore" : ".gitignore up to date",
       patch.changed ? `add ${patch.added.join(", ")}` : undefined,
     );
+
     return publicPatch(patch);
   }
 
@@ -200,12 +211,14 @@ export const patchProjectGitignore = Effect.fn("patchProjectGitignore")(function
     Effect.gen(function* () {
       yield* acquireProjectProcessLock(projectDir);
       const patch = yield* planGitignorePatch(projectDir);
+
       yield* applyGitignorePatch(projectDir, patch);
       yield* printStatus(
         "success",
         patch.changed ? "Updated .gitignore" : ".gitignore up to date",
         patch.changed ? `added ${patch.added.join(", ")}` : undefined,
       );
+
       return publicPatch(patch);
     }),
   );

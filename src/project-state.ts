@@ -49,6 +49,16 @@ export const ManagedClaudeInstructionsOutputSchema = Schema.Struct({
 });
 export type ManagedClaudeInstructionsOutput = typeof ManagedClaudeInstructionsOutputSchema.Type;
 
+export const ManagedGeneratedFileOutputSchema = Schema.Struct({
+  resourceId: Schema.Literals(["setup:vite-plus-config", "setup:vite-plus-github-actions"]),
+  path: Schema.String,
+  sourcePath: Schema.String,
+  mode: Schema.Literal("copy"),
+  kind: Schema.Literal("file"),
+  digest: DigestSchema,
+});
+export type ManagedGeneratedFileOutput = typeof ManagedGeneratedFileOutputSchema.Type;
+
 export const ManagedInstructionOutputSchema = Schema.Union([
   ManagedAgentInstructionsOutputSchema,
   ManagedClaudeInstructionsOutputSchema,
@@ -58,6 +68,7 @@ export type ManagedInstructionOutput = typeof ManagedInstructionOutputSchema.Typ
 export const ManagedOutputSchema = Schema.Union([
   ManagedSkillOutputSchema,
   ManagedInstructionOutputSchema,
+  ManagedGeneratedFileOutputSchema,
 ]);
 export type ManagedOutput = typeof ManagedOutputSchema.Type;
 

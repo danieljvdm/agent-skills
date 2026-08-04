@@ -1,7 +1,7 @@
 {
   "version": 1,
   "toolVersion": "0.6.0",
-  "manifestDigest": "sha256:95e7c13e4f77cbbbc3fb710798d2b94228da26e9fe9c6ed9b1dc0a61c9c49b5b",
+  "manifestDigest": "sha256:241cfff3fdadad19354fcae1d0194b2929a0f29cb7f42fd189ec4208c4dfb17d",
   "setup": {
     "effectSource": {
       "packageName": "effect",
@@ -18,6 +18,14 @@
   },
   "outputs": [
     {
+      "resourceId": "setup:vite-plus-github-actions",
+      "path": ".github/workflows/check.yml",
+      "sourcePath": "templates/vite-plus/github-actions-check.yml",
+      "mode": "copy",
+      "kind": "file",
+      "digest": "sha256:1cc5686382be2be9e5dfff7643ee3a83e529773adde00ace45601afc9ad74972"
+    },
+    {
       "resourceId": "setup:agent-instructions",
       "path": "AGENTS.md",
       "sourcePath": "templates/AGENTS.md",
@@ -32,6 +40,14 @@
       "mode": "symlink",
       "kind": "symlink",
       "digest": "sha256:07728883f9dfed017a4810db4ea26e3248d1e603ce8b085ec87953359caae216"
+    },
+    {
+      "resourceId": "setup:vite-plus-config",
+      "path": "vite.config.ts",
+      "sourcePath": "templates/vite-plus/vite.config.ts",
+      "mode": "copy",
+      "kind": "file",
+      "digest": "sha256:ca1ca16d473c83899c2dc07081b380d576ccae35f3d5e35efd5ac4b8c0fe5189"
     }
   ]
 }

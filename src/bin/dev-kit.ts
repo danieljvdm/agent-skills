@@ -1,23 +1,17 @@
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
-import { Argument, CliError, Command as CliCommand, Flag } from "effect/unstable/cli";
 import { Effect, Result } from "effect";
+import { Argument, CliError, Command as CliCommand, Flag } from "effect/unstable/cli";
 
-import { printError } from "../cli-ui.ts";
-import { patchEffectTsgo } from "../effect-tsgo.ts";
-import { syncEffectSource } from "../effect-source.ts";
-import { patchProjectGitignore } from "../gitignore.ts";
-import {
-  DEFAULT_MANIFEST,
-  runProjectSkillPlan,
-} from "../sync.ts";
-import { DEV_KIT_VERSION } from "../tool-metadata.ts";
-import { refreshSkillCatalog } from "../vendor.ts";
 import {
   addCatalogSource,
   listCatalogSources,
   removeCatalogEntry,
   showCatalogSource,
 } from "../catalog-manager.ts";
+import { printError } from "../cli-ui.ts";
+import { syncEffectSource } from "../effect-source.ts";
+import { patchEffectTsgo } from "../effect-tsgo.ts";
+import { patchProjectGitignore } from "../gitignore.ts";
 import {
   addSkills,
   chooseSkillsToAdd,
@@ -28,6 +22,9 @@ import {
   showDashboard,
   showSkill,
 } from "../skill-manager.ts";
+import { DEFAULT_MANIFEST, runProjectSkillPlan } from "../sync.ts";
+import { DEV_KIT_VERSION } from "../tool-metadata.ts";
+import { refreshSkillCatalog } from "../vendor.ts";
 
 const projectFlags = {
   manifest: Flag.string("manifest").pipe(
@@ -80,8 +77,7 @@ const listCommand = CliCommand.make(
     all: Flag.boolean("all").pipe(Flag.withDescription("Include unselected skills.")),
     ...projectFlags,
   },
-  ({ all, manifest, projectDir }) =>
-    listSkills({ all, manifestPath: manifest, projectDir }),
+  ({ all, manifest, projectDir }) => listSkills({ all, manifestPath: manifest, projectDir }),
 ).pipe(CliCommand.withDescription("List selected skills; use --all to browse the catalog."));
 
 const searchCommand = CliCommand.make(
@@ -113,7 +109,9 @@ const planCommand = CliCommand.make(
       manifestPath: manifest,
       projectDir,
     }),
-).pipe(CliCommand.withDescription("Plan ownership-safe project skill changes without writing files."));
+).pipe(
+  CliCommand.withDescription("Plan ownership-safe project skill changes without writing files."),
+);
 
 const applyCommand = CliCommand.make(
   "apply",
@@ -130,7 +128,9 @@ const applyCommand = CliCommand.make(
       manifestPath: manifest,
       projectDir,
     }),
-).pipe(CliCommand.withDescription("Apply ownership-safe project skill changes and update the lock."));
+).pipe(
+  CliCommand.withDescription("Apply ownership-safe project skill changes and update the lock."),
+);
 
 const syncCommand = CliCommand.make(
   "sync",
@@ -166,9 +166,7 @@ const gitignoreCommand = CliCommand.make(
   },
   ({ dryRun, projectDir }) => patchProjectGitignore({ dryRun, projectDir }),
 ).pipe(
-  CliCommand.withDescription(
-    "Idempotently add .repos/ and .dev-kit/ to the project .gitignore.",
-  ),
+  CliCommand.withDescription("Idempotently add .repos/ and .dev-kit/ to the project .gitignore."),
 );
 
 const tsgoPatchCommand = CliCommand.make(
@@ -177,9 +175,7 @@ const tsgoPatchCommand = CliCommand.make(
     dryRun: Flag.boolean("dry-run"),
     force: Flag.boolean("force"),
     projectDir: Flag.string("project-dir").pipe(Flag.withDefault(".")),
-    typescriptPackage: Flag.string("typescript-package").pipe(
-      Flag.withDefault("typescript"),
-    ),
+    typescriptPackage: Flag.string("typescript-package").pipe(Flag.withDefault("typescript")),
   },
   ({ dryRun, force, projectDir, typescriptPackage }) =>
     patchEffectTsgo({ dryRun, force, projectDir, typescriptPackage }),
@@ -247,9 +243,18 @@ const catalogAddCommand = CliCommand.make(
       Flag.withDescription("Approve every skill discovered in this snapshot."),
     ),
     dryRun: Flag.boolean("dry-run").pipe(Flag.withDescription("Inspect without writing.")),
-    id: Flag.string("id").pipe(Flag.withDefault(""), Flag.withDescription("Override the inferred source id.")),
-    license: Flag.string("license").pipe(Flag.withDefault(""), Flag.withDescription("Repository-relative license path.")),
-    ref: Flag.string("ref").pipe(Flag.withDefault(""), Flag.withDescription("Branch, tag, or commit to track.")),
+    id: Flag.string("id").pipe(
+      Flag.withDefault(""),
+      Flag.withDescription("Override the inferred source id."),
+    ),
+    license: Flag.string("license").pipe(
+      Flag.withDefault(""),
+      Flag.withDescription("Repository-relative license path."),
+    ),
+    ref: Flag.string("ref").pipe(
+      Flag.withDefault(""),
+      Flag.withDescription("Branch, tag, or commit to track."),
+    ),
     skill: Flag.string("skill").pipe(
       Flag.atLeast(0),
       Flag.withDescription("Approve one skill; repeat for several."),
@@ -264,7 +269,20 @@ const catalogAddCommand = CliCommand.make(
     ),
     ...catalogFilesFlags,
   },
-  ({ repository, all, dryRun, id, license, ref, skill, skillsPath, stripFrontmatter, lockfile, repoDir, sources }) =>
+  ({
+    repository,
+    all,
+    dryRun,
+    id,
+    license,
+    ref,
+    skill,
+    skillsPath,
+    stripFrontmatter,
+    lockfile,
+    repoDir,
+    sources,
+  }) =>
     addCatalogSource({
       repository,
       all,
@@ -304,7 +322,13 @@ const catalogRemoveCommand = CliCommand.make(
     ...catalogFilesFlags,
   },
   ({ entry, dryRun, yes, lockfile, repoDir, sources }) =>
-    removeCatalogEntry(entry, { dryRun, yes, lockfilePath: lockfile, repoDir, sourcesPath: sources }),
+    removeCatalogEntry(entry, {
+      dryRun,
+      yes,
+      lockfilePath: lockfile,
+      repoDir,
+      sourcesPath: sources,
+    }),
 ).pipe(CliCommand.withDescription("Revoke an approved source or individual skill."));
 
 const catalogRefreshCommand = CliCommand.make(
@@ -316,7 +340,9 @@ const catalogRefreshCommand = CliCommand.make(
   },
   ({ dryRun, locked, lockfile, repoDir, sources }) =>
     refreshSkillCatalog({ dryRun, locked, lockfilePath: lockfile, repoDir, sourcesPath: sources }),
-).pipe(CliCommand.withDescription("Approve the current upstream refs as an exact catalog snapshot."));
+).pipe(
+  CliCommand.withDescription("Approve the current upstream refs as an exact catalog snapshot."),
+);
 
 const catalogVerifyCommand = CliCommand.make(
   "verify",
@@ -349,7 +375,14 @@ const command = CliCommand.make("dev-kit", projectFlags, ({ manifest, projectDir
     { group: "Project", commands: [statusCommand, syncCommand] },
     {
       group: "Advanced",
-      commands: [planCommand, applyCommand, gitignoreCommand, effectCommand, tsgoCommand, catalogCommand],
+      commands: [
+        planCommand,
+        applyCommand,
+        gitignoreCommand,
+        effectCommand,
+        tsgoCommand,
+        catalogCommand,
+      ],
     },
   ] as const),
 );

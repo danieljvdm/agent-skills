@@ -45,6 +45,9 @@
         },
         "effectTsgo": {
           "$ref": "#/$defs/effectTsgoSetup"
+        },
+        "vitePlus": {
+          "$ref": "#/$defs/vitePlusSetup"
         }
       },
       "default": {}
@@ -130,6 +133,41 @@
           "type": "string",
           "pattern": "^(?:[a-z0-9][a-z0-9._-]*|@[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*)$",
           "default": "typescript"
+        }
+      }
+    },
+    "vitePlusSetup": {
+      "description": "Manage project-local Vite+ setup tasks.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hooks": {
+          "$ref": "#/$defs/vitePlusHooksSetup"
+        },
+        "quality": {
+          "$ref": "#/$defs/vitePlusQualitySetup"
+        }
+      }
+    },
+    "vitePlusHooksSetup": {
+      "description": "Run the installed Vite+ configurator to converge Git hook dispatchers in each worktree.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "vitePlusQualitySetup": {
+      "description": "Manage the canonical Vite+ quality config and GitHub Actions workflow for supported Effect TypeScript-Go repositories.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
         }
       }
     },

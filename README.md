@@ -61,8 +61,8 @@ or use `--no-apply` to edit the manifest without syncing yet.
   "include": ["dev-kit", "effect"],
   "targets": {
     "agents": { "enabled": true, "mode": "copy" },
-    "claude": { "enabled": true, "mode": "symlink" }
-  }
+    "claude": { "enabled": true, "mode": "symlink" },
+  },
 }
 ```
 
@@ -79,8 +79,8 @@ converge owned outputs automatically when installed packages change:
 ```jsonc
 {
   "scripts": {
-    "postinstall": "dev-kit apply"
-  }
+    "postinstall": "dev-kit apply",
+  },
 }
 ```
 
@@ -115,29 +115,29 @@ the root package itself.
 
 ## Commands
 
-| Command | Purpose |
-| --- | --- |
-| `dev-kit` | Show selected skills and the four common next actions. |
-| `dev-kit init` | Create a minimal `dev-kit.jsonc`. |
-| `dev-kit add <skill...>` | Select and immediately install skills. |
-| `dev-kit remove <skill...>` | Deselect and uninstall skills safely. |
-| `dev-kit list [--all]` | List selected skills or browse the catalog. |
-| `dev-kit search <words...>` | Search names and descriptions. |
-| `dev-kit info <skill>` | Show description and Git or installed-package provenance. |
-| `dev-kit status` | Check whether the project matches its selection. |
-| `dev-kit sync` | Apply the current manifest. |
-| `dev-kit plan` | Preview project changes without writing files. |
-| `dev-kit apply` | Apply the manifest and update `dev-kit.lock.json`. |
-| `dev-kit apply --locked` | Reproduce the committed lock or fail on drift. |
-| `dev-kit gitignore` | Add `.repos/` and `.dev-kit/` to `.gitignore`. |
-| `dev-kit effect sync` | Sync `.repos/effect` to the installed Effect version. |
-| `dev-kit tsgo patch` | Validate and patch Effect TypeScript-Go directly. |
-| `dev-kit catalog refresh` | Maintainer command to approve current upstream refs. |
-| `dev-kit catalog add <repository>` | Inspect a repository and approve selected skills. |
-| `dev-kit catalog remove <source-or-skill>` | Revoke an approval (`--yes` outside a terminal). |
-| `dev-kit catalog list` | List approved upstream repositories. |
-| `dev-kit catalog info <source>` | Show a source, commit, and approved skills. |
-| `dev-kit catalog verify` | Verify the committed snapshot without advancing refs. |
+| Command                                    | Purpose                                                   |
+| ------------------------------------------ | --------------------------------------------------------- |
+| `dev-kit`                                  | Show selected skills and the four common next actions.    |
+| `dev-kit init`                             | Create a minimal `dev-kit.jsonc`.                         |
+| `dev-kit add <skill...>`                   | Select and immediately install skills.                    |
+| `dev-kit remove <skill...>`                | Deselect and uninstall skills safely.                     |
+| `dev-kit list [--all]`                     | List selected skills or browse the catalog.               |
+| `dev-kit search <words...>`                | Search names and descriptions.                            |
+| `dev-kit info <skill>`                     | Show description and Git or installed-package provenance. |
+| `dev-kit status`                           | Check whether the project matches its selection.          |
+| `dev-kit sync`                             | Apply the current manifest.                               |
+| `dev-kit plan`                             | Preview project changes without writing files.            |
+| `dev-kit apply`                            | Apply the manifest and update `dev-kit.lock.json`.        |
+| `dev-kit apply --locked`                   | Reproduce the committed lock or fail on drift.            |
+| `dev-kit gitignore`                        | Add `.repos/` and `.dev-kit/` to `.gitignore`.            |
+| `dev-kit effect sync`                      | Sync `.repos/effect` to the installed Effect version.     |
+| `dev-kit tsgo patch`                       | Validate and patch Effect TypeScript-Go directly.         |
+| `dev-kit catalog refresh`                  | Maintainer command to approve current upstream refs.      |
+| `dev-kit catalog add <repository>`         | Inspect a repository and approve selected skills.         |
+| `dev-kit catalog remove <source-or-skill>` | Revoke an approval (`--yes` outside a terminal).          |
+| `dev-kit catalog list`                     | List approved upstream repositories.                      |
+| `dev-kit catalog info <source>`            | Show a source, commit, and approved skills.               |
+| `dev-kit catalog verify`                   | Verify the committed snapshot without advancing refs.     |
 
 Options vary by command and include `--dry-run`, `--manifest`, `--lockfile`,
 and `--project-dir`. Run any command with `--help` for its complete usage.
@@ -146,11 +146,11 @@ and `--project-dir`. Run any command with `--help` for its complete usage.
 
 Dev Kit uses three project-local files:
 
-| Path | Role | Commit it? |
-| --- | --- | --- |
-| `dev-kit.jsonc` | Desired skills, targets, and setup tasks. | Yes |
-| `dev-kit.lock.json` | Resolved content digests and setup-tool versions. | Yes |
-| `.dev-kit/state.json` | Local ownership receipts used during apply and cleanup. | No |
+| Path                  | Role                                                    | Commit it? |
+| --------------------- | ------------------------------------------------------- | ---------- |
+| `dev-kit.jsonc`       | Desired skills, targets, and setup tasks.               | Yes        |
+| `dev-kit.lock.json`   | Resolved content digests and setup-tool versions.       | Yes        |
+| `.dev-kit/state.json` | Local ownership receipts used during apply and cleanup. | No         |
 
 Skills are copied into `.agents/skills` by default. Other harness targets can
 copy or symlink those project-local skills.
@@ -177,18 +177,18 @@ tool versions. A project-local process lock also prevents concurrent applies.
     "workers-best-practices",
     "wrangler",
     "serve-sim",
-    "@tanstack/ai#ai-core"
+    "@tanstack/ai#ai-core",
   ],
   "exclude": ["animation-vocabulary"],
   "setup": {
     "agentInstructions": { "enabled": true },
-    "claudeInstructions": { "enabled": true }
+    "claudeInstructions": { "enabled": true },
   },
   "targets": {
     "agents": { "enabled": true, "mode": "copy" },
     "claude": { "enabled": true, "mode": "symlink" },
-    "opencode": { "enabled": false, "mode": "symlink" }
-  }
+    "opencode": { "enabled": false, "mode": "symlink" },
+  },
 }
 ```
 
@@ -218,8 +218,8 @@ bridge in the manifest:
   "include": ["dev-kit"],
   "setup": {
     "agentInstructions": { "enabled": true },
-    "claudeInstructions": { "enabled": true }
-  }
+    "claudeInstructions": { "enabled": true },
+  },
 }
 ```
 
@@ -236,6 +236,58 @@ the wrapper task is disabled. Both outputs are recorded independently in the
 lockfile and local ownership state. Dev Kit refuses to replace unowned files
 and removes only unchanged owned outputs.
 
+## Vite+ Git hooks
+
+Enable Vite+'s project-local Git hook dispatcher in the manifest:
+
+```jsonc
+{
+  "include": ["dev-kit"],
+  "setup": {
+    "vitePlus": { "hooks": { "enabled": true } },
+  },
+}
+```
+
+`dev-kit apply` requires `vite-plus` as an installed direct dependency and runs
+its project-local `vp config --no-agent` command when hook setup is missing. The
+generated `.vite-hooks/_` dispatcher is ignored by Git, so every linked
+worktree converges its own copy during install while the project-owned
+`.vite-hooks/pre-commit` hook remains portable. Dev Kit preserves an unrelated
+`core.hooksPath` instead of replacing another hook manager. Set
+`VITE_GIT_HOOKS=0` (or `HUSKY=0`) to skip the task for that invocation.
+
+## Vite+ quality setup
+
+Supported Vite+/Effect repositories can explicitly opt into Dev Kit's canonical
+quality configuration and GitHub Actions workflow:
+
+```jsonc
+{
+  "include": ["dev-kit", "effect"],
+  "setup": {
+    "effectTsgo": { "enabled": true },
+    "vitePlus": {
+      "hooks": { "enabled": true },
+      "quality": { "enabled": true },
+    },
+  },
+}
+```
+
+The quality task requires direct `@danieljvdm/dev-kit`, `vite-plus`, `effect`,
+`@effect/tsgo`, and native TypeScript dependencies, plus the enabled Effect
+TypeScript-Go patch. It manages `vite.config.ts` and
+`.github/workflows/check.yml` as digest-owned files. Existing custom files or
+conflicting `check`/`typecheck` package scripts are rejected instead of merged
+or overwritten. Exact canonical files can be adopted; disabling the task
+removes only unchanged owned files.
+
+The managed Vite config composes the shared Oxfmt and Oxlint presets, configures
+`vp staged`, and defines `vp run check` and `vp run typecheck`. The check task
+and CI run `vp fmt --check`, `vp lint`, `vp test`, then the Effect-patched
+compiler through `vp run typecheck`.
+
 ## Effect source checkout
 
 Enable a local checkout of the exact installed Effect release in the manifest:
@@ -244,8 +296,8 @@ Enable a local checkout of the exact installed Effect release in the manifest:
 {
   "include": ["effect"],
   "setup": {
-    "effectSource": { "enabled": true }
-  }
+    "effectSource": { "enabled": true },
+  },
 }
 ```
 
@@ -267,8 +319,8 @@ Enable Effect TypeScript-Go in the same manifest:
   "include": ["effect"],
   "setup": {
     "effectSource": { "enabled": true },
-    "effectTsgo": { "enabled": true }
-  }
+    "effectTsgo": { "enabled": true },
+  },
 }
 ```
 
@@ -279,8 +331,8 @@ Pin the compatible packages in the consuming project:
   "devDependencies": {
     "@danieljvdm/dev-kit": "^0.2.0",
     "@effect/tsgo": "0.24.3",
-    "typescript": "7.0.2"
-  }
+    "typescript": "7.0.2",
+  },
 }
 ```
 
@@ -288,8 +340,8 @@ Pin the compatible packages in the consuming project:
 {
   "$schema": "./node_modules/@effect/tsgo/schema.json",
   "compilerOptions": {
-    "plugins": [{ "name": "@effect/language-service" }]
-  }
+    "plugins": [{ "name": "@effect/language-service" }],
+  },
 }
 ```
 
@@ -298,8 +350,8 @@ native TypeScript compiler. It does not download dependencies and skips an
 installation that is already patched. Use `dev-kit tsgo patch --dry-run` when
 troubleshooting the task directly.
 
-Package and tsconfig edits remain explicit until Dev Kit can safely own parts
-of shared JSONC files.
+Dependency and `tsconfig.json` edits remain explicit. Enable the Vite+ quality
+task only when Dev Kit can own the canonical root config and GitHub workflow.
 
 ## Installed package skills
 
@@ -371,9 +423,9 @@ This repository remains an opinionated catalog for Git-hosted skills.
       "ref": "main",
       "skillsPath": "skills",
       "include": ["*"],
-      "licensePath": "LICENSE"
-    }
-  ]
+      "licensePath": "LICENSE",
+    },
+  ],
 }
 ```
 
@@ -430,7 +482,18 @@ export default defineConfig({
 
 Use `lint.extends` rather than a shallow object spread so Vite+ composes the
 nested plugin and rule configuration correctly. Oxfmt has no `extends`, so
-spread its configuration before project-local formatter options.
+spread its configuration before project-local formatter options. The shared
+lint preset enables `typeAware` for semantic lint rules but leaves `typeCheck`
+disabled. The opt-in `setup.vitePlus.quality` task manages this composition for
+repositories that use the canonical config; custom configs keep the task
+disabled and compose the exports manually. Effect TypeScript-Go projects run:
+
+```sh
+vp fmt --check
+vp lint
+vp test
+vp run typecheck
+```
 
 Standalone projects import the same objects from their native config files:
 
@@ -454,7 +517,12 @@ export default defineConfig({
 });
 ```
 
-The Oxlint preset also registers the shared `effect` JavaScript plugin. Effect
+The Oxlint preset enables `stylistic/padding-line-between-statements`: adjacent
+variable declarations remain grouped, while the next logical statement and
+all `return` statements require a separating blank line. The rule is fixable,
+so `vp lint --fix` repairs missing spacing automatically.
+
+The preset also registers the shared `effect` JavaScript plugin. Effect
 projects opt into its rules in path-specific overrides, for example
 `effect/no-effect-run`, `effect/no-unsafe-promise`, and
 `effect/no-untyped-throw`. The package exports the plugin directly from
@@ -465,7 +533,6 @@ consumer-scoped because application and host boundaries differ by repository.
 ## Development
 
 ```bash
-bun install
-bun run check
-vitest run --config vitest.config.ts
+vp install
+vp run check
 ```

@@ -1,11 +1,10 @@
-import { parse as parseJsonc, printParseErrorCode, type ParseError } from "jsonc-parser";
 import { Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
+import { parse as parseJsonc, printParseErrorCode, type ParseError } from "jsonc-parser";
 
 import { printStatus, withSpinner } from "./cli-ui.ts";
 import { observePath, type Digest } from "./path-digest.ts";
 import { acquireProjectProcessLock } from "./project-process-lock.ts";
-
 import {
   SkillSourcesLockSchema,
   SkillSourcesManifestSchema,
@@ -106,38 +105,57 @@ const inferSourceId = (repository: string): string => {
   const cleaned = repository.replace(/[\\/]+$/, "").replace(/\.git$/i, "");
   const segments = cleaned.split(/[\\/:]+/).filter(Boolean);
   const tail = segments.slice(-2).join("-").toLowerCase();
+
   return tail.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 };
 
 const containsControlCharacter = (value: string): boolean => {
   for (const character of value) {
     const code = character.charCodeAt(0);
+
     if (code <= 0x1f || code === 0x7f) return true;
   }
+
   return false;
 };
 
 const normalizeRepositoryLocator = (
   repository: string,
-): Effect.Effect<{
-  readonly repository: string;
-  readonly ref?: string;
-  readonly skillsPath?: string;
-}, InvalidSourceError> => {
+): Effect.Effect<
+  {
+    readonly repository: string;
+    readonly ref?: string;
+    readonly skillsPath?: string;
+  },
+  InvalidSourceError
+> => {
   if (containsControlCharacter(repository)) {
-    return Effect.fail(new InvalidSourceError({ source: repository, reason: "repository contains control characters" }));
+    return Effect.fail(
+      new InvalidSourceError({
+        source: repository,
+        reason: "repository contains control characters",
+      }),
+    );
   }
   try {
     const url = new URL(repository);
+
     if ((url.protocol === "http:" || url.protocol === "https:") && (url.username || url.password)) {
-      return Effect.fail(new InvalidSourceError({ source: repository, reason: "repository URLs must not contain credentials" }));
+      return Effect.fail(
+        new InvalidSourceError({
+          source: repository,
+          reason: "repository URLs must not contain credentials",
+        }),
+      );
     }
     if (url.hostname.toLowerCase() !== "github.com") return Effect.succeed({ repository });
     const segments = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
     const [owner, rawName] = segments;
+
     if (owner === undefined || rawName === undefined) return Effect.succeed({ repository });
     const name = rawName.replace(/\.git$/i, "");
     const normalized = `https://github.com/${owner}/${name}.git`;
+
     if (segments[2] === "tree" && segments[3]) {
       return Effect.succeed({
         repository: normalized,
@@ -145,6 +163,7 @@ const normalizeRepositoryLocator = (
         ...(segments.length > 4 ? { skillsPath: segments.slice(4).join("/") } : {}),
       });
     }
+
     return Effect.succeed({ repository: normalized });
   } catch {
     return Effect.succeed({ repository });
@@ -180,6 +199,7 @@ const readJsonc = Effect.fn("readVendorJsonc")(function* <A>(
   schema: Schema.ConstraintDecoder<A>,
 ) {
   const fs = yield* FileSystem.FileSystem;
+
   if (!(yield* fs.exists(filePath))) {
     return yield* new SourceManifestError({ path: filePath, message: "file not found" });
   }
@@ -189,6 +209,7 @@ const readJsonc = Effect.fn("readVendorJsonc")(function* <A>(
   const parsed = parseJsonc(raw, errors, { allowTrailingComma: true });
 
   const first = errors[0];
+
   if (first !== undefined) {
     return yield* new SourceManifestError({
       path: filePath,
@@ -197,9 +218,7 @@ const readJsonc = Effect.fn("readVendorJsonc")(function* <A>(
   }
 
   return yield* Schema.decodeUnknownEffect(schema)(parsed).pipe(
-    Effect.mapError(
-      (cause) => new SourceManifestError({ path: filePath, message: cause.message }),
-    ),
+    Effect.mapError((cause) => new SourceManifestError({ path: filePath, message: cause.message })),
   );
 });
 
@@ -213,6 +232,7 @@ const resolveInside = (
 ) => {
   const resolved = path.resolve(root, relativePath);
   const relative = path.relative(root, resolved);
+
   if (
     (!allowRoot && relative.length === 0) ||
     relative.startsWith("..") ||
@@ -225,6 +245,7 @@ const resolveInside = (
       }),
     );
   }
+
   return Effect.succeed(resolved);
 };
 
@@ -241,12 +262,14 @@ const ensureCanonicalPathInside = Effect.fn("ensureCanonicalSourcePathInside")(f
     fs.realPath(target),
   ]);
   const relative = path.relative(canonicalRoot, canonicalTarget);
+
   if (relative.startsWith("..") || path.isAbsolute(relative)) {
     return yield* new InvalidSourceError({
       source: sourceId,
       reason: `${field} resolves outside the source repository`,
     });
   }
+
   return canonicalTarget;
 });
 
@@ -262,6 +285,7 @@ const rejectGitSymlinks = Effect.fn("rejectGitSymlinks")(function* (
     relativePath,
   ]);
   const symlink = entries.split(/\r?\n/).find((line) => line.startsWith("120000 "));
+
   if (symlink) {
     return yield* new InvalidSourceError({
       source: sourceId,
@@ -286,10 +310,12 @@ const discoverSkills = Effect.fn("discoverVendoredSkills")(function* (
 
   const entries = yield* fs.readDirectory(skillsDir);
   const discovered: Array<string> = [];
+
   for (const entry of entries) {
     const skillDir = path.join(skillsDir, entry);
     const info = yield* fs.stat(skillDir);
     const skillDocumentPath = path.join(skillDir, "SKILL.md");
+
     if (info.type === "Directory" && (yield* fs.exists(skillDocumentPath))) {
       const skillDocument = yield* fs.readFileString(skillDocumentPath);
       const frontmatter = skillDocument.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
@@ -299,6 +325,7 @@ const discoverSkills = Effect.fn("discoverVendoredSkills")(function* (
         ?.slice("name:".length)
         .trim()
         .replace(/^(['"])(.*)\1$/, "$2");
+
       if (declaredName !== entry) {
         return yield* new InvalidSourceError({
           source: source.id,
@@ -311,6 +338,7 @@ const discoverSkills = Effect.fn("discoverVendoredSkills")(function* (
   discovered.sort();
 
   const includeAll = source.include.length === 1 && source.include[0] === "*";
+
   if (source.include.includes("*") && !includeAll) {
     return yield* new InvalidSourceError({
       source: source.id,
@@ -321,6 +349,7 @@ const discoverSkills = Effect.fn("discoverVendoredSkills")(function* (
   const selected = (includeAll ? discovered : [...source.include]).filter(
     (skill) => !(source.exclude ?? []).includes(skill),
   );
+
   if (selected.length === 0) {
     return yield* new InvalidSourceError({
       source: source.id,
@@ -375,7 +404,8 @@ const prepareSource = Effect.fn("prepareSkillSource")(function* (
     });
   }
   if (
-    useLock && validateLockConfig &&
+    useLock &&
+    validateLockConfig &&
     (!lockedSource ||
       lockedSource.repository !== source.repository ||
       lockedSource.ref !== source.ref ||
@@ -394,24 +424,19 @@ const prepareSource = Effect.fn("prepareSkillSource")(function* (
   }
 
   const checkoutDir = path.join(tempDir, "checkouts", source.id);
+
   yield* fs.makeDirectory(checkoutDir, { recursive: true });
   yield* runCommand(checkoutDir, "git", ["init", "--quiet"]);
   yield* runCommand(checkoutDir, "git", ["remote", "add", "origin", source.repository]);
   const fetchRef = useLock ? lockedSource?.resolved : source.ref;
+
   if (fetchRef === undefined) {
     return yield* new InvalidSourceError({
       source: source.id,
       reason: "no matching lockfile entry; run catalog refresh without --locked first",
     });
   }
-  yield* runCommand(checkoutDir, "git", [
-    "fetch",
-    "--quiet",
-    "--depth",
-    "1",
-    "origin",
-    fetchRef,
-  ]);
+  yield* runCommand(checkoutDir, "git", ["fetch", "--quiet", "--depth", "1", "origin", fetchRef]);
   yield* runCommand(checkoutDir, "git", ["checkout", "--quiet", "--detach", "FETCH_HEAD"]);
   const resolved = yield* runCommand(checkoutDir, "git", ["rev-parse", "HEAD"]);
 
@@ -423,6 +448,7 @@ const prepareSource = Effect.fn("prepareSkillSource")(function* (
     "skillsPath",
     true,
   );
+
   yield* rejectGitSymlinks(checkoutDir, source.skillsPath, source.id);
   const skillsDir = yield* ensureCanonicalPathInside(
     checkoutDir,
@@ -432,6 +458,7 @@ const prepareSource = Effect.fn("prepareSkillSource")(function* (
   );
   const skills = yield* discoverSkills(skillsDir, source);
   let licenseSource: string | undefined;
+
   if (source.licensePath) {
     licenseSource = yield* resolveInside(
       path,
@@ -454,6 +481,7 @@ const prepareSource = Effect.fn("prepareSkillSource")(function* (
       "licensePath",
     );
     const licenseInfo = yield* fs.stat(licenseSource);
+
     if (licenseInfo.type !== "File") {
       return yield* new InvalidSourceError({
         source: source.id,
@@ -473,9 +501,11 @@ const prepareSource = Effect.fn("prepareSkillSource")(function* (
 
 const readCurrentLock = Effect.fn("readCurrentSkillSourcesLock")(function* (lockfilePath: string) {
   const fs = yield* FileSystem.FileSystem;
+
   if (!(yield* fs.exists(lockfilePath))) {
     return undefined;
   }
+
   return yield* readJsonc(lockfilePath, SkillSourcesLockSchema);
 });
 
@@ -487,6 +517,7 @@ const validateCurrentLock = Effect.fn("validateCurrentSkillSourcesLock")(functio
   }
   const sourceIds = new Set<string>();
   const skills = new Set<string>();
+
   for (const source of lock.sources) {
     if (!SOURCE_ID_PATTERN.test(source.id) || RESERVED_SOURCE_IDS.has(source.id)) {
       return yield* new InvalidSourceError({
@@ -530,11 +561,13 @@ const currentLocalSkills = Effect.fn("currentLocalSkills")(function* (
   currentLock: SkillSourcesLock | undefined,
 ) {
   const fs = yield* FileSystem.FileSystem;
+
   if (!(yield* fs.exists(skillsDir))) {
     return [];
   }
   const managed = new Set(currentLock?.sources.flatMap((source) => source.skills) ?? []);
   const entries = yield* fs.readDirectory(skillsDir);
+
   return entries.filter((entry) => !managed.has(entry));
 });
 
@@ -543,12 +576,14 @@ const validateOwnership = Effect.fn("validateSkillOwnership")(function* (
   localSkills: ReadonlyArray<string>,
 ) {
   const owners = new Map<string, Array<string>>();
+
   for (const skill of localSkills) {
     owners.set(skill, ["local"]);
   }
   for (const preparedSource of prepared) {
     for (const skill of preparedSource.skills) {
       const existing = owners.get(skill) ?? [];
+
       existing.push(preparedSource.source.id);
       owners.set(skill, existing);
     }
@@ -576,14 +611,12 @@ const validateOwnership = Effect.fn("validateSkillOwnership")(function* (
   }
 });
 
-const stripFrontmatterKeys = (
-  skillDocument: string,
-  keys: ReadonlyArray<string>,
-): string => {
+const stripFrontmatterKeys = (skillDocument: string, keys: ReadonlyArray<string>): string => {
   if (keys.length === 0) {
     return skillDocument;
   }
   const frontmatter = skillDocument.match(/^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/);
+
   if (!frontmatter) {
     return skillDocument;
   }
@@ -592,9 +625,11 @@ const stripFrontmatterKeys = (
   const keptLines: Array<string> = [];
   let skipping = false;
   const frontmatterBody = frontmatter[1];
+
   if (frontmatterBody === undefined) return skillDocument;
   for (const line of frontmatterBody.split(/\r?\n/)) {
     const key = line.match(/^([A-Za-z0-9_-]+):/)?.[1];
+
     if (key) {
       skipping = stripped.has(key);
     }
@@ -613,6 +648,7 @@ const stageSources = Effect.fn("stageSkillSources")(function* (
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const stagedSkillsDir = path.join(tempDir, "staged", "skills");
+
   yield* fs.makeDirectory(stagedSkillsDir, { recursive: true });
 
   for (const preparedSource of prepared) {
@@ -620,12 +656,15 @@ const stageSources = Effect.fn("stageSkillSources")(function* (
       preparedSource.checkoutDir,
       preparedSource.source.skillsPath,
     );
+
     for (const skill of preparedSource.skills) {
       const stagedSkillDir = path.join(stagedSkillsDir, skill);
+
       yield* fs.copy(path.join(sourceSkillsDir, skill), stagedSkillDir, { overwrite: true });
       if (preparedSource.source.stripFrontmatter?.length) {
         const skillDocumentPath = path.join(stagedSkillDir, "SKILL.md");
         const skillDocument = yield* fs.readFileString(skillDocumentPath);
+
         yield* fs.writeFileString(
           skillDocumentPath,
           stripFrontmatterKeys(skillDocument, preparedSource.source.stripFrontmatter),
@@ -644,22 +683,30 @@ const buildLock = Effect.fn("buildSkillCatalogLock")(function* (
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const sources: Array<LockedSkillSource> = [];
+
   for (const { resolved, skills, source } of prepared) {
     const descriptions: Record<string, string> = {};
     const digests: Record<string, Digest> = {};
+
     for (const skill of skills) {
       const stagedSkill = path.join(stagedSkillsDir, skill);
       const document = yield* fs.readFileString(path.join(stagedSkill, "SKILL.md"));
-      descriptions[skill] = document
-        .match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1]
-        ?.split(/\r?\n/)
-        .find((line) => line.startsWith("description:"))
-        ?.slice("description:".length)
-        .trim()
-        .replace(/^(['"])(.*)\1$/, "$2") ?? "";
+
+      descriptions[skill] =
+        document
+          .match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1]
+          ?.split(/\r?\n/)
+          .find((line) => line.startsWith("description:"))
+          ?.slice("description:".length)
+          .trim()
+          .replace(/^(['"])(.*)\1$/, "$2") ?? "";
       const observation = yield* observePath(stagedSkill);
+
       if (observation.kind !== "directory") {
-        return yield* new InvalidSourceError({ source: source.id, reason: `could not digest ${skill}` });
+        return yield* new InvalidSourceError({
+          source: source.id,
+          reason: `could not digest ${skill}`,
+        });
       }
       digests[skill] = observation.digest;
     }
@@ -678,6 +725,7 @@ const buildLock = Effect.fn("buildSkillCatalogLock")(function* (
       ...(source.stripFrontmatter ? { stripFrontmatter: source.stripFrontmatter } : {}),
     });
   }
+
   return { version: 1, sources } satisfies SkillSourcesLock;
 });
 
@@ -690,6 +738,7 @@ export const inspectCatalogRepository = Effect.fn("inspectCatalogRepository")(fu
   const locator = yield* normalizeRepositoryLocator(options.repository);
   const repository = locator.repository;
   const id = options.id ?? inferSourceId(repository);
+
   if (id.length === 0) {
     return yield* new InvalidSourceError({
       source: repository,
@@ -712,6 +761,7 @@ export const inspectCatalogRepository = Effect.fn("inspectCatalogRepository")(fu
     prepareSource(tempDir, source, undefined, false),
   );
   let ref = source.ref;
+
   if (ref === "HEAD") {
     const symbolicHead = yield* runCommand(prepared.checkoutDir, "git", [
       "ls-remote",
@@ -719,33 +769,41 @@ export const inspectCatalogRepository = Effect.fn("inspectCatalogRepository")(fu
       "origin",
       "HEAD",
     ]);
+
     ref = symbolicHead.match(/^ref:\s+refs\/heads\/([^\s]+)\s+HEAD$/m)?.[1] ?? ref;
   }
   const skills: Array<{ readonly name: string; readonly description: string }> = [];
+
   for (const name of prepared.skills) {
     const document = yield* fs.readFileString(
       path.join(prepared.checkoutDir, source.skillsPath, name, "SKILL.md"),
     );
-    const description = document
-      .match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1]
-      ?.split(/\r?\n/)
-      .find((line) => line.startsWith("description:"))
-      ?.slice("description:".length)
-      .trim()
-      .replace(/^(['"])(.*)\1$/, "$2") ?? "";
+    const description =
+      document
+        .match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1]
+        ?.split(/\r?\n/)
+        .find((line) => line.startsWith("description:"))
+        ?.slice("description:".length)
+        .trim()
+        .replace(/^(['"])(.*)\1$/, "$2") ?? "";
+
     skills.push({ name, description });
   }
   let licensePath: string | undefined;
+
   for (const candidate of ["LICENSE", "LICENSE.md", "LICENSE.txt", "COPYING"]) {
     const candidatePath = path.join(prepared.checkoutDir, candidate);
+
     if (yield* fs.exists(candidatePath)) {
       const info = yield* fs.stat(candidatePath);
+
       if (info.type === "File") {
         licensePath = candidate;
         break;
       }
     }
   }
+
   return {
     id,
     repository,
@@ -770,17 +828,20 @@ export const refreshSkillCatalog = Effect.fn("refreshSkillCatalog")(function* (
         : Effect.fail(error),
     ),
   );
+
   yield* acquireProjectProcessLock(repoDir);
   const sourcesPath = path.resolve(repoDir, options.sourcesPath ?? DEFAULT_SOURCES_PATH);
   const lockfilePath = path.resolve(repoDir, options.lockfilePath ?? DEFAULT_LOCKFILE_PATH);
   const manifest = yield* readJsonc(sourcesPath, SkillSourcesManifestSchema);
   const currentLock = yield* readCurrentLock(lockfilePath);
+
   yield* validateCurrentLock(currentLock);
   const lockedById = new Map(
     currentLock?.sources.map((source) => [source.id, source] as const) ?? [],
   );
 
   const sourceIds = new Set<string>();
+
   for (const source of manifest.sources) {
     if (sourceIds.has(source.id)) {
       return yield* new InvalidSourceError({
@@ -800,6 +861,7 @@ export const refreshSkillCatalog = Effect.fn("refreshSkillCatalog")(function* (
     const lockedIds = new Set(currentLock.sources.map((source) => source.id));
     const missingFromManifest = currentLock.sources.find((source) => !sourceIds.has(source.id));
     const missingFromLock = manifest.sources.find((source) => !lockedIds.has(source.id));
+
     if (missingFromManifest || missingFromLock) {
       return yield* new SourceManifestError({
         path: lockfilePath,
@@ -818,8 +880,11 @@ export const refreshSkillCatalog = Effect.fn("refreshSkillCatalog")(function* (
       manifest.sources,
       (source) => {
         const pinned = options.pinSourceIds?.includes(source.id) ?? false;
-        const useLock = (options.locked ?? false) || pinned ||
+        const useLock =
+          (options.locked ?? false) ||
+          pinned ||
           (options.updateSourceIds !== undefined && !options.updateSourceIds.includes(source.id));
+
         return prepareSource(
           tempDir,
           source,
@@ -832,6 +897,7 @@ export const refreshSkillCatalog = Effect.fn("refreshSkillCatalog")(function* (
     ),
   );
   const localSkills = yield* currentLocalSkills(path.join(repoDir, "skills"), currentLock);
+
   yield* validateOwnership(prepared, localSkills);
   const staged = yield* stageSources(tempDir, prepared);
   const nextLock = yield* buildLock(prepared, staged.stagedSkillsDir);
@@ -843,19 +909,23 @@ export const refreshSkillCatalog = Effect.fn("refreshSkillCatalog")(function* (
     if (JSON.stringify(currentLock) !== JSON.stringify(nextLock)) {
       return yield* new SourceManifestError({
         path: lockfilePath,
-        message: "approved catalog metadata differs from the lock; run catalog refresh and review it",
+        message:
+          "approved catalog metadata differs from the lock; run catalog refresh and review it",
       });
     }
     yield* printStatus("success", "Catalog verified", summary);
+
     return;
   }
 
   if (options.dryRun) {
     yield* printStatus("plan", "Would refresh catalog", summary);
+
     return;
   }
 
   const nextLockPath = path.join(tempDir, "next-catalog-lock.json");
+
   yield* fs.writeFileString(nextLockPath, `${JSON.stringify(nextLock, null, 2)}\n`);
   yield* fs.rename(nextLockPath, lockfilePath);
   yield* printStatus("success", "Catalog refreshed", summary);

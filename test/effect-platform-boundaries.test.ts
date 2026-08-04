@@ -11,17 +11,13 @@ describe("Effect platform boundaries", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const root = yield* repositoryRoot();
-        const files = (
-          yield* Effect.forEach(
-            [path.join(root, "src"), path.join(root, "test")],
-            (directory) =>
-              fs.glob("**/*.ts", { root: directory }).pipe(
-                Effect.map((entries) =>
-                  entries.map((entry) => path.join(directory, entry)),
-                ),
-              ),
-          )
-        ).flat();
+        const files = (yield* Effect.forEach(
+          [path.join(root, "src"), path.join(root, "test")],
+          (directory) =>
+            fs
+              .glob("**/*.ts", { root: directory })
+              .pipe(Effect.map((entries) => entries.map((entry) => path.join(directory, entry)))),
+        )).flat();
         const nodeScheme = `node${":"}`;
         const directNodeApi = new RegExp(
           `(?:from\\s+["']${nodeScheme}|require\\(["']${nodeScheme}|\\bprocess\\.)`,
@@ -29,12 +25,14 @@ describe("Effect platform boundaries", () => {
 
         for (const file of files) {
           const source = yield* fs.readFileString(file);
+
           assert.notMatch(
             source,
             directNodeApi,
             `${path.relative(root, file)} bypasses Effect platform services`,
           );
         }
-      }));
+      }),
+    );
   });
 });

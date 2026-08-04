@@ -31,12 +31,8 @@ export const LockedSkillSourceSchema = Schema.Struct({
   include: Schema.Array(Schema.String),
   exclude: Schema.optional(Schema.Array(Schema.String)),
   skills: Schema.Array(Schema.String),
-  descriptions: Schema.optional(
-    Schema.Record(Schema.String, Schema.String),
-  ),
-  digests: Schema.optional(
-    Schema.Record(Schema.String, DigestSchema),
-  ),
+  descriptions: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+  digests: Schema.optional(Schema.Record(Schema.String, DigestSchema)),
   licensePath: Schema.optional(Schema.String),
   stripFrontmatter: Schema.optional(Schema.Array(Schema.String)),
 });

@@ -1,6 +1,5 @@
-import { describe, expect, it } from "vitest";
-
 import { recommendedOxfmtConfig as packagedOxfmtConfig } from "@danieljvdm/dev-kit/oxfmt";
+import { describe, expect, it } from "vitest";
 
 import { recommendedOxfmtConfig as sourceOxfmtConfig } from "../src/oxfmt.ts";
 

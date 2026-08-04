@@ -1,8 +1,7 @@
-import { parse as parseJsonc, printParseErrorCode, type ParseError } from "jsonc-parser";
 import { Cause, Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
+import { parse as parseJsonc, printParseErrorCode, type ParseError } from "jsonc-parser";
 
-import { DevKitManifestSchema, normalizeManifest } from "./manifest.ts";
 import {
   loadSkillCatalog,
   resolveSkillSources,
@@ -10,16 +9,15 @@ import {
   type ResolvedSkillSource,
 } from "./catalog.ts";
 import { printDetail, printStatus, withSpinner } from "./cli-ui.ts";
-import {
-  applyEffectSourcePlan,
-  planEffectSource,
-  type EffectSourcePlan,
-} from "./effect-source.ts";
+import { applyEffectSourcePlan, planEffectSource, type EffectSourcePlan } from "./effect-source.ts";
 import {
   applyEffectTsgoPatchPlan,
   planEffectTsgoPatch,
   type EffectTsgoPatchPlan,
 } from "./effect-tsgo.ts";
+import { DevKitManifestSchema, normalizeManifest } from "./manifest.ts";
+import { observeSymbolicLink } from "./node-symbolic-link.ts";
+import { resolvePackageSkillSelector } from "./package-skill-source.ts";
 import {
   digestFileContent,
   digestSymlinkTarget,
@@ -27,9 +25,8 @@ import {
   observePath,
   type ObservedPath,
 } from "./path-digest.ts";
-import { resolvePackageSkillSelector } from "./package-skill-source.ts";
 import { readDirectDependencyNames } from "./project-package.ts";
-import { parseSkillSelector } from "./skill-selector.ts";
+import { acquireProjectProcessLock, PROJECT_PROCESS_LOCK_PATH } from "./project-process-lock.ts";
 import {
   AppliedStateSchema,
   DevKitLockSchema,
@@ -37,16 +34,25 @@ import {
   type DevKitLock,
   type ManagedAgentInstructionsOutput,
   type ManagedClaudeInstructionsOutput,
+  type ManagedGeneratedFileOutput,
   type ManagedOutput,
   type ManagedSkillOutput,
   type OwnershipReceipt,
 } from "./project-state.ts";
-import {
-  acquireProjectProcessLock,
-  PROJECT_PROCESS_LOCK_PATH,
-} from "./project-process-lock.ts";
-import { observeSymbolicLink } from "./node-symbolic-link.ts";
+import { parseSkillSelector } from "./skill-selector.ts";
 import { DEV_KIT_VERSION } from "./tool-metadata.ts";
+import {
+  applyVitePlusHooksPlan,
+  planVitePlusHooks,
+  type VitePlusHooksPlan,
+} from "./vite-plus-hooks.ts";
+import {
+  validateVitePlusQualitySupport,
+  VITE_PLUS_CONFIG_PATH,
+  VITE_PLUS_CONFIG_TEMPLATE,
+  VITE_PLUS_GITHUB_ACTIONS_PATH,
+  VITE_PLUS_GITHUB_ACTIONS_TEMPLATE,
+} from "./vite-plus-quality.ts";
 
 export type SyncOptions = {
   readonly manifestPath?: string;
@@ -89,10 +95,17 @@ type DesiredClaudeInstructionsOutput = ManagedClaudeInstructionsOutput & {
   readonly linkTarget: string;
 };
 
+type DesiredGeneratedFileOutput = ManagedGeneratedFileOutput & {
+  readonly adoptIfExact: true;
+  readonly content: string;
+  readonly destination: string;
+};
+
 type DesiredOutput =
   | DesiredSkillOutput
   | DesiredAgentInstructionsOutput
-  | DesiredClaudeInstructionsOutput;
+  | DesiredClaudeInstructionsOutput
+  | DesiredGeneratedFileOutput;
 
 type SkillPlanAction =
   | {
@@ -125,6 +138,7 @@ export type SkillPlan = {
   readonly actions: ReadonlyArray<SkillPlanAction>;
   readonly effectSource?: EffectSourcePlan;
   readonly effectTsgo?: EffectTsgoPatchPlan;
+  readonly vitePlusHooks?: VitePlusHooksPlan;
   readonly nextLock: DevKitLock;
   readonly nextState: AppliedState;
   readonly metadataChanged: boolean;
@@ -189,12 +203,12 @@ class LockedPlanMismatchError extends Schema.TaggedErrorClass<LockedPlanMismatch
   { message: Schema.String },
 ) {}
 
-class PlanConflictError extends Schema.TaggedErrorClass<PlanConflictError>()(
-  "PlanConflictError",
-  { conflicts: Schema.Array(Schema.String) },
-) {
+class PlanConflictError extends Schema.TaggedErrorClass<PlanConflictError>()("PlanConflictError", {
+  conflicts: Schema.Array(Schema.String),
+}) {
   override get message() {
     const heading = `plan has ${this.conflicts.length} conflict${this.conflicts.length === 1 ? "" : "s"}`;
+
     return `${heading}:\n${this.conflicts.map((conflict) => `  ${conflict}`).join("\n")}`;
   }
 }
@@ -210,6 +224,7 @@ class ApplyRaceError extends Schema.TaggedErrorClass<ApplyRaceError>()("ApplyRac
 const SKILL_FAMILIES: SkillCatalog = {
   effect: ["effect-ts", "effect-atom-data-fetching"],
 };
+
 export const DEFAULT_MANIFEST = "dev-kit.jsonc";
 const DEFAULT_LOCKFILE = "dev-kit.lock.json";
 const DEFAULT_STATE = ".dev-kit/state.json";
@@ -219,6 +234,7 @@ const DEV_KIT_SKILL_PATH_PLACEHOLDER = "{{DEV_KIT_SKILL_PATH}}";
 const resolvePackageRoot = Effect.fn("resolvePackageRoot")(function* () {
   const path = yield* Path.Path;
   const scriptPath = yield* path.fromFileUrl(new URL(import.meta.url));
+
   return path.resolve(path.dirname(scriptPath), "..");
 });
 
@@ -234,9 +250,11 @@ const runCommand = Effect.fn("runCommand")(function* (
     child.exitCode,
   ]);
   const trimmed = output.trim();
+
   if (exitCode !== 0) {
     return yield* new CommandError({ command: formatted, exitCode, output: trimmed });
   }
+
   return trimmed;
 });
 
@@ -252,12 +270,14 @@ const parseStructuredFile = Effect.fn("parseStructuredFile")(function* <A>(
   const errors: Array<ParseError> = [];
   const parsed = parseJsonc(raw, errors, { allowTrailingComma: true });
   const first = errors[0];
+
   if (first !== undefined) {
     return yield* new StructuredFileError({
       path: filePath,
       message: `${printParseErrorCode(first.error)} at offset ${first.offset}`,
     });
   }
+
   return yield* Schema.decodeUnknownEffect(schema)(parsed).pipe(
     Effect.mapError((cause) => new StructuredFileError({ path: filePath, message: cause.message })),
   );
@@ -265,10 +285,12 @@ const parseStructuredFile = Effect.fn("parseStructuredFile")(function* <A>(
 
 const readManifest = Effect.fn("readManifest")(function* (manifestPath: string) {
   const fs = yield* FileSystem.FileSystem;
+
   if (!(yield* fs.exists(manifestPath))) {
     return yield* new ManifestNotFoundError({ path: manifestPath });
   }
   const raw = yield* fs.readFileString(manifestPath);
+
   return yield* parseStructuredFile(manifestPath, raw, DevKitManifestSchema);
 });
 
@@ -277,9 +299,11 @@ const readOptionalStructuredFile = Effect.fn("readOptionalStructuredFile")(funct
   schema: Schema.ConstraintDecoder<A>,
 ) {
   const fs = yield* FileSystem.FileSystem;
+
   if (!(yield* fs.exists(filePath))) {
     return undefined;
   }
+
   return yield* parseStructuredFile(filePath, yield* fs.readFileString(filePath), schema);
 });
 
@@ -291,6 +315,7 @@ const expandSelection = (
 ) => {
   const known = [...new Set([...Object.keys(skillFamilies), ...availableSkills])].sort();
   const selected = new Set<string>();
+
   for (const name of include) {
     if (skillFamilies[name]) {
       for (const skill of skillFamilies[name]) selected.add(skill);
@@ -302,9 +327,11 @@ const expandSelection = (
   }
   for (const name of exclude) {
     const family = skillFamilies[name];
+
     if (family) for (const skill of family) selected.delete(skill);
     else selected.delete(name);
   }
+
   return Effect.succeed([...selected].sort());
 };
 
@@ -316,20 +343,35 @@ const resolveManagedPath = Effect.fn("resolveManagedPath")(function* (
   candidate: string,
 ) {
   const path = yield* Path.Path;
+
   if (candidate.length === 0 || path.isAbsolute(candidate)) {
-    return yield* new UnsafeManagedPathError({ path: candidate, reason: "must be a non-empty project-relative path" });
+    return yield* new UnsafeManagedPathError({
+      path: candidate,
+      reason: "must be a non-empty project-relative path",
+    });
   }
   const absolute = path.resolve(projectDir, candidate);
   const relative = path.relative(projectDir, absolute);
-  if (relative.length === 0 || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
-    return yield* new UnsafeManagedPathError({ path: candidate, reason: "resolves outside the project" });
+
+  if (
+    relative.length === 0 ||
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
+    return yield* new UnsafeManagedPathError({
+      path: candidate,
+      reason: "resolves outside the project",
+    });
   }
 
   const segments = relative.split(path.sep);
   let ancestor = projectDir;
+
   for (const segment of segments.slice(0, -1)) {
     ancestor = path.join(ancestor, segment);
     const target = yield* observeSymbolicLink(ancestor);
+
     if (target.kind === "symlink") {
       return yield* new UnsafeManagedPathError({
         path: candidate,
@@ -337,6 +379,7 @@ const resolveManagedPath = Effect.fn("resolveManagedPath")(function* (
       });
     }
   }
+
   return { absolute, relative: portablePath(path, relative) } satisfies ManagedPath;
 });
 
@@ -349,12 +392,14 @@ const validateReservedPaths = Effect.fn("validateReservedPaths")(function* (
   outputs: ReadonlyArray<Pick<ManagedOutput | OwnershipReceipt, "path">>,
 ) {
   const outputPaths = new Set<string>();
+
   for (const output of outputs) {
     outputPaths.add((yield* resolveManagedPath(projectDir, output.path)).relative);
   }
 
   for (let index = 0; index < reserved.length; index += 1) {
     const current = reserved[index];
+
     if (current === undefined) continue;
     for (const other of reserved.slice(index + 1)) {
       if (pathsOverlap(current.path, other.path)) {
@@ -393,12 +438,17 @@ const validateInventory = Effect.fn("validateManagedInventory")(function* (
   const ids = new Set<string>();
   const paths = new Set<string>();
   const sortedPaths: Array<string> = [];
+
   for (const output of outputs) {
     if (ids.has(output.resourceId)) {
-      return yield* new InvalidProjectStateError({ message: `${label} contains duplicate resource id ${output.resourceId}` });
+      return yield* new InvalidProjectStateError({
+        message: `${label} contains duplicate resource id ${output.resourceId}`,
+      });
     }
     if (paths.has(output.path)) {
-      return yield* new InvalidProjectStateError({ message: `${label} contains duplicate path ${output.path}` });
+      return yield* new InvalidProjectStateError({
+        message: `${label} contains duplicate path ${output.path}`,
+      });
     }
     ids.add(output.resourceId);
     paths.add(output.path);
@@ -408,9 +458,12 @@ const validateInventory = Effect.fn("validateManagedInventory")(function* (
   for (let index = 1; index < sortedPaths.length; index += 1) {
     const previous = sortedPaths[index - 1];
     const current = sortedPaths[index];
+
     if (previous === undefined || current === undefined) continue;
     if (current.startsWith(`${previous}/`)) {
-      return yield* new InvalidProjectStateError({ message: `${label} contains overlapping paths ${previous} and ${current}` });
+      return yield* new InvalidProjectStateError({
+        message: `${label} contains overlapping paths ${previous} and ${current}`,
+      });
     }
   }
 });
@@ -420,13 +473,16 @@ const validateCrossInventoryPaths = Effect.fn("validateCrossInventoryPaths")(fun
   outputs: ReadonlyArray<Pick<ManagedOutput | OwnershipReceipt, "path">>,
 ) {
   const uniquePaths = new Set<string>();
+
   for (const output of outputs) {
     uniquePaths.add((yield* resolveManagedPath(projectDir, output.path)).relative);
   }
   const sortedPaths = [...uniquePaths].sort();
+
   for (let index = 1; index < sortedPaths.length; index += 1) {
     const previous = sortedPaths[index - 1];
     const current = sortedPaths[index];
+
     if (previous === undefined || current === undefined) continue;
     if (current.startsWith(`${previous}/`)) {
       return yield* new InvalidProjectStateError({
@@ -444,12 +500,14 @@ const renderAgentInstructions = Effect.fn("renderAgentInstructions")(function* (
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const templatePath = path.join(packageRoot, AGENT_INSTRUCTIONS_TEMPLATE);
+
   if ((yield* observePath(templatePath)).kind !== "file") {
     return yield* new InvalidProjectStateError({
       message: `dev-kit agent instructions template is not a regular file: ${AGENT_INSTRUCTIONS_TEMPLATE}`,
     });
   }
   const template = yield* fs.readFileString(templatePath);
+
   if (!template.includes(DEV_KIT_SKILL_PATH_PLACEHOLDER)) {
     return yield* new InvalidProjectStateError({
       message: `dev-kit agent instructions template is missing ${DEV_KIT_SKILL_PATH_PLACEHOLDER}`,
@@ -457,26 +515,48 @@ const renderAgentInstructions = Effect.fn("renderAgentInstructions")(function* (
   }
 
   const devKitSkill = sourceBySkill.get("dev-kit");
-  const devKitSkillPath = devKitSkill === undefined
-    ? "node_modules/@danieljvdm/dev-kit/skills/dev-kit/SKILL.md"
-    : portablePath(
-        path,
-        path.relative(
-          projectDir,
-          path.join(devKitSkill.linkPath ?? devKitSkill.path, "SKILL.md"),
-        ),
-      );
+  const devKitSkillPath =
+    devKitSkill === undefined
+      ? "node_modules/@danieljvdm/dev-kit/skills/dev-kit/SKILL.md"
+      : portablePath(
+          path,
+          path.relative(
+            projectDir,
+            path.join(devKitSkill.linkPath ?? devKitSkill.path, "SKILL.md"),
+          ),
+        );
   const sections = [template.replaceAll(DEV_KIT_SKILL_PATH_PLACEHOLDER, devKitSkillPath).trimEnd()];
+
   if ((yield* readDirectDependencyNames(projectDir)).includes("vite-plus")) {
     const vitePlusTemplate = path.join(projectDir, "node_modules", "vite-plus", "AGENTS.md");
+
     if ((yield* observePath(vitePlusTemplate)).kind !== "file") {
       return yield* new InvalidProjectStateError({
-        message: "Vite+ is a direct dependency but its agent instructions are not a regular file: node_modules/vite-plus/AGENTS.md",
+        message:
+          "Vite+ is a direct dependency but its agent instructions are not a regular file: node_modules/vite-plus/AGENTS.md",
       });
     }
     sections.push((yield* fs.readFileString(vitePlusTemplate)).trim());
   }
+
   return `${sections.join("\n\n")}\n`;
+});
+
+const readGeneratedFileTemplate = Effect.fn("readGeneratedFileTemplate")(function* (
+  packageRoot: string,
+  sourcePath: string,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const templatePath = path.join(packageRoot, sourcePath);
+
+  if ((yield* observePath(templatePath)).kind !== "file") {
+    return yield* new InvalidProjectStateError({
+      message: `dev-kit generated file template is not a regular file: ${sourcePath}`,
+    });
+  }
+
+  return yield* fs.readFileString(templatePath);
 });
 
 const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
@@ -489,9 +569,11 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
 ) {
   const path = yield* Path.Path;
   const outputs: Array<DesiredOutput> = [];
+
   if (setup.agentInstructions.enabled) {
     const managed = yield* resolveManagedPath(projectDir, "AGENTS.md");
     const content = yield* renderAgentInstructions(packageRoot, projectDir, sourceBySkill);
+
     outputs.push({
       resourceId: "setup:agent-instructions",
       path: managed.relative,
@@ -508,6 +590,7 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
     const sourceObservation = setup.agentInstructions.enabled
       ? undefined
       : yield* observePath(source.absolute);
+
     if (!setup.agentInstructions.enabled && sourceObservation?.kind !== "file") {
       return yield* new InvalidProjectStateError({
         message: "Claude instructions source is not a regular file: AGENTS.md",
@@ -515,6 +598,7 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
     }
     const managed = yield* resolveManagedPath(projectDir, "CLAUDE.md");
     const linkTarget = path.relative(path.dirname(managed.absolute), source.absolute);
+
     outputs.push({
       resourceId: "setup:claude-instructions",
       path: managed.relative,
@@ -526,32 +610,71 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
       linkTarget,
     });
   }
+  if (setup.vitePlus.quality.enabled) {
+    for (const generated of [
+      {
+        resourceId: "setup:vite-plus-config" as const,
+        path: VITE_PLUS_CONFIG_PATH,
+        sourcePath: VITE_PLUS_CONFIG_TEMPLATE,
+      },
+      {
+        resourceId: "setup:vite-plus-github-actions" as const,
+        path: VITE_PLUS_GITHUB_ACTIONS_PATH,
+        sourcePath: VITE_PLUS_GITHUB_ACTIONS_TEMPLATE,
+      },
+    ]) {
+      const managed = yield* resolveManagedPath(projectDir, generated.path);
+      const content = yield* readGeneratedFileTemplate(packageRoot, generated.sourcePath);
+
+      outputs.push({
+        resourceId: generated.resourceId,
+        path: managed.relative,
+        sourcePath: generated.sourcePath,
+        mode: "copy",
+        kind: "file",
+        digest: yield* digestFileContent(content),
+        destination: managed.absolute,
+        content,
+        adoptIfExact: true,
+      });
+    }
+  }
   const agentsTarget = targets.agents;
-  const duplicateOutput = skills.find((skill, index) =>
-    skills.findIndex((candidate) => candidate.name === skill.name) !== index
+  const duplicateOutput = skills.find(
+    (skill, index) => skills.findIndex((candidate) => candidate.name === skill.name) !== index,
   );
+
   if (duplicateOutput !== undefined) {
     const selectors = skills
       .filter((skill) => skill.name === duplicateOutput.name)
       .map((skill) => skill.selector);
+
     return yield* new InvalidProjectStateError({
       message: `selected skills would both install as ${duplicateOutput.name}: ${selectors.join(", ")}`,
     });
   }
   for (const skill of skills) {
     const resolvedSource = sourceBySkill.get(skill.selector);
+
     if (resolvedSource === undefined) {
-      return yield* new InvalidProjectStateError({ message: `skill source is unavailable: ${skill.selector}` });
+      return yield* new InvalidProjectStateError({
+        message: `skill source is unavailable: ${skill.selector}`,
+      });
     }
     const source = resolvedSource.path;
     const sourceObservation = yield* observePath(source);
+
     if (sourceObservation.kind !== "directory") {
-      return yield* new InvalidProjectStateError({ message: `skill source is not a directory: ${source}` });
+      return yield* new InvalidProjectStateError({
+        message: `skill source is not a directory: ${source}`,
+      });
     }
     for (const targetName of ["agents", "claude", "opencode"] as const) {
       const target = targets[targetName];
+
       if (!target.enabled) continue;
       const managed = yield* resolveManagedPath(projectDir, path.join(target.path, skill.name));
+
       if (target.mode === "copy") {
         outputs.push({
           resourceId: `skill:${skill.selector}@${targetName}`,
@@ -569,10 +692,12 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
       }
       const linkSource =
         targetName === "agents" || !agentsTarget.enabled
-          ? resolvedSource.linkPath ?? source
-          : (yield* resolveManagedPath(projectDir, path.join(agentsTarget.path, skill.name))).absolute;
+          ? (resolvedSource.linkPath ?? source)
+          : (yield* resolveManagedPath(projectDir, path.join(agentsTarget.path, skill.name)))
+              .absolute;
       const linkTarget = path.relative(path.dirname(managed.absolute), linkSource);
       const linkDigest = yield* digestSymlinkTarget(linkTarget);
+
       outputs.push({
         resourceId: `skill:${skill.selector}@${targetName}`,
         path: managed.relative,
@@ -589,6 +714,7 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
     }
   }
   yield* validateInventory(projectDir, outputs, "desired outputs");
+
   return outputs.sort((left, right) => left.path.localeCompare(right.path));
 });
 
@@ -606,7 +732,9 @@ const planDesiredOutputs = Effect.fn("planDesiredSkillOutputs")(function* (
   if (currentState) yield* validateInventory(projectDir, currentState.outputs, "applied state");
   yield* validateCrossInventoryPaths(projectDir, [...desired, ...(currentState?.outputs ?? [])]);
   const lockById = new Map(currentLock?.outputs.map((output) => [output.resourceId, output]) ?? []);
-  const receiptsById = new Map(currentState?.outputs.map((output) => [output.resourceId, output]) ?? []);
+  const receiptsById = new Map(
+    currentState?.outputs.map((output) => [output.resourceId, output]) ?? [],
+  );
   const desiredKeys = new Set(desired.map((output) => `${output.resourceId}\0${output.path}`));
   const actions: Array<SkillPlanAction> = [];
 
@@ -620,10 +748,14 @@ const planDesiredOutputs = Effect.fn("planDesiredSkillOutputs")(function* (
     if (observed.kind === "missing") {
       actions.push({ action: "create", desired: output, observed });
     } else if (observed.kind === output.kind && observed.digest === output.digest) {
-      if (sameReceipt || adoptable) {
+      if (sameReceipt || adoptable || ("adoptIfExact" in output && output.adoptIfExact)) {
         actions.push({ action: "unchanged", desired: output, observed, adopted: !sameReceipt });
       } else {
-        actions.push({ action: "conflict", path: output.path, reason: "destination exists but is not owned" });
+        actions.push({
+          action: "conflict",
+          path: output.path,
+          reason: "destination exists but is not owned",
+        });
       }
     } else if (
       sameReceipt &&
@@ -635,7 +767,9 @@ const planDesiredOutputs = Effect.fn("planDesiredSkillOutputs")(function* (
       actions.push({
         action: "conflict",
         path: output.path,
-        reason: sameReceipt ? "owned destination was modified" : "destination exists but is not owned",
+        reason: sameReceipt
+          ? "owned destination was modified"
+          : "destination exists but is not owned",
       });
     }
   }
@@ -644,11 +778,21 @@ const planDesiredOutputs = Effect.fn("planDesiredSkillOutputs")(function* (
     if (desiredKeys.has(`${receipt.resourceId}\0${receipt.path}`)) continue;
     const managed = yield* resolveManagedPath(projectDir, receipt.path);
     const observed = yield* observePath(managed.absolute);
+
     if (observed.kind === "missing") continue;
     if (observed.kind === receipt.kind && observed.digest === receipt.digest) {
-      actions.push({ action: "remove", previous: receipt, destination: managed.absolute, observed });
+      actions.push({
+        action: "remove",
+        previous: receipt,
+        destination: managed.absolute,
+        observed,
+      });
     } else {
-      actions.push({ action: "conflict", path: receipt.path, reason: "stale owned destination was modified" });
+      actions.push({
+        action: "conflict",
+        path: receipt.path,
+        reason: "stale owned destination was modified",
+      });
     }
   }
 
@@ -663,11 +807,26 @@ const planDesiredOutputs = Effect.fn("planDesiredSkillOutputs")(function* (
       digest,
     })),
   };
-  return { actions: actions.sort((left, right) => {
-    const leftPath = left.action === "remove" ? left.previous.path : left.action === "conflict" ? left.path : left.desired.path;
-    const rightPath = right.action === "remove" ? right.previous.path : right.action === "conflict" ? right.path : right.desired.path;
-    return leftPath.localeCompare(rightPath);
-  }), nextState };
+
+  return {
+    actions: actions.sort((left, right) => {
+      const leftPath =
+        left.action === "remove"
+          ? left.previous.path
+          : left.action === "conflict"
+            ? left.path
+            : left.desired.path;
+      const rightPath =
+        right.action === "remove"
+          ? right.previous.path
+          : right.action === "conflict"
+            ? right.path
+            : right.desired.path;
+
+      return leftPath.localeCompare(rightPath);
+    }),
+    nextState,
+  };
 });
 
 const lockedPlanMatches = (current: DevKitLock, next: DevKitLock): boolean =>
@@ -677,6 +836,7 @@ const lockedPlanMatches = (current: DevKitLock, next: DevKitLock): boolean =>
   current.outputs.length === next.outputs.length &&
   current.outputs.every((output, index) => {
     const nextOutput = next.outputs[index];
+
     return nextOutput !== undefined && outputIdentity(output) === outputIdentity(nextOutput);
   });
 
@@ -692,12 +852,32 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
     ),
   );
   const projectDir = yield* fs.realPath(discoveredRoot);
-  const manifestManaged = yield* resolveManagedPath(projectDir, options.manifestPath ?? DEFAULT_MANIFEST);
-  const lockManaged = yield* resolveManagedPath(projectDir, options.lockfilePath ?? DEFAULT_LOCKFILE);
+  const manifestManaged = yield* resolveManagedPath(
+    projectDir,
+    options.manifestPath ?? DEFAULT_MANIFEST,
+  );
+  const lockManaged = yield* resolveManagedPath(
+    projectDir,
+    options.lockfilePath ?? DEFAULT_LOCKFILE,
+  );
   const stateManaged = yield* resolveManagedPath(projectDir, options.statePath ?? DEFAULT_STATE);
   const processLockManaged = yield* resolveManagedPath(projectDir, PROJECT_PROCESS_LOCK_PATH);
   const packageRoot = yield* resolvePackageRoot();
   const manifest = normalizeManifest(yield* readManifest(manifestManaged.absolute));
+
+  if (manifest.setup.vitePlus.quality.enabled) {
+    if (!manifest.setup.effectTsgo.enabled) {
+      return yield* new InvalidProjectStateError({
+        message:
+          "setup.vitePlus.quality requires setup.effectTsgo.enabled so vp run typecheck uses the Effect-patched compiler",
+      });
+    }
+    yield* validateVitePlusQualitySupport(
+      projectDir,
+      packageRoot,
+      manifest.setup.effectTsgo.typescriptPackage,
+    );
+  }
   const effectSource = manifest.setup.effectSource.enabled
     ? yield* planEffectSource({
         packageName: manifest.setup.effectSource.packageName,
@@ -713,19 +893,35 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
         typescriptPackage: manifest.setup.effectTsgo.typescriptPackage,
       })
     : undefined;
+  const vitePlusHooks = manifest.setup.vitePlus.hooks.enabled
+    ? yield* planVitePlusHooks(projectDir)
+    : undefined;
   const catalog = yield* loadSkillCatalog(packageRoot, projectDir);
   const availableSkills = catalog.skills.map((skill) => skill.selector);
   const skillFamilies = { ...SKILL_FAMILIES, ...catalog.families };
+
   for (const [family, familySkills] of Object.entries(skillFamilies)) {
     if (availableSkills.includes(family)) {
-      return yield* new InvalidSkillCatalogError({ family, message: `family name conflicts with a skill name: ${family}` });
+      return yield* new InvalidSkillCatalogError({
+        family,
+        message: `family name conflicts with a skill name: ${family}`,
+      });
     }
     const missing = familySkills.filter((skill) => !availableSkills.includes(skill));
+
     if (missing.length > 0) {
-      return yield* new InvalidSkillCatalogError({ family, message: `family references missing skills: ${missing.join(", ")}` });
+      return yield* new InvalidSkillCatalogError({
+        family,
+        message: `family references missing skills: ${missing.join(", ")}`,
+      });
     }
   }
-  const selectedSelectors = yield* expandSelection(manifest.include, manifest.exclude, availableSkills, skillFamilies);
+  const selectedSelectors = yield* expandSelection(
+    manifest.include,
+    manifest.exclude,
+    availableSkills,
+    skillFamilies,
+  );
   const catalogBySelector = new Map(catalog.skills.map((skill) => [skill.selector, skill]));
   const sourceBySkill = yield* withSpinner(
     "Resolving selected skills",
@@ -738,8 +934,10 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
     ),
   );
   const selectedSkills: Array<CatalogSkill> = [];
+
   for (const selector of selectedSelectors) {
     const catalogSkill = catalogBySelector.get(selector);
+
     if (catalogSkill === undefined) {
       return yield* new InvalidProjectStateError({
         message: `selected skill is unavailable: ${selector}`,
@@ -804,6 +1002,17 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
           digest: output.digest,
         };
       }
+      if (output.resourceId === "setup:claude-instructions") {
+        return {
+          resourceId: output.resourceId,
+          path: output.path,
+          sourcePath: output.sourcePath,
+          mode: output.mode,
+          kind: output.kind,
+          digest: output.digest,
+        };
+      }
+
       return {
         resourceId: output.resourceId,
         path: output.path,
@@ -823,37 +1032,45 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
       ? []
       : [{ label: "Effect source checkout", path: effectSource.path }]),
   ];
+
   yield* validateReservedPaths(projectDir, reservedPaths, desired);
   const currentLock = yield* readOptionalStructuredFile(lockManaged.absolute, DevKitLockSchema);
   const currentState = yield* readOptionalStructuredFile(stateManaged.absolute, AppliedStateSchema);
+
   if (
     manifest.setup.claudeInstructions.enabled &&
     !manifest.setup.agentInstructions.enabled &&
-    currentState?.outputs.some(
-      (output) => output.resourceId === "setup:agent-instructions",
-    )
+    currentState?.outputs.some((output) => output.resourceId === "setup:agent-instructions")
   ) {
     return yield* new InvalidProjectStateError({
-      message: "cannot disable agentInstructions while claudeInstructions still links to its AGENTS.md wrapper",
+      message:
+        "cannot disable agentInstructions while claudeInstructions still links to its AGENTS.md wrapper",
     });
   }
-  yield* validateReservedPaths(
-    projectDir,
-    reservedPaths,
-    [
-      ...(currentLock?.outputs ?? []),
-      ...(currentState?.outputs ?? []),
-    ],
-  );
+  yield* validateReservedPaths(projectDir, reservedPaths, [
+    ...(currentLock?.outputs ?? []),
+    ...(currentState?.outputs ?? []),
+  ]);
   if (options.locked) {
     if (!currentLock) {
-      return yield* new LockedPlanMismatchError({ message: "dev-kit.lock.json is required with --locked" });
+      return yield* new LockedPlanMismatchError({
+        message: "dev-kit.lock.json is required with --locked",
+      });
     }
     if (!lockedPlanMatches(currentLock, nextLock)) {
-      return yield* new LockedPlanMismatchError({ message: "manifest or packaged skills differ from dev-kit.lock.json" });
+      return yield* new LockedPlanMismatchError({
+        message: "manifest or packaged skills differ from dev-kit.lock.json",
+      });
     }
   }
-  const planned = yield* planDesiredOutputs(projectDir, desired, currentLock, currentState, nextLock);
+  const planned = yield* planDesiredOutputs(
+    projectDir,
+    desired,
+    currentLock,
+    currentState,
+    nextLock,
+  );
+
   return {
     projectDir,
     lockfilePath: lockManaged.absolute,
@@ -861,6 +1078,7 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
     actions: planned.actions,
     ...(effectSource === undefined ? {} : { effectSource }),
     ...(effectTsgo === undefined ? {} : { effectTsgo }),
+    ...(vitePlusHooks === undefined ? {} : { vitePlusHooks }),
     nextLock,
     nextState: planned.nextState,
     metadataChanged:
@@ -871,45 +1089,50 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
 
 const formatAction = (action: SkillPlanAction): string => {
   if (action.action === "conflict") return `! ${action.path}: ${action.reason}`;
-  if (action.action === "remove") return `− ${action.previous.resourceId} → ${action.previous.path}`;
+  if (action.action === "remove")
+    return `− ${action.previous.resourceId} → ${action.previous.path}`;
   const verb = action.desired.mode === "copy" ? "copy" : "link";
   const adoption = action.action === "unchanged" && action.adopted ? " (adopt)" : "";
   const marker = action.action === "create" ? "+" : action.action === "update" ? "~" : "=";
-  const source = "skill" in action.desired
-    ? action.desired.skill
-    : action.desired.sourcePath;
+  const source = "skill" in action.desired ? action.desired.skill : action.desired.sourcePath;
+
   return `${marker} ${verb} ${source} → ${action.desired.path}${adoption}`;
 };
 
 const operationalChangeCount = (plan: SkillPlan): number =>
   plan.actions.filter((action) => action.action !== "unchanged").length +
   (plan.effectSource?.action === "sync" ? 1 : 0) +
-  (plan.effectTsgo !== undefined && !plan.effectTsgo.alreadyPatched ? 1 : 0);
+  (plan.effectTsgo !== undefined && !plan.effectTsgo.alreadyPatched ? 1 : 0) +
+  (plan.vitePlusHooks?.action === "configure" ? 1 : 0);
 
 const plannedChangeCount = (plan: SkillPlan): number => {
   const operational = operationalChangeCount(plan);
+
   return operational === 0 && plan.metadataChanged ? 1 : operational;
 };
 
 export const printSkillPlan = Effect.fn("printSkillPlan")(function* (plan: SkillPlan) {
   const changes = plannedChangeCount(plan);
+
   if (changes === 0) {
     yield* printStatus("success", "Already up to date");
+
     return;
   }
   yield* printStatus("plan", `${changes} change${changes === 1 ? "" : "s"} planned`);
   for (const action of plan.actions) {
-    if (action.action !== "unchanged") yield* printDetail(formatAction(action));
+    if (action.action !== "unchanged" || action.adopted) yield* printDetail(formatAction(action));
   }
   if (plan.effectSource?.action === "sync") {
-    yield* printDetail(
-      `+ Effect source ${plan.effectSource.tag} → ${plan.effectSource.path}`,
-    );
+    yield* printDetail(`+ Effect source ${plan.effectSource.tag} → ${plan.effectSource.path}`);
   }
   if (plan.effectTsgo !== undefined && !plan.effectTsgo.alreadyPatched) {
     yield* printDetail(
       `+ TypeScript patch @effect/tsgo@${plan.effectTsgo.effectTsgoVersion} → ${plan.effectTsgo.typescriptPackage}@${plan.effectTsgo.typescriptVersion}`,
     );
+  }
+  if (plan.vitePlusHooks?.action === "configure") {
+    yield* printDetail(`+ Vite+ hooks → ${plan.vitePlusHooks.hooksPath}`);
   }
   if (operationalChangeCount(plan) === 0 && plan.metadataChanged) {
     yield* printDetail("+ Dev kit metadata");
@@ -920,22 +1143,24 @@ const observationsEqual = (left: ObservedPath, right: ObservedPath): boolean =>
   left.kind === right.kind &&
   (left.kind === "missing" || (right.kind !== "missing" && left.digest === right.digest));
 
-const findNestedSymbolicLink = Effect.fn("findNestedSkillSymbolicLink")(function* (
-  root: string,
-) {
+const findNestedSymbolicLink = Effect.fn("findNestedSkillSymbolicLink")(function* (root: string) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const pending = [root];
+
   while (pending.length > 0) {
     const current = pending.pop();
+
     if (current === undefined) continue;
     if ((yield* observeSymbolicLink(current)).kind === "symlink") return current;
     const info = yield* fs.stat(current);
+
     if (info.type !== "Directory") continue;
     for (const entry of yield* fs.readDirectory(current)) {
       pending.push(path.join(current, entry));
     }
   }
+
   return undefined;
 });
 
@@ -943,18 +1168,26 @@ const verifyPackageSkillSources = Effect.fn("verifyPackageSkillSources")(functio
   plan: SkillPlan,
 ) {
   const verified = new Set<string>();
+
   for (const action of plan.actions) {
     if (action.action === "remove" || action.action === "conflict") continue;
     if (!("skill" in action.desired)) continue;
     const catalog = action.desired.catalog;
+
     if (catalog === undefined || !("package" in catalog)) continue;
     const selector = `${catalog.package}#${catalog.skill}`;
     const key = `${selector}\0${catalog.version}\0${catalog.digest}`;
+
     if (verified.has(key)) continue;
     const resolved = yield* resolvePackageSkillSelector(plan.projectDir, selector);
     const observation = yield* observePath(resolved.path);
-    if (resolved.path !== action.desired.source || resolved.version !== catalog.version ||
-      observation.kind !== "directory" || observation.digest !== catalog.digest) {
+
+    if (
+      resolved.path !== action.desired.source ||
+      resolved.version !== catalog.version ||
+      observation.kind !== "directory" ||
+      observation.digest !== catalog.digest
+    ) {
       return yield* new ApplyRaceError({ path: action.desired.source });
     }
     verified.add(key);
@@ -963,9 +1196,12 @@ const verifyPackageSkillSources = Effect.fn("verifyPackageSkillSources")(functio
 
 const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function* (plan: SkillPlan) {
   const conflicts = plan.actions.filter((action) => action.action === "conflict");
+
   if (conflicts.length > 0) {
     return yield* new PlanConflictError({
-      conflicts: conflicts.map((action) => action.action === "conflict" ? `${action.path}: ${action.reason}` : ""),
+      conflicts: conflicts.map((action) =>
+        action.action === "conflict" ? `${action.path}: ${action.reason}` : "",
+      ),
     });
   }
 
@@ -975,10 +1211,15 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
     (action): action is Exclude<SkillPlanAction, { readonly action: "unchanged" | "conflict" }> =>
       action.action === "create" || action.action === "update" || action.action === "remove",
   );
+
   for (const action of mutating) {
-    const destination = action.action === "remove" ? action.destination : action.desired.destination;
+    const destination =
+      action.action === "remove" ? action.destination : action.desired.destination;
+
     if (!observationsEqual(yield* observePath(destination), action.observed)) {
-      return yield* new ApplyRaceError({ path: action.action === "remove" ? action.previous.path : action.desired.path });
+      return yield* new ApplyRaceError({
+        path: action.action === "remove" ? action.previous.path : action.desired.path,
+      });
     }
   }
 
@@ -986,14 +1227,19 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
     return;
   }
 
-  const tempDir = yield* fs.makeTempDirectoryScoped({ directory: plan.projectDir, prefix: ".dev-kit-apply-" });
+  const tempDir = yield* fs.makeTempDirectoryScoped({
+    directory: plan.projectDir,
+    prefix: ".dev-kit-apply-",
+  });
   const stageDir = path.join(tempDir, "stage");
   const backupDir = path.join(tempDir, "backup");
   const stagedByResource = new Map<string, string>();
   let stageIndex = 0;
+
   for (const action of mutating) {
     if (action.action === "remove") continue;
     const staged = path.join(stageDir, String(stageIndex++));
+
     yield* fs.makeDirectory(path.dirname(staged), { recursive: true });
     if (action.desired.mode === "copy") {
       if (action.desired.kind === "file") {
@@ -1001,6 +1247,7 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
       } else {
         yield* fs.copy(action.desired.source, staged, { overwrite: true });
         const symbolicLink = yield* findNestedSymbolicLink(staged);
+
         if (symbolicLink !== undefined) {
           return yield* new InvalidProjectStateError({
             message: `staged skill contains a symlink: ${action.desired.path}`,
@@ -1011,8 +1258,11 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
       yield* fs.symlink(action.desired.linkTarget, staged);
     }
     const observation = yield* observePath(staged);
+
     if (observation.kind !== action.desired.kind || observation.digest !== action.desired.digest) {
-      return yield* new InvalidProjectStateError({ message: `staged output digest mismatch for ${action.desired.path}` });
+      return yield* new InvalidProjectStateError({
+        message: `staged output digest mismatch for ${action.desired.path}`,
+      });
     }
     stagedByResource.set(action.desired.resourceId, staged);
   }
@@ -1021,6 +1271,7 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
 
   const stagedLock = path.join(tempDir, "next-lock.json");
   const stagedState = path.join(tempDir, "next-state.json");
+
   yield* fs.writeFileString(stagedLock, canonicalLock(plan.nextLock));
   yield* fs.writeFileString(stagedState, canonicalState(plan.nextState));
 
@@ -1033,10 +1284,11 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
   };
   const replacements: Array<Replacement> = [];
   let replacementIndex = 0;
+
   for (const action of mutating) {
-    const staged = action.action === "remove"
-      ? undefined
-      : stagedByResource.get(action.desired.resourceId);
+    const staged =
+      action.action === "remove" ? undefined : stagedByResource.get(action.desired.resourceId);
+
     if (action.action !== "remove" && staged === undefined) {
       return yield* new InvalidProjectStateError({
         message: `missing staged output for ${action.desired.resourceId}`,
@@ -1080,6 +1332,7 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
   const apply = Effect.gen(function* () {
     for (const replacement of replacements) {
       const observed = yield* observePath(replacement.destination);
+
       if (
         replacement.expected !== undefined &&
         !observationsEqual(observed, replacement.expected)
@@ -1099,25 +1352,33 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
     }
   });
 
-  yield* Effect.uninterruptible(apply.pipe(
-    Effect.catchCause((applyCause) =>
-      rollback.pipe(
-        Effect.catchCause((rollbackCause) =>
-          Effect.failCause(Cause.combine(applyCause, rollbackCause)),
+  yield* Effect.uninterruptible(
+    apply.pipe(
+      Effect.catchCause((applyCause) =>
+        rollback.pipe(
+          Effect.catchCause((rollbackCause) =>
+            Effect.failCause(Cause.combine(applyCause, rollbackCause)),
+          ),
+          Effect.andThen(Effect.failCause(applyCause)),
         ),
-        Effect.andThen(Effect.failCause(applyCause)),
       ),
     ),
-  ));
+  );
 });
 
-export const runProjectSkillPlan = Effect.fn("runProjectSkillPlan")(function* (options: SyncOptions) {
+export const runProjectSkillPlan = Effect.fn("runProjectSkillPlan")(function* (
+  options: SyncOptions,
+) {
   const plan = yield* planProjectSkills(options);
+
   if (options.dryRun) yield* printSkillPlan(plan);
   const conflicts = plan.actions.filter((action) => action.action === "conflict");
+
   if (conflicts.length > 0) {
     return yield* new PlanConflictError({
-      conflicts: conflicts.map((action) => action.action === "conflict" ? `${action.path}: ${action.reason}` : ""),
+      conflicts: conflicts.map((action) =>
+        action.action === "conflict" ? `${action.path}: ${action.reason}` : "",
+      ),
     });
   }
   if (options.dryRun) return;
@@ -1128,6 +1389,7 @@ export const runProjectSkillPlan = Effect.fn("runProjectSkillPlan")(function* (o
     actions: plan.actions,
     effectSource: plan.effectSource,
     effectTsgo: plan.effectTsgo,
+    vitePlusHooks: plan.vitePlusHooks,
     nextLock: plan.nextLock,
     nextState: plan.nextState,
   });
@@ -1135,13 +1397,16 @@ export const runProjectSkillPlan = Effect.fn("runProjectSkillPlan")(function* (o
     actions: replanned.actions,
     effectSource: replanned.effectSource,
     effectTsgo: replanned.effectTsgo,
+    vitePlusHooks: replanned.vitePlusHooks,
     nextLock: replanned.nextLock,
     nextState: replanned.nextState,
   });
+
   if (originalSignature !== nextSignature) {
     return yield* new ApplyRaceError({ path: "project state" });
   }
   const changes = plannedChangeCount(replanned);
+
   yield* withSpinner(
     "Applying dev kit",
     Effect.gen(function* () {
@@ -1150,6 +1415,9 @@ export const runProjectSkillPlan = Effect.fn("runProjectSkillPlan")(function* (o
       }
       if (replanned.effectTsgo !== undefined) {
         yield* applyEffectTsgoPatchPlan(replanned.effectTsgo);
+      }
+      if (replanned.vitePlusHooks !== undefined) {
+        yield* applyVitePlusHooksPlan(replanned.vitePlusHooks);
       }
       yield* applyPlannedSkillChanges(replanned);
     }),

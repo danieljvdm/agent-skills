@@ -35,9 +35,15 @@ export const parseSkillSelector = (value: string): SkillSelector | undefined => 
   const match = PACKAGE_SKILL_SELECTOR_PATTERN.exec(value);
   const packageName = match?.groups?.package;
   const skill = match?.groups?.skill;
-  if (packageName === undefined || skill === undefined ||
-    !isTypeScriptPackageName(packageName) || !isSkillName(skill)) {
+
+  if (
+    packageName === undefined ||
+    skill === undefined ||
+    !isTypeScriptPackageName(packageName) ||
+    !isSkillName(skill)
+  ) {
     return undefined;
   }
+
   return { type: "package", package: packageName, skill };
 };

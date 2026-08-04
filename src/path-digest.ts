@@ -2,9 +2,7 @@ import { Crypto, Effect, Encoding, FileSystem, Path, type PlatformError, Schema 
 
 import { observeSymbolicLink } from "./node-symbolic-link.ts";
 
-export const DigestSchema = Schema.String.check(
-  Schema.isPattern(/^sha256:[0-9a-f]{64}$/),
-);
+export const DigestSchema = Schema.String.check(Schema.isPattern(/^sha256:[0-9a-f]{64}$/));
 export type Digest = typeof DigestSchema.Type;
 
 export type ObservedPath =
@@ -28,24 +26,27 @@ const textEncoder = new TextEncoder();
 
 // Git preserves only the executable distinction for regular files. Canonicalizing
 // the remaining bits keeps digests stable across checkout and copy umasks.
-const canonicalFileMode = (mode: number): number =>
-  (mode & 0o111) === 0 ? 0o644 : 0o755;
+const canonicalFileMode = (mode: number): number => ((mode & 0o111) === 0 ? 0o644 : 0o755);
 
 const frame = (value: string | Uint8Array): Uint8Array => {
   const bytes = typeof value === "string" ? textEncoder.encode(value) : value;
   const framed = new Uint8Array(4 + bytes.length);
+
   new DataView(framed.buffer).setUint32(0, bytes.length);
   framed.set(bytes, 4);
+
   return framed;
 };
 
 const concatenate = (chunks: ReadonlyArray<Uint8Array>): Uint8Array => {
   const combined = new Uint8Array(chunks.reduce((length, chunk) => length + chunk.length, 0));
   let offset = 0;
+
   for (const chunk of chunks) {
     combined.set(chunk, offset);
     offset += chunk.length;
   }
+
   return combined;
 };
 
@@ -53,10 +54,13 @@ const compareUtf8 = (left: string, right: string): number => {
   const leftBytes = textEncoder.encode(left);
   const rightBytes = textEncoder.encode(right);
   const sharedLength = Math.min(leftBytes.length, rightBytes.length);
+
   for (let index = 0; index < sharedLength; index += 1) {
     const difference = (leftBytes[index] ?? 0) - (rightBytes[index] ?? 0);
+
     if (difference !== 0) return difference;
   }
+
   return leftBytes.length - rightBytes.length;
 };
 
@@ -65,12 +69,17 @@ const digestFrames = Effect.fn("digestPathFrames")(function* (
 ) {
   const crypto = yield* Crypto.Crypto;
   const digest = yield* crypto.digest("SHA-256", concatenate(values.map(frame)));
+
   return `sha256:${Encoding.encodeHex(digest)}`;
 });
 
 const digestFileSystemPath = Effect.fn("digestFileSystemPath")(function* (
   absolutePath: string,
-): Effect.fn.Return<ObservedPath, PlatformError.PlatformError | PathInspectionError, FileSystem.FileSystem | Path.Path | Crypto.Crypto> {
+): Effect.fn.Return<
+  ObservedPath,
+  PlatformError.PlatformError | PathInspectionError,
+  FileSystem.FileSystem | Path.Path | Crypto.Crypto
+> {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const symbolicLink = yield* observeSymbolicLink(absolutePath);
@@ -83,11 +92,14 @@ const digestFileSystemPath = Effect.fn("digestFileSystemPath")(function* (
     };
   }
 
-  const info = yield* fs.stat(absolutePath).pipe(
-    Effect.catch((error) =>
-      error.reason._tag === "NotFound" ? Effect.void : Effect.fail(error),
-    ),
-  );
+  const info = yield* fs
+    .stat(absolutePath)
+    .pipe(
+      Effect.catch((error) =>
+        error.reason._tag === "NotFound" ? Effect.void : Effect.fail(error),
+      ),
+    );
+
   if (info === undefined) return { kind: "missing" };
 
   if (info.type === "File") {
@@ -104,9 +116,11 @@ const digestFileSystemPath = Effect.fn("digestFileSystemPath")(function* (
   if (info.type === "Directory") {
     const entries = (yield* fs.readDirectory(absolutePath)).sort(compareUtf8);
     const frames: Array<string | Uint8Array> = ["directory-v1"];
+
     for (const entry of entries) {
       const childPath = path.join(absolutePath, entry);
       const child = yield* digestFileSystemPath(childPath);
+
       if (child.kind === "missing") {
         return yield* new PathInspectionError({
           path: childPath,
@@ -116,6 +130,7 @@ const digestFileSystemPath = Effect.fn("digestFileSystemPath")(function* (
       }
       frames.push(entry, child.kind, child.digest);
     }
+
     return { kind: "directory", digest: yield* digestFrames(frames) };
   }
 

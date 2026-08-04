@@ -5,9 +5,13 @@
     "agentInstructions": { "enabled": true },
     "claudeInstructions": { "enabled": true },
     "effectSource": { "enabled": true },
-    "effectTsgo": { "enabled": true }
+    "effectTsgo": { "enabled": true },
+    "vitePlus": {
+      "hooks": { "enabled": true },
+      "quality": { "enabled": true },
+    },
   },
   "targets": {
-    "agents": { "enabled": false }
-  }
+    "agents": { "enabled": false },
+  },
 }

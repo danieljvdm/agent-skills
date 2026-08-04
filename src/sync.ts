@@ -48,6 +48,8 @@ import {
   type VitePlusHooksPlan,
 } from "./vite-plus-hooks.ts";
 import {
+  renderVitePlusConfigTemplate,
+  renderVitePlusWorkflowTemplate,
   validateVitePlusQualitySupport,
   VITE_PLUS_CONFIG_PATH,
   VITE_PLUS_CONFIG_TEMPLATE,
@@ -646,7 +648,16 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
       },
     ]) {
       const managed = yield* resolveManagedPath(projectDir, generated.path);
-      const content = yield* readGeneratedFileTemplate(packageRoot, generated.sourcePath);
+      const template = yield* readGeneratedFileTemplate(packageRoot, generated.sourcePath);
+      const content =
+        generated.resourceId === "setup:vite-plus-config"
+          ? renderVitePlusConfigTemplate(template, setup.vitePlus.quality.typecheck)
+          : renderVitePlusWorkflowTemplate(
+              template,
+              projectDir === packageRoot
+                ? "./bin/dev-kit.mjs apply --locked"
+                : "vp exec dev-kit apply --locked",
+            );
 
       outputs.push({
         resourceId: generated.resourceId,
@@ -918,6 +929,7 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
       projectDir,
       packageRoot,
       manifest.setup.effectTsgo.typescriptPackage,
+      manifest.setup.vitePlus.quality.typecheck,
     );
   }
   const effectSource = manifest.setup.effectSource.enabled

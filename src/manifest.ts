@@ -53,8 +53,19 @@ export const VitePlusHooksSetupSchema = Schema.Struct({
   enabled: Schema.optional(Schema.Boolean),
 });
 
+export const VitePlusTypecheckStrategySchema = Schema.Literals(["single-project", "workspace"]);
+export type VitePlusTypecheckStrategy = typeof VitePlusTypecheckStrategySchema.Type;
+
+export const VitePlusQualityTypecheckSetupSchema = Schema.Struct({
+  strategy: Schema.optional(VitePlusTypecheckStrategySchema),
+  concurrency: Schema.optional(Schema.Int),
+  packages: Schema.optional(Schema.Array(Schema.String)),
+});
+export type VitePlusQualityTypecheckSetup = typeof VitePlusQualityTypecheckSetupSchema.Type;
+
 export const VitePlusQualitySetupSchema = Schema.Struct({
   enabled: Schema.optional(Schema.Boolean),
+  typecheck: Schema.optional(VitePlusQualityTypecheckSetupSchema),
 });
 export type VitePlusQualitySetup = typeof VitePlusQualitySetupSchema.Type;
 
@@ -124,6 +135,11 @@ export type NormalizedManifest = {
       };
       readonly quality: {
         readonly enabled: boolean;
+        readonly typecheck: {
+          readonly strategy: VitePlusTypecheckStrategy;
+          readonly concurrency: number;
+          readonly packages: ReadonlyArray<string>;
+        };
       };
     };
   };
@@ -187,6 +203,11 @@ export const normalizeManifest = (manifest: DevKitManifest): NormalizedManifest 
         },
         quality: {
           enabled: manifest.setup?.vitePlus?.quality?.enabled ?? false,
+          typecheck: {
+            strategy: manifest.setup?.vitePlus?.quality?.typecheck?.strategy ?? "single-project",
+            concurrency: manifest.setup?.vitePlus?.quality?.typecheck?.concurrency ?? 4,
+            packages: manifest.setup?.vitePlus?.quality?.typecheck?.packages ?? [],
+          },
         },
       },
     },

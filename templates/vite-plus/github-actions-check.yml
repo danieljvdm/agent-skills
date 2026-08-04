@@ -22,14 +22,19 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Vite+
-        uses: voidzero-dev/setup-vp@v1
+      # setup-vp's v1 tag is frozen. Keep this v1.16.1 commit current with
+      # Renovate or Dependabot so fixes arrive through reviewed pull requests.
+      - name: Set up Vite+ and install dependencies
+        uses: voidzero-dev/setup-vp@143f5f385f39b1b753ffed1a01ad443811855c8b # v1.16.1
         with:
+          # Vite+ version intentionally resolves from the consumer manifest/lock.
           node-version: "24"
           cache: true
+          run-install: |
+            args: ["--frozen-lockfile", "--ignore-scripts"]
 
-      - name: Install dependencies
-        run: vp install
+      - name: Verify locked Dev Kit setup
+        run: vp exec dev-kit apply --locked
 
       - name: Check formatting
         run: vp fmt --check

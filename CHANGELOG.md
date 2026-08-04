@@ -1,5 +1,11 @@
 # @danieljvdm/dev-kit
 
+## 0.7.1
+
+### Patch Changes
+
+- 28c7338: Allow a committed lock to re-establish ownership and update unchanged managed outputs when local state is absent, including locks written before file-mode digest normalization.
+
 ## 0.7.0
 
 ### Minor Changes

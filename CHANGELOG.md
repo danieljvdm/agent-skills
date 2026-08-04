@@ -1,5 +1,18 @@
 # @danieljvdm/dev-kit
 
+## 0.6.0
+
+### Minor Changes
+
+- c67a1e9: Add an opt-in managed `AGENTS.md` wrapper with dev-kit guidance, conditional
+  Vite+ instructions for direct dependencies, and atomic `CLAUDE.md` symlink
+  support.
+- 6dae6a3: Add a bundled `effect-atom-data-fetching` skill for React cache lifecycle, HTTP queries and mutations, invalidation, SSR boundaries, framework integration, and deterministic testing.
+
+### Patch Changes
+
+- 355ca42: Recommend automatic lifecycle applies for dependency upgrades while reserving locked mode for strict CI verification.
+
 ## 0.5.0
 
 ### Minor Changes

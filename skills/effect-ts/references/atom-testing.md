@@ -1,4 +1,4 @@
-# Deterministic lifecycle testing
+# Deterministic Effect Atom lifecycle testing
 
 Test cache policy below React first with `AtomRegistry.make()`. Add a React integration test only for provider placement, hook behavior, a browser-only SSR boundary, or hydration.
 

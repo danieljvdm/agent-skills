@@ -9,12 +9,10 @@ const repositoryPaths = Effect.fn("repositoryPaths")(function* () {
   const testPath = yield* path.fromFileUrl(new URL(import.meta.url));
   const root = path.resolve(path.dirname(testPath), "..");
   const skillDir = path.join(root, "skills", "effect-ts");
-  const atomDataSkillDir = path.join(root, "skills", "effect-atom-data-fetching");
 
   return {
     root,
     skillDir,
-    atomDataSkillDir,
     devKitSkillDir: path.join(root, "skills", "dev-kit"),
     referencesDir: path.join(skillDir, "references"),
     cli: path.join(root, "src", "bin", "dev-kit.ts"),
@@ -65,6 +63,10 @@ describe("shipped skills", () => {
         assert.isTrue(yield* fs.exists(path.join(skillDir, "SKILL.md")));
         assert.isFalse(yield* fs.exists(path.join(root, "skills", "effect-cli", "SKILL.md")));
         assert.isFalse(yield* fs.exists(path.join(root, "skills", "effect-patterns", "SKILL.md")));
+        assert.isFalse(
+          yield* fs.exists(path.join(root, "skills", "effect-atom-data-fetching", "SKILL.md")),
+        );
+        assert.isFalse(yield* fs.exists(path.join(root, "skills", "effect-datetime", "SKILL.md")));
 
         const skill = yield* fs.readFileString(path.join(skillDir, "SKILL.md"));
 
@@ -75,6 +77,13 @@ describe("shipped skills", () => {
         const referenceNames = new Set(yield* fs.readDirectory(referencesDir));
 
         assert.isTrue(referenceNames.has("audit-services.md"));
+        assert.isTrue(referenceNames.has("guide-datetime.md"));
+        assert.isTrue(referenceNames.has("guide-atom-data-fetching.md"));
+        assert.isTrue(referenceNames.has("atom-cache-lifecycle.md"));
+        assert.isTrue(referenceNames.has("atom-http-and-invalidation.md"));
+        assert.isTrue(referenceNames.has("atom-tanstack-start.md"));
+        assert.isTrue(referenceNames.has("atom-testing.md"));
+        assert.match(skill, /Prefer Effect `DateTime` over vanilla JavaScript `Date`/);
         for (const duplicateReference of [
           "guide-functions-and-errors.md",
           "guide-logging.md",
@@ -190,49 +199,6 @@ describe("shipped skills", () => {
       }),
     );
 
-    it.effect("ships focused Effect Atom data-fetching guidance", () =>
-      Effect.gen(function* () {
-        const fs = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
-        const { atomDataSkillDir, cli, tsx } = yield* repositoryPaths();
-        const skill = yield* fs.readFileString(path.join(atomDataSkillDir, "SKILL.md"));
-
-        assert.match(skill, /^---\nname: effect-atom-data-fetching\ndescription: .+\n---/);
-        assert.notMatch(skill, /TODO/);
-        assert.isTrue(yield* fs.exists(path.join(atomDataSkillDir, "agents", "openai.yaml")));
-
-        const referencesDir = path.join(atomDataSkillDir, "references");
-        const referenceNames = new Set(yield* fs.readDirectory(referencesDir));
-        const routedReferences = [...skill.matchAll(/`\.\/references\/([^`]+\.md)`/g)].flatMap(
-          (match) => (match[1] === undefined ? [] : [match[1]]),
-        );
-
-        assert.deepEqual(
-          new Set(routedReferences),
-          new Set([
-            "cache-lifecycle.md",
-            "http-and-invalidation.md",
-            "tanstack-start.md",
-            "testing.md",
-          ]),
-        );
-        assert.deepEqual(referenceNames, new Set(routedReferences));
-
-        const projectDir = yield* fs.makeTempDirectoryScoped({
-          prefix: "dev-kit-effect-atom-plan-test-",
-        });
-
-        yield* writeManifest(projectDir, ["effect-atom-data-fetching"]);
-        const result = yield* runCli(cli, tsx, projectDir, ["plan", "--project-dir", projectDir]);
-
-        assert.strictEqual(result.exitCode, 0, result.output);
-        assert.match(
-          result.output,
-          /copy effect-atom-data-fetching → \.agents\/skills\/effect-atom-data-fetching/,
-        );
-      }),
-    );
-
     it.effect("uses canonical dev-kit package, manifest, and schema names", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
@@ -270,7 +236,7 @@ describe("shipped skills", () => {
       }),
     );
 
-    it.effect("selects both Effect skills for the family and each skill directly", () =>
+    it.effect("selects the Effect umbrella directly and through compatibility aliases", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const { cli, tsx } = yield* repositoryPaths();
@@ -283,19 +249,8 @@ describe("shipped skills", () => {
           const result = yield* runCli(cli, tsx, projectDir, ["plan", "--project-dir", projectDir]);
 
           assert.strictEqual(result.exitCode, 0, result.output);
-          if (include[0] === "effect" || include[0] === "effect-ts") {
-            assert.match(result.output, /copy effect-ts → \.agents\/skills\/effect-ts/);
-          } else {
-            assert.notMatch(result.output, /copy effect-ts → \.agents\/skills\/effect-ts/);
-          }
-          if (include[0] === "effect" || include[0] === "effect-atom-data-fetching") {
-            assert.match(
-              result.output,
-              /copy effect-atom-data-fetching → \.agents\/skills\/effect-atom-data-fetching/,
-            );
-          } else {
-            assert.notMatch(result.output, /copy effect-atom-data-fetching/);
-          }
+          assert.match(result.output, /copy effect-ts → \.agents\/skills\/effect-ts/);
+          assert.notMatch(result.output, /copy effect-atom-data-fetching|copy effect-datetime/);
           assert.notMatch(result.output, /effect-cli|effect-patterns/);
         }
       }),
@@ -309,7 +264,7 @@ describe("shipped skills", () => {
           prefix: "dev-kit-old-effect-id-test-",
         });
 
-        for (const oldSkill of ["effect-cli", "effect-patterns"]) {
+        for (const oldSkill of ["effect-cli", "effect-patterns", "effect-datetime"]) {
           yield* writeManifest(projectDir, [oldSkill]);
           const result = yield* runCli(cli, tsx, projectDir, ["plan", "--project-dir", projectDir]);
 

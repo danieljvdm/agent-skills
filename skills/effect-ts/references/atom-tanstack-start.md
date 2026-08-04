@@ -1,4 +1,4 @@
-# TanStack Start integration
+# Effect Atom TanStack Start integration
 
 TanStack Start code is isomorphic by default, including route loaders. Treat every module used by a route as server-capable unless an explicit boundary says otherwise.
 

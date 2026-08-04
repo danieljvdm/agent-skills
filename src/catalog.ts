@@ -176,7 +176,8 @@ export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
     });
   }
   const families: Readonly<Record<string, ReadonlyArray<string>>> = {
-    effect: ["effect-ts", "effect-atom-data-fetching"],
+    effect: ["effect-ts"],
+    "effect-atom-data-fetching": ["effect-ts"],
     ...Object.fromEntries(externalFamilies),
   };
 

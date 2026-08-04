@@ -1,4 +1,4 @@
-# HTTP queries and invalidation
+# Effect Atom HTTP queries and invalidation
 
 ## Build one API service
 

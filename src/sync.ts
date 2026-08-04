@@ -635,43 +635,48 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
       linkTarget,
     });
   }
-  if (setup.vitePlus.quality.enabled) {
-    for (const generated of [
-      {
-        resourceId: "setup:vite-plus-config" as const,
-        path: VITE_PLUS_CONFIG_PATH,
-        sourcePath: VITE_PLUS_CONFIG_TEMPLATE,
-      },
-      {
-        resourceId: "setup:vite-plus-github-actions" as const,
-        path: VITE_PLUS_GITHUB_ACTIONS_PATH,
-        sourcePath: VITE_PLUS_GITHUB_ACTIONS_TEMPLATE,
-      },
-    ]) {
-      const managed = yield* resolveManagedPath(projectDir, generated.path);
-      const template = yield* readGeneratedFileTemplate(packageRoot, generated.sourcePath);
-      const content =
-        generated.resourceId === "setup:vite-plus-config"
-          ? renderVitePlusConfigTemplate(template, setup.vitePlus.quality.typecheck)
-          : renderVitePlusWorkflowTemplate(
-              template,
-              projectDir === packageRoot
-                ? "./bin/dev-kit.mjs apply --locked"
-                : "vp exec dev-kit apply --locked",
-            );
+  if (setup.vitePlus.quality.config.enabled) {
+    const managed = yield* resolveManagedPath(projectDir, VITE_PLUS_CONFIG_PATH);
+    const template = yield* readGeneratedFileTemplate(packageRoot, VITE_PLUS_CONFIG_TEMPLATE);
+    const content = renderVitePlusConfigTemplate(template, setup.vitePlus.quality.config.typecheck);
 
-      outputs.push({
-        resourceId: generated.resourceId,
-        path: managed.relative,
-        sourcePath: generated.sourcePath,
-        mode: "copy",
-        kind: "file",
-        digest: yield* digestFileContent(content),
-        destination: managed.absolute,
-        content,
-        adoptIfExact: true,
-      });
-    }
+    outputs.push({
+      resourceId: "setup:vite-plus-config",
+      path: managed.relative,
+      sourcePath: VITE_PLUS_CONFIG_TEMPLATE,
+      mode: "copy",
+      kind: "file",
+      digest: yield* digestFileContent(content),
+      destination: managed.absolute,
+      content,
+      adoptIfExact: true,
+    });
+  }
+  if (setup.vitePlus.quality.workflow.enabled) {
+    const managed = yield* resolveManagedPath(projectDir, VITE_PLUS_GITHUB_ACTIONS_PATH);
+    const template = yield* readGeneratedFileTemplate(
+      packageRoot,
+      VITE_PLUS_GITHUB_ACTIONS_TEMPLATE,
+    );
+    const content = renderVitePlusWorkflowTemplate(template, {
+      devKitCommand:
+        projectDir === packageRoot
+          ? "./bin/dev-kit.mjs apply --locked"
+          : "vp exec dev-kit apply --locked",
+      workflow: setup.vitePlus.quality.workflow,
+    });
+
+    outputs.push({
+      resourceId: "setup:vite-plus-github-actions",
+      path: managed.relative,
+      sourcePath: VITE_PLUS_GITHUB_ACTIONS_TEMPLATE,
+      mode: "copy",
+      kind: "file",
+      digest: yield* digestFileContent(content),
+      destination: managed.absolute,
+      content,
+      adoptIfExact: true,
+    });
   }
   const agentsTarget = targets.agents;
   const duplicateOutput = skills.find(
@@ -919,18 +924,31 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
   const packageRoot = yield* resolvePackageRoot();
   const manifest = normalizeManifest(yield* readManifest(manifestManaged.absolute));
 
-  if (manifest.setup.vitePlus.quality.enabled) {
+  const vitePlusQuality = manifest.setup.vitePlus.quality;
+  const vitePlusQualityEnabled = vitePlusQuality.config.enabled || vitePlusQuality.workflow.enabled;
+
+  if (vitePlusQualityEnabled) {
     if (!manifest.setup.effectTsgo.enabled) {
       return yield* new InvalidProjectStateError({
         message:
-          "setup.vitePlus.quality requires setup.effectTsgo.enabled so vp run typecheck uses the Effect-patched compiler",
+          "setup.vitePlus.quality requires setup.effectTsgo.enabled so managed quality setup converges the Effect-patched compiler",
       });
     }
     yield* validateVitePlusQualitySupport(
       projectDir,
       packageRoot,
       manifest.setup.effectTsgo.typescriptPackage,
-      manifest.setup.vitePlus.quality.typecheck,
+      {
+        ...(vitePlusQuality.config.enabled ? { config: vitePlusQuality.config.typecheck } : {}),
+        ...(vitePlusQuality.workflow.enabled
+          ? {
+              workflow: {
+                beforeChecks: vitePlusQuality.workflow.beforeChecks,
+                typecheck: vitePlusQuality.workflow.typecheck,
+              },
+            }
+          : {}),
+      },
     );
   }
   const effectSource = manifest.setup.effectSource.enabled

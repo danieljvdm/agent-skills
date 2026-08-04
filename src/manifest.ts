@@ -63,9 +63,28 @@ export const VitePlusQualityTypecheckSetupSchema = Schema.Struct({
 });
 export type VitePlusQualityTypecheckSetup = typeof VitePlusQualityTypecheckSetupSchema.Type;
 
-export const VitePlusQualitySetupSchema = Schema.Struct({
+export const VitePlusQualityConfigSetupSchema = Schema.Struct({
   enabled: Schema.optional(Schema.Boolean),
   typecheck: Schema.optional(VitePlusQualityTypecheckSetupSchema),
+});
+export type VitePlusQualityConfigSetup = typeof VitePlusQualityConfigSetupSchema.Type;
+
+export const VitePlusQualityWorkflowStepSchema = Schema.Struct({
+  name: Schema.String,
+  run: Schema.Array(Schema.String),
+});
+export type VitePlusQualityWorkflowStep = typeof VitePlusQualityWorkflowStepSchema.Type;
+
+export const VitePlusQualityWorkflowSetupSchema = Schema.Struct({
+  enabled: Schema.optional(Schema.Boolean),
+  beforeChecks: Schema.optional(Schema.Array(VitePlusQualityWorkflowStepSchema)),
+  typecheck: Schema.optional(Schema.Array(Schema.String)),
+});
+export type VitePlusQualityWorkflowSetup = typeof VitePlusQualityWorkflowSetupSchema.Type;
+
+export const VitePlusQualitySetupSchema = Schema.Struct({
+  config: Schema.optional(VitePlusQualityConfigSetupSchema),
+  workflow: Schema.optional(VitePlusQualityWorkflowSetupSchema),
 });
 export type VitePlusQualitySetup = typeof VitePlusQualitySetupSchema.Type;
 
@@ -134,11 +153,18 @@ export type NormalizedManifest = {
         readonly enabled: boolean;
       };
       readonly quality: {
-        readonly enabled: boolean;
-        readonly typecheck: {
-          readonly strategy: VitePlusTypecheckStrategy;
-          readonly concurrency: number;
-          readonly packages: ReadonlyArray<string>;
+        readonly config: {
+          readonly enabled: boolean;
+          readonly typecheck: {
+            readonly strategy: VitePlusTypecheckStrategy;
+            readonly concurrency: number;
+            readonly packages: ReadonlyArray<string>;
+          };
+        };
+        readonly workflow: {
+          readonly enabled: boolean;
+          readonly beforeChecks: ReadonlyArray<VitePlusQualityWorkflowStep>;
+          readonly typecheck: ReadonlyArray<string>;
         };
       };
     };
@@ -174,6 +200,8 @@ export const normalizeManifest = (manifest: DevKitManifest): NormalizedManifest 
       };
     }
   }
+  const quality = manifest.setup?.vitePlus?.quality;
+  const typecheck = quality?.config?.typecheck;
 
   return {
     exclude: manifest.exclude ?? [],
@@ -202,11 +230,18 @@ export const normalizeManifest = (manifest: DevKitManifest): NormalizedManifest 
           enabled: manifest.setup?.vitePlus?.hooks?.enabled ?? false,
         },
         quality: {
-          enabled: manifest.setup?.vitePlus?.quality?.enabled ?? false,
-          typecheck: {
-            strategy: manifest.setup?.vitePlus?.quality?.typecheck?.strategy ?? "single-project",
-            concurrency: manifest.setup?.vitePlus?.quality?.typecheck?.concurrency ?? 4,
-            packages: manifest.setup?.vitePlus?.quality?.typecheck?.packages ?? [],
+          config: {
+            enabled: quality?.config?.enabled ?? false,
+            typecheck: {
+              strategy: typecheck?.strategy ?? "single-project",
+              concurrency: typecheck?.concurrency ?? 4,
+              packages: typecheck?.packages ?? [],
+            },
+          },
+          workflow: {
+            enabled: quality?.workflow?.enabled ?? false,
+            beforeChecks: quality?.workflow?.beforeChecks ?? [],
+            typecheck: quality?.workflow?.typecheck ?? ["vp run typecheck"],
           },
         },
       },

@@ -9,8 +9,11 @@
     "vitePlus": {
       "hooks": { "enabled": true },
       "quality": {
-        "enabled": true,
-        "typecheck": { "strategy": "single-project" },
+        "config": {
+          "enabled": true,
+          "typecheck": { "strategy": "single-project" },
+        },
+        "workflow": { "enabled": true },
       },
     },
   },

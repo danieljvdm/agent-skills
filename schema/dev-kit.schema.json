@@ -161,7 +161,20 @@
       }
     },
     "vitePlusQualitySetup": {
-      "description": "Manage the canonical Vite+ quality config and GitHub Actions workflow for supported Effect TypeScript-Go repositories.",
+      "description": "Opt into independently managed Vite+ quality resources for supported Effect TypeScript-Go repositories.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "config": {
+          "$ref": "#/$defs/vitePlusQualityConfigSetup"
+        },
+        "workflow": {
+          "$ref": "#/$defs/vitePlusQualityWorkflowSetup"
+        }
+      }
+    },
+    "vitePlusQualityConfigSetup": {
+      "description": "Manage the canonical root Vite config without requiring Dev Kit to own CI.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -171,6 +184,54 @@
         },
         "typecheck": {
           "$ref": "#/$defs/vitePlusQualityTypecheckSetup"
+        }
+      }
+    },
+    "vitePlusQualityWorkflowSetup": {
+      "description": "Manage the canonical GitHub Actions check workflow without requiring Dev Kit to own the Vite config.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "beforeChecks": {
+          "description": "Repository-specific preparation steps inserted after locked setup verification and before quality checks.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/vitePlusQualityWorkflowStep"
+          },
+          "default": []
+        },
+        "typecheck": {
+          "description": "Shell commands for the workflow's pure typecheck step.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "default": ["vp run typecheck"]
+        }
+      }
+    },
+    "vitePlusQualityWorkflowStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "run"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "run": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       }
     },

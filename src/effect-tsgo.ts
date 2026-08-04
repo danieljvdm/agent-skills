@@ -128,29 +128,55 @@ const digestFileContents = Effect.fn("digestEffectTsgoFileContents")(function* (
   return Encoding.encodeHex(yield* crypto.digest("SHA-256", yield* fs.readFile(filePath)));
 });
 
+const findNodeModulesRoot = (
+  path: Path.Path,
+  packageJsonPath: string,
+): string | undefined => {
+  let current = path.dirname(packageJsonPath);
+  while (true) {
+    if (path.basename(current) === "node_modules") return current;
+    const parent = path.dirname(current);
+    if (parent === current) return undefined;
+    current = parent;
+  }
+};
+
 const isEffectTsgoPatched = Effect.fn("isEffectTsgoPatched")(function* (
   projectDir: string,
+  typescriptPackage: string,
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const scopeDir = path.join(projectDir, "node_modules", "@typescript");
-  if (!(yield* fs.exists(scopeDir))) return false;
-  const entries = yield* fs.readDirectory(scopeDir);
+  const typescriptPackageJson = yield* fs.realPath(
+    packagePath(path, projectDir, typescriptPackage),
+  );
+  const effectTsgoPackageJson = yield* fs.realPath(
+    packagePath(path, projectDir, "@effect/tsgo"),
+  );
+  const typescriptNodeModules = findNodeModulesRoot(path, typescriptPackageJson);
+  const effectNodeModules = findNodeModulesRoot(path, effectTsgoPackageJson);
+  if (
+    typescriptNodeModules === undefined ||
+    effectNodeModules === undefined
+  ) return false;
+
+  const typescriptScope = path.join(typescriptNodeModules, "@typescript");
+  const effectScope = path.join(effectNodeModules, "@effect");
+  if (!(yield* fs.exists(typescriptScope)) || !(yield* fs.exists(effectScope))) return false;
+
   const executableName = path.sep === "\\" ? "tsc.exe" : "tsc";
   const effectExecutableNames = path.sep === "\\"
     ? ["tsc.exe", "tsc-next.exe"]
     : ["tsc", "tsc-next"];
-  for (const entry of entries) {
+  for (const entry of yield* fs.readDirectory(typescriptScope)) {
     if (!entry.startsWith("typescript-")) continue;
     const platform = entry.slice("typescript-".length);
-    const installedPath = path.join(scopeDir, entry, "lib", executableName);
+    const installedPath = path.join(typescriptScope, entry, "lib", executableName);
     if (!(yield* fs.exists(installedPath))) continue;
     const installedDigest = yield* digestFileContents(installedPath);
     for (const effectExecutableName of effectExecutableNames) {
       const effectBinaryPath = path.join(
-        projectDir,
-        "node_modules",
-        "@effect",
+        effectScope,
         `tsgo-${platform}`,
         "lib",
         effectExecutableName,
@@ -188,7 +214,7 @@ export const planEffectTsgoPatch = Effect.fn("planEffectTsgoPatch")(function* (
   );
   const executable = yield* resolveEffectTsgoExecutable(projectDir);
   return {
-    alreadyPatched: yield* isEffectTsgoPatched(projectDir),
+    alreadyPatched: yield* isEffectTsgoPatched(projectDir, typescriptPackage),
     projectDir,
     executable,
     args: [

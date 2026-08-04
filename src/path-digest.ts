@@ -27,6 +27,7 @@ const textEncoder = new TextEncoder();
 // Git preserves only the executable distinction for regular files. Canonicalizing
 // the remaining bits keeps digests stable across checkout and copy umasks.
 const canonicalFileMode = (mode: number): number => ((mode & 0o111) === 0 ? 0o644 : 0o755);
+const rawFileMode = (mode: number): number => mode & 0o777;
 
 const frame = (value: string | Uint8Array): Uint8Array => {
   const bytes = typeof value === "string" ? textEncoder.encode(value) : value;
@@ -75,6 +76,7 @@ const digestFrames = Effect.fn("digestPathFrames")(function* (
 
 const digestFileSystemPath = Effect.fn("digestFileSystemPath")(function* (
   absolutePath: string,
+  fileMode: (mode: number) => number,
 ): Effect.fn.Return<
   ObservedPath,
   PlatformError.PlatformError | PathInspectionError,
@@ -107,7 +109,7 @@ const digestFileSystemPath = Effect.fn("digestFileSystemPath")(function* (
       kind: "file",
       digest: yield* digestFrames([
         "file-v1",
-        String(canonicalFileMode(info.mode)),
+        String(fileMode(info.mode)),
         yield* fs.readFile(absolutePath),
       ]),
     };
@@ -119,7 +121,7 @@ const digestFileSystemPath = Effect.fn("digestFileSystemPath")(function* (
 
     for (const entry of entries) {
       const childPath = path.join(absolutePath, entry);
-      const child = yield* digestFileSystemPath(childPath);
+      const child = yield* digestFileSystemPath(childPath, fileMode);
 
       if (child.kind === "missing") {
         return yield* new PathInspectionError({
@@ -142,7 +144,19 @@ const digestFileSystemPath = Effect.fn("digestFileSystemPath")(function* (
 });
 
 export const observePath = Effect.fn("observeManagedPath")(function* (absolutePath: string) {
-  return yield* digestFileSystemPath(absolutePath).pipe(
+  return yield* digestFileSystemPath(absolutePath, canonicalFileMode).pipe(
+    Effect.mapError((cause) =>
+      cause instanceof PathInspectionError
+        ? cause
+        : new PathInspectionError({ path: absolutePath, operation: "inspect", cause }),
+    ),
+  );
+});
+
+export const observePathWithRawModes = Effect.fn("observeManagedPathWithRawModes")(function* (
+  absolutePath: string,
+) {
+  return yield* digestFileSystemPath(absolutePath, rawFileMode).pipe(
     Effect.mapError((cause) =>
       cause instanceof PathInspectionError
         ? cause

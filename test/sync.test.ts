@@ -1,6 +1,6 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, layer } from "@effect/vitest";
-import { Effect, FileSystem, Path } from "effect";
+import { Crypto, Effect, Encoding, FileSystem, Path } from "effect";
 
 import { EFFECT_TSGO_TYPESCRIPT_VERSION, EFFECT_TSGO_VERSION } from "../src/effect-tsgo.ts";
 import { repositoryRoot, runDevKit } from "./test-platform.ts";
@@ -154,6 +154,72 @@ printf 'Verification succeeded.\\n'
 `,
     { mode: 0o755 },
   );
+});
+
+const rawModeFileDigest = Effect.fn("rawModeFileDigest")(function* (value: string, mode: number) {
+  const crypto = yield* Crypto.Crypto;
+  const encoder = new TextEncoder();
+  const frame = (input: string): Uint8Array => {
+    const bytes = encoder.encode(input);
+    const framed = new Uint8Array(4 + bytes.length);
+
+    new DataView(framed.buffer).setUint32(0, bytes.length);
+    framed.set(bytes, 4);
+
+    return framed;
+  };
+  const frames = ["file-v1", String(mode), value].map(frame);
+  const combined = new Uint8Array(frames.reduce((length, bytes) => length + bytes.length, 0));
+  let offset = 0;
+
+  for (const bytes of frames) {
+    combined.set(bytes, offset);
+    offset += bytes.length;
+  }
+
+  return `sha256:${Encoding.encodeHex(yield* crypto.digest("SHA-256", combined))}`;
+});
+
+const createInstructionProject = Effect.fn("createInstructionProject")(function* () {
+  const path = yield* Path.Path;
+  const projectDir = yield* createProject();
+
+  yield* writeManifest(projectDir, { agentInstructionsEnabled: true });
+  const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
+  assert.strictEqual(result.exitCode, 0, result.output);
+
+  return {
+    instructionsPath: path.join(projectDir, "AGENTS.md"),
+    projectDir,
+    statePath: path.join(projectDir, ".dev-kit"),
+  };
+});
+
+const createLockedInstructionFixture = Effect.fn("createLockedInstructionFixture")(function* (
+  mode: number,
+  toolVersion?: string,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const fixture = yield* createInstructionProject();
+  const oldContent = `${yield* fs.readFileString(fixture.instructionsPath)}old release\n`;
+
+  yield* fs.writeFileString(fixture.instructionsPath, oldContent, { mode });
+  yield* fs.chmod(fixture.instructionsPath, mode);
+  const lockPath = path.join(fixture.projectDir, "dev-kit.lock.json");
+  const lock = JSON.parse(yield* fs.readFileString(lockPath));
+  const instructions = lock.outputs.find(
+    (output: { resourceId: string }) => output.resourceId === "setup:agent-instructions",
+  );
+
+  assert.isDefined(instructions);
+  if (toolVersion !== undefined) lock.toolVersion = toolVersion;
+  instructions.digest = yield* rawModeFileDigest(oldContent, mode);
+  yield* fs.writeFileString(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
+  yield* fs.remove(fixture.statePath, { force: true, recursive: true });
+
+  return fixture;
 });
 
 describe("project apply", () => {
@@ -396,6 +462,59 @@ describe("project apply", () => {
         assert.strictEqual(result.exitCode, 0, result.output);
         assert.match(result.output, /Dev kit ready/);
         assert.isTrue(yield* fs.exists(path.join(projectDir, ".dev-kit", "state.json")));
+      }),
+    );
+
+    it.effect("updates an unchanged pre-normalization lock without local state", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const fixture = yield* createLockedInstructionFixture(0o600, "0.6.0");
+        const result = yield* runDevKit(fixture.projectDir, [
+          "apply",
+          "--project-dir",
+          fixture.projectDir,
+        ]);
+
+        assert.strictEqual(result.exitCode, 0, result.output);
+        assert.notInclude(yield* fs.readFileString(fixture.instructionsPath), "old release");
+      }),
+    );
+
+    it.effect("updates a locked output after packaged content changes without local state", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const fixture = yield* createLockedInstructionFixture(0o644);
+        const result = yield* runDevKit(fixture.projectDir, [
+          "apply",
+          "--project-dir",
+          fixture.projectDir,
+        ]);
+
+        assert.strictEqual(result.exitCode, 0, result.output);
+        assert.notInclude(yield* fs.readFileString(fixture.instructionsPath), "old release");
+      }),
+    );
+
+    it.effect("preserves a locked output modified without local state", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const fixture = yield* createInstructionProject();
+
+        yield* fs.writeFileString(
+          fixture.instructionsPath,
+          `${yield* fs.readFileString(fixture.instructionsPath)}local edit\n`,
+        );
+        yield* fs.remove(fixture.statePath, { force: true, recursive: true });
+
+        const result = yield* runDevKit(fixture.projectDir, [
+          "apply",
+          "--project-dir",
+          fixture.projectDir,
+        ]);
+
+        assert.notStrictEqual(result.exitCode, 0);
+        assert.match(result.output, /destination exists but is not owned/);
+        assert.include(yield* fs.readFileString(fixture.instructionsPath), "local edit");
       }),
     );
 

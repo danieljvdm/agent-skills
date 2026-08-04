@@ -23,6 +23,7 @@ import {
   digestSymlinkTarget,
   digestText,
   observePath,
+  observePathWithRawModes,
   type ObservedPath,
 } from "./path-digest.ts";
 import { readDirectDependencyNames } from "./project-package.ts";
@@ -430,6 +431,27 @@ const outputIdentity = (output: ManagedOutput) =>
       : { sourcePath: output.sourcePath }),
   });
 
+const outputOwnershipIdentity = (output: ManagedOutput) =>
+  JSON.stringify({
+    resourceId: output.resourceId,
+    path: output.path,
+    mode: output.mode,
+    kind: output.kind,
+    ...("skill" in output
+      ? { skill: output.skill, target: output.target }
+      : { sourcePath: output.sourcePath }),
+  });
+
+const usesRawFileModeDigests = (toolVersion: string): boolean => {
+  const match = /^(\d+)\.(\d+)\./.exec(toolVersion);
+
+  if (match === null) return false;
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+
+  return major === 0 && minor <= 6;
+};
+
 const validateInventory = Effect.fn("validateManagedInventory")(function* (
   projectDir: string,
   outputs: ReadonlyArray<ManagedOutput | OwnershipReceipt>,
@@ -743,12 +765,31 @@ const planDesiredOutputs = Effect.fn("planDesiredSkillOutputs")(function* (
     const receipt = receiptsById.get(output.resourceId);
     const sameReceipt = receipt?.path === output.path ? receipt : undefined;
     const locked = lockById.get(output.resourceId);
-    const adoptable = locked !== undefined && outputIdentity(locked) === outputIdentity(output);
+    const matchingLockedOutput =
+      locked !== undefined &&
+      outputOwnershipIdentity(locked) === outputOwnershipIdentity(output) &&
+      observed.kind === locked.kind
+        ? locked
+        : undefined;
+    const rawModeObservation =
+      matchingLockedOutput !== undefined &&
+      observed.kind !== "missing" &&
+      observed.digest !== matchingLockedOutput.digest &&
+      currentLock !== undefined &&
+      usesRawFileModeDigests(currentLock.toolVersion)
+        ? yield* observePathWithRawModes(output.destination)
+        : undefined;
+    const lockedOwnsObserved =
+      matchingLockedOutput !== undefined &&
+      observed.kind !== "missing" &&
+      (observed.digest === matchingLockedOutput.digest ||
+        (rawModeObservation?.kind === matchingLockedOutput.kind &&
+          rawModeObservation.digest === matchingLockedOutput.digest));
 
     if (observed.kind === "missing") {
       actions.push({ action: "create", desired: output, observed });
     } else if (observed.kind === output.kind && observed.digest === output.digest) {
-      if (sameReceipt || adoptable || ("adoptIfExact" in output && output.adoptIfExact)) {
+      if (sameReceipt || lockedOwnsObserved || ("adoptIfExact" in output && output.adoptIfExact)) {
         actions.push({ action: "unchanged", desired: output, observed, adopted: !sameReceipt });
       } else {
         actions.push({
@@ -758,9 +799,10 @@ const planDesiredOutputs = Effect.fn("planDesiredSkillOutputs")(function* (
         });
       }
     } else if (
-      sameReceipt &&
-      observed.kind === sameReceipt.kind &&
-      observed.digest === sameReceipt.digest
+      (sameReceipt !== undefined &&
+        observed.kind === sameReceipt.kind &&
+        observed.digest === sameReceipt.digest) ||
+      lockedOwnsObserved
     ) {
       actions.push({ action: "update", desired: output, observed });
     } else {

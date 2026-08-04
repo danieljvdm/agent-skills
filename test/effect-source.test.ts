@@ -2,7 +2,13 @@ import { NodeServices } from "@effect/platform-node";
 import { assert, describe, layer } from "@effect/vitest";
 import { Effect, FileSystem, Path } from "effect";
 
-import { runCommandSuccess, runDevKit } from "./test-platform.ts";
+import { runCommandSuccess, runDevKit as runDevKitCommand } from "./test-platform.ts";
+
+const runDevKit = (
+  cwd: string,
+  args: ReadonlyArray<string>,
+  env: Readonly<Record<string, string>> = {},
+) => runDevKitCommand(cwd, args, { CI: "", ...env });
 
 const commitAll = Effect.fn("commitEffectSourceFixture")(function* (
   repository: string,

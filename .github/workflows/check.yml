@@ -24,12 +24,10 @@ jobs:
 
       # setup-bun resolves the consumer's packageManager or engines.bun version.
       - name: Set up Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # setup-bun action v2.2.0
+        uses: oven-sh/setup-bun@v2
 
-      # setup-vp's v1 tag is frozen. Keep this v1.16.1 commit current with
-      # Renovate or Dependabot so fixes arrive through reviewed pull requests.
       - name: Set up Vite+ and install dependencies
-        uses: voidzero-dev/setup-vp@143f5f385f39b1b753ffed1a01ad443811855c8b # v1.16.1
+        uses: voidzero-dev/setup-vp@v1.16.1
         with:
           # Vite+ version intentionally resolves from the consumer manifest/lock.
           node-version: "24"

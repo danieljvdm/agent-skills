@@ -10,6 +10,7 @@ type ManifestOptions = {
   readonly agentsEnabled?: boolean;
   readonly claudeInstructionsEnabled?: boolean;
   readonly claudeEnabled?: boolean;
+  readonly devKitEnabled?: boolean;
   readonly effectTsgoEnabled?: boolean;
 };
 
@@ -24,7 +25,7 @@ const writeManifest = Effect.fn("writeSyncTestManifest")(function* (
     path.join(projectDir, "dev-kit.jsonc"),
     `${JSON.stringify(
       {
-        include: ["effect"],
+        include: ["effect", ...(options.devKitEnabled ? ["dev-kit"] : [])],
         ...(options.agentInstructionsEnabled ||
         options.effectTsgoEnabled ||
         options.claudeInstructionsEnabled
@@ -615,6 +616,26 @@ describe("project apply", () => {
         assert.match(converged.output, /Dev kit up to date/);
         assert.strictEqual(yield* fs.readFileString(lockPath), firstLock);
         assert.strictEqual(yield* fs.readFileString(statePath), firstState);
+      }),
+    );
+
+    it.effect("points agent instructions at the managed Dev Kit skill", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const projectDir = yield* createProject();
+
+        yield* writeManifest(projectDir, {
+          agentInstructionsEnabled: true,
+          devKitEnabled: true,
+        });
+
+        const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+        const instructions = yield* fs.readFileString(path.join(projectDir, "AGENTS.md"));
+
+        assert.strictEqual(result.exitCode, 0, result.output);
+        assert.include(instructions, ".agents/skills/dev-kit/SKILL.md");
+        assert.notInclude(instructions, "node_modules/");
       }),
     );
 

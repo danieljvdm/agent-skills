@@ -1,5 +1,11 @@
 # @danieljvdm/dev-kit
 
+## 0.11.1
+
+### Patch Changes
+
+- ad4060b: Point generated agent instructions at the project-managed Dev Kit skill instead of a package-manager-internal source path.
+
 ## 0.11.0
 
 ### Minor Changes

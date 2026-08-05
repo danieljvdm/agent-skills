@@ -85,6 +85,50 @@ describe("shared Oxlint and Oxfmt configuration", () => {
           yield* fs.readFileString(spacingFile),
           "  const value = 1;\n\n  return value;",
         );
+
+        const importsDir = yield* fs.makeTempDirectoryScoped({
+          directory: fixture,
+          prefix: ".imports-test-",
+        });
+        const importsFile = path.join(importsDir, "imports.ts");
+
+        yield* fs.writeFileString(
+          path.join(importsDir, "types.ts"),
+          "export class RuntimeValue {}\nexport interface TypeOnly {}\n",
+        );
+        yield* fs.writeFileString(
+          path.join(importsDir, "tsconfig.json"),
+          `${JSON.stringify(
+            {
+              compilerOptions: {
+                module: "NodeNext",
+                moduleResolution: "NodeNext",
+                strict: true,
+                target: "ES2024",
+              },
+              include: ["*.ts"],
+            },
+            null,
+            2,
+          )}\n`,
+        );
+        yield* fs.writeFileString(
+          importsFile,
+          'import { RuntimeValue, TypeOnly } from "./types.ts";\n\nconst value = new RuntimeValue();\ntype Shape = TypeOnly;\n\nvoid value;\nvoid (null as unknown as Shape);\n',
+        );
+
+        const fixedImports = yield* runCommand(
+          fixture,
+          oxlint,
+          ["--fix", "--type-aware", "--config", "oxlint.config.mjs", importsFile],
+          standaloneEnv,
+        );
+
+        assert.strictEqual(fixedImports.exitCode, 0, fixedImports.output);
+        assert.include(
+          yield* fs.readFileString(importsFile),
+          'import { RuntimeValue, type TypeOnly } from "./types.ts";',
+        );
       }),
     );
   });

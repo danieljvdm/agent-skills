@@ -19,6 +19,10 @@ describe("recommended Oxlint config", () => {
       },
     ]);
     expect(recommendedOxlintConfig.plugins).toEqual(["import", "react", "vitest"]);
+    expect(recommendedOxlintConfig.rules["import/no-duplicates"]).toEqual([
+      "error",
+      { preferInline: true },
+    ]);
     expect(recommendedOxlintConfig.rules["react/rules-of-hooks"]).toBe("error");
     expect(recommendedOxlintConfig.rules["stylistic/padding-line-between-statements"]).toEqual([
       "error",
@@ -31,6 +35,10 @@ describe("recommended Oxlint config", () => {
       { blankLine: "always", prev: "*", next: "return" },
     ]);
     expect(recommendedOxlintConfig.rules["typescript/switch-exhaustiveness-check"]).toBe("error");
+    expect(recommendedOxlintConfig.rules["typescript/consistent-type-imports"]).toEqual([
+      "error",
+      { fixStyle: "inline-type-imports", prefer: "type-imports" },
+    ]);
     expect(recommendedOxlintConfig.rules["typescript/no-floating-promises"]).toBe("off");
     expect(recommendedOxlintConfig.rules["vitest/no-standalone-expect"]).toBe("off");
     expect(recommendedOxlintConfig.overrides[0]?.rules["typescript/no-non-null-assertion"]).toBe(

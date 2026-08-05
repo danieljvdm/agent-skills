@@ -299,9 +299,12 @@ describe("Vite+ quality setup", () => {
         assert.include(workflow, "vp run -F './apps/*' -F './packages/*' check");
         assert.include(workflow, "vp exec tsc --noEmit -p scripts/tsconfig.json");
         assert.strictEqual((workflow.match(/run-install:/g) ?? []).length, 1);
-        assert.include(workflow, "vp exec dev-kit apply --locked");
+        assert.include(
+          workflow,
+          "bun ./node_modules/@danieljvdm/dev-kit/bin/dev-kit.mjs apply --locked",
+        );
         assert.isBelow(
-          workflow.indexOf("vp exec dev-kit apply --locked"),
+          workflow.indexOf("bun ./node_modules/@danieljvdm/dev-kit/bin/dev-kit.mjs apply --locked"),
           workflow.indexOf("Install media tools"),
         );
       }),
@@ -320,11 +323,18 @@ describe("Vite+ quality setup", () => {
         assert.strictEqual((workflow.match(/run:\s+vp install/g) ?? []).length, 0);
         assert.include(
           workflow,
+          "oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # setup-bun action v2.2.0",
+        );
+        assert.include(
+          workflow,
           "voidzero-dev/setup-vp@143f5f385f39b1b753ffed1a01ad443811855c8b # v1.16.1",
         );
         assert.notMatch(workflow, /^\s+version:/m);
         assert.include(workflow, 'args: ["--frozen-lockfile", "--ignore-scripts"]');
-        assert.include(workflow, "run: vp exec dev-kit apply --locked");
+        assert.include(
+          workflow,
+          "run: bun ./node_modules/@danieljvdm/dev-kit/bin/dev-kit.mjs apply --locked",
+        );
         assert.isBelow(workflow.indexOf("run-install:"), workflow.indexOf("apply --locked"));
         assert.notMatch(workflow, /dev-kit apply(?! --locked)/);
         assert.include(
@@ -362,7 +372,7 @@ describe("Vite+ quality setup", () => {
         assert.throws(
           () =>
             renderVitePlusWorkflowTemplate(
-              "run: vp exec dev-kit apply --locked\n\n" +
+              "run: bun ./node_modules/@danieljvdm/dev-kit/bin/dev-kit.mjs apply --locked\n\n" +
                 "      - name: Type check with Effect TypeScript-Go\n" +
                 "        run: vp run typecheck\n",
               {
@@ -377,7 +387,7 @@ describe("Vite+ quality setup", () => {
         assert.throws(
           () =>
             renderVitePlusWorkflowTemplate(
-              "run: vp exec dev-kit apply --locked\n\n" +
+              "run: bun ./node_modules/@danieljvdm/dev-kit/bin/dev-kit.mjs apply --locked\n\n" +
                 "      # Dev Kit inserts configured quality.workflow.beforeChecks steps here.\n\n",
               {
                 workflow: { beforeChecks: [], typecheck: ["vp exec tsc --noEmit"] },

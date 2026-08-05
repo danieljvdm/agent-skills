@@ -16,17 +16,15 @@ const repositoryPaths = Effect.fn("repositoryPaths")(function* () {
     devKitSkillDir: path.join(root, "skills", "dev-kit"),
     referencesDir: path.join(skillDir, "references"),
     cli: path.join(root, "src", "bin", "dev-kit.ts"),
-    tsx: yield* path.fromFileUrl(new URL(import.meta.resolve("tsx"))),
   };
 });
 
 const runCli = Effect.fn("runTestCli")(function* (
   cli: string,
-  tsx: string,
   cwd: string,
   args: ReadonlyArray<string>,
 ) {
-  const child = yield* ChildProcess.make("node", ["--import", tsx, cli, ...args], {
+  const child = yield* ChildProcess.make("bun", [cli, ...args], {
     cwd,
     stderr: "pipe",
     stdout: "pipe",
@@ -149,7 +147,7 @@ describe("shipped skills", () => {
         if (effectVersion === undefined) assert.fail("effect dependency is missing");
 
         assert.isString(effectVersion);
-        assert.strictEqual(packageJson.dependencies["@effect/platform-node"], effectVersion);
+        assert.strictEqual(packageJson.dependencies["@effect/platform-bun"], effectVersion);
         assert.match(
           yield* fs.readFileString(path.join(skillDir, "SKILL.md")),
           new RegExp(effectVersion),
@@ -178,7 +176,7 @@ describe("shipped skills", () => {
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
-        const { cli, devKitSkillDir, tsx } = yield* repositoryPaths();
+        const { cli, devKitSkillDir } = yield* repositoryPaths();
         const skill = yield* fs.readFileString(path.join(devKitSkillDir, "SKILL.md"));
 
         assert.match(skill, /^---\nname: dev-kit\ndescription: /);
@@ -192,7 +190,7 @@ describe("shipped skills", () => {
         });
 
         yield* writeManifest(projectDir, ["dev-kit"]);
-        const result = yield* runCli(cli, tsx, projectDir, ["plan", "--project-dir", projectDir]);
+        const result = yield* runCli(cli, projectDir, ["plan", "--project-dir", projectDir]);
 
         assert.strictEqual(result.exitCode, 0, result.output);
         assert.match(result.output, /copy dev-kit → \.agents\/skills\/dev-kit/);
@@ -240,14 +238,14 @@ describe("shipped skills", () => {
     it.effect("selects the Effect umbrella directly and through compatibility aliases", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
-        const { cli, tsx } = yield* repositoryPaths();
+        const { cli } = yield* repositoryPaths();
         const projectDir = yield* fs.makeTempDirectoryScoped({
           prefix: "dev-kit-effect-plan-test-",
         });
 
         for (const include of [["effect"], ["effect-ts"], ["effect-atom-data-fetching"]]) {
           yield* writeManifest(projectDir, include);
-          const result = yield* runCli(cli, tsx, projectDir, ["plan", "--project-dir", projectDir]);
+          const result = yield* runCli(cli, projectDir, ["plan", "--project-dir", projectDir]);
 
           assert.strictEqual(result.exitCode, 0, result.output);
           assert.match(result.output, /copy effect-ts → \.agents\/skills\/effect-ts/);
@@ -260,14 +258,14 @@ describe("shipped skills", () => {
     it.effect("rejects removed split Effect skill ids", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
-        const { cli, tsx } = yield* repositoryPaths();
+        const { cli } = yield* repositoryPaths();
         const projectDir = yield* fs.makeTempDirectoryScoped({
           prefix: "dev-kit-old-effect-id-test-",
         });
 
         for (const oldSkill of ["effect-cli", "effect-patterns", "effect-datetime"]) {
           yield* writeManifest(projectDir, [oldSkill]);
-          const result = yield* runCli(cli, tsx, projectDir, ["plan", "--project-dir", projectDir]);
+          const result = yield* runCli(cli, projectDir, ["plan", "--project-dir", projectDir]);
 
           assert.notStrictEqual(result.exitCode, 0);
         }

@@ -5,15 +5,15 @@
     "": {
       "name": "@danieljvdm/dev-kit",
       "dependencies": {
-        "@effect/platform-node": "4.0.0-beta.102",
+        "@effect/platform-bun": "4.0.0-beta.102",
         "@stylistic/eslint-plugin": "5.10.0",
         "effect": "4.0.0-beta.102",
         "jsonc-parser": "3.3.1",
         "semver": "7.8.5",
-        "tsx": "4.22.4",
       },
       "devDependencies": {
         "@changesets/cli": "3.0.0-next.10",
+        "@effect/platform-node": "4.0.0-beta.102",
         "@effect/tsgo": "0.24.3",
         "@effect/vitest": "4.0.0-beta.102",
         "@types/node": "25.9.1",
@@ -78,6 +78,8 @@
     "@clack/core": ["@clack/core@1.4.3", "", { "dependencies": { "fast-wrap-ansi": "^0.2.0", "sisteransi": "^1.0.5" } }, "sha512-/kr3UWNtdJfxZtPgDqUOmG2pvwlmcLGheex5yiZKdwbzZJxhV+HMNR9QNmyY5cGwTNV6LrR7Jtp+KjhUAP1qBQ=="],
 
     "@clack/prompts": ["@clack/prompts@1.7.0", "", { "dependencies": { "@clack/core": "1.4.3", "fast-string-width": "^3.0.2", "fast-wrap-ansi": "^0.2.0", "sisteransi": "^1.0.5" } }, "sha512-y7/yvZ2TPAnR9+jnc00klvNNLkJiXFFrQA/hlLCcxA9a2A4zQIOimyFQ9XfwYKiGD1fb5GY8vbKIIgO8d5Tb2A=="],
+
+    "@effect/platform-bun": ["@effect/platform-bun@4.0.0-beta.102", "", { "dependencies": { "@effect/platform-node-shared": "^4.0.0-beta.102" }, "peerDependencies": { "effect": "^4.0.0-beta.102" } }, "sha512-hTIb0jjTfXhNgnDq2OX5wrigc0OSvTT0VWWb1PLpMM395RJPu8rCIbTlGhy0NS7kZOd8FfgNi9e0sDhgyu+5Ag=="],
 
     "@effect/platform-node": ["@effect/platform-node@4.0.0-beta.102", "", { "dependencies": { "@effect/platform-node-shared": "^4.0.0-beta.102", "mime": "^4.1.0", "undici": "^8.7.0" }, "peerDependencies": { "effect": "^4.0.0-beta.102", "ioredis": "^5.7.0" } }, "sha512-wYVAU9jAePT+gouMr/EVz1CaW6yDLjPAgXYeEFLz7wugT5iZhFRag6mqajV/wwN3bzWP2fzZHokLuPmqD/rqeA=="],
 

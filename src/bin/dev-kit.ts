@@ -1,4 +1,4 @@
-import { NodeRuntime, NodeServices } from "@effect/platform-node";
+import { BunRuntime, BunServices } from "@effect/platform-bun";
 import { Effect, Result } from "effect";
 import { Argument, CliError, Command as CliCommand, Flag } from "effect/unstable/cli";
 
@@ -399,7 +399,7 @@ const program = CliCommand.run(command, { version: DEV_KIT_VERSION }).pipe(
       ),
   ),
   Effect.scoped,
-  Effect.provide(NodeServices.layer),
+  Effect.provide(BunServices.layer),
 );
 
-NodeRuntime.runMain(program, { disableErrorReporting: true });
+BunRuntime.runMain(program, { disableErrorReporting: true });

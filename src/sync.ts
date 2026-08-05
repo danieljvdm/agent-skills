@@ -773,6 +773,7 @@ const renderAgentInstructions = Effect.fn("renderAgentInstructions")(function* (
   projectDir: string,
   sourceBySkill: ReadonlyMap<string, ResolvedSkillSource>,
   managesVitePlusQuality: boolean,
+  targets: ReturnType<typeof normalizeManifest>["targets"],
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -797,16 +798,21 @@ const renderAgentInstructions = Effect.fn("renderAgentInstructions")(function* (
   }
 
   const devKitSkill = sourceBySkill.get("dev-kit");
+  const devKitTarget = (["agents", "claude", "opencode"] as const)
+    .map((name) => targets[name])
+    .find((target) => target.enabled);
   const devKitSkillPath =
     devKitSkill === undefined
       ? "node_modules/@danieljvdm/dev-kit/skills/dev-kit/SKILL.md"
-      : portablePath(
-          path,
-          path.relative(
-            projectDir,
-            path.join(devKitSkill.linkPath ?? devKitSkill.path, "SKILL.md"),
-          ),
-        );
+      : devKitTarget !== undefined
+        ? portablePath(path, path.join(devKitTarget.path, "dev-kit", "SKILL.md"))
+        : portablePath(
+            path,
+            path.relative(
+              projectDir,
+              path.join(devKitSkill.linkPath ?? devKitSkill.path, "SKILL.md"),
+            ),
+          );
   const usesVitePlus = (yield* readDirectDependencyNames(projectDir)).includes("vite-plus");
   const projectPackage = yield* readProjectPackage(projectDir).pipe(
     Effect.catchTag("ProjectPackageError", (error) =>
@@ -860,6 +866,7 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
       projectDir,
       sourceBySkill,
       setup.vitePlus.quality.config.enabled,
+      targets,
     );
 
     outputs.push({

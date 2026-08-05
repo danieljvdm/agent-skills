@@ -26,7 +26,7 @@ import {
   observePathWithRawModes,
   type ObservedPath,
 } from "./path-digest.ts";
-import { readDirectDependencyNames } from "./project-package.ts";
+import { readDirectDependencyNames, readProjectPackage } from "./project-package.ts";
 import { acquireProjectProcessLock, PROJECT_PROCESS_LOCK_PATH } from "./project-process-lock.ts";
 import {
   AppliedStateSchema,
@@ -115,12 +115,14 @@ type SkillPlanAction =
       readonly action: "create" | "update";
       readonly desired: DesiredOutput;
       readonly observed: ObservedPath;
+      readonly stagedContent?: string;
     }
   | {
       readonly action: "remove";
       readonly previous: OwnershipReceipt;
       readonly destination: string;
       readonly observed: ObservedPath;
+      readonly stagedContent?: string;
     }
   | {
       readonly action: "unchanged";
@@ -234,6 +236,248 @@ const DEFAULT_LOCKFILE = "dev-kit.lock.json";
 const DEFAULT_STATE = ".dev-kit/state.json";
 const AGENT_INSTRUCTIONS_TEMPLATE = "templates/AGENTS.md";
 const DEV_KIT_SKILL_PATH_PLACEHOLDER = "{{DEV_KIT_SKILL_PATH}}";
+const PROJECT_COMMAND_POLICY_PLACEHOLDER = "{{PROJECT_COMMAND_POLICY}}";
+const AGENT_INSTRUCTION_MARKERS = [
+  { start: "<!-- DEV KIT START -->", end: "<!-- DEV KIT END -->" },
+  { start: "<!--VITE PLUS START-->", end: "<!--VITE PLUS END-->" },
+] as const;
+
+type ManagedInstructionRange = {
+  readonly start: number;
+  readonly end: number;
+  readonly content: string;
+};
+
+type ManagedInstructionInspection =
+  | {
+      readonly kind: "valid";
+      readonly ranges: ReadonlyArray<ManagedInstructionRange>;
+      readonly content?: string;
+    }
+  | { readonly kind: "invalid"; readonly reason: string };
+
+const findOccurrences = (content: string, marker: string): ReadonlyArray<number> => {
+  const positions: Array<number> = [];
+  let offset = 0;
+
+  while (offset < content.length) {
+    const position = content.indexOf(marker, offset);
+
+    if (position === -1) break;
+    positions.push(position);
+    offset = position + marker.length;
+  }
+
+  return positions;
+};
+
+const inspectManagedInstructionSections = (content: string): ManagedInstructionInspection => {
+  const ranges: Array<ManagedInstructionRange> = [];
+
+  for (const markers of AGENT_INSTRUCTION_MARKERS) {
+    const starts = findOccurrences(content, markers.start);
+    const ends = findOccurrences(content, markers.end);
+
+    if (starts.length === 0 && ends.length === 0) continue;
+    if (
+      starts.length !== 1 ||
+      ends.length !== 1 ||
+      starts[0] === undefined ||
+      ends[0] === undefined
+    ) {
+      return {
+        kind: "invalid",
+        reason: `expected exactly one ${markers.start}/${markers.end} marker pair`,
+      };
+    }
+    if (starts[0] >= ends[0]) {
+      return { kind: "invalid", reason: `${markers.end} appears before ${markers.start}` };
+    }
+    const end = ends[0] + markers.end.length;
+
+    ranges.push({ start: starts[0], end, content: content.slice(starts[0], end) });
+  }
+  ranges.sort((left, right) => left.start - right.start);
+  for (let index = 1; index < ranges.length; index += 1) {
+    const previous = ranges[index - 1];
+    const current = ranges[index];
+
+    if (previous !== undefined && current !== undefined && current.start < previous.end) {
+      return { kind: "invalid", reason: "managed instruction marker pairs overlap" };
+    }
+  }
+
+  return {
+    kind: "valid",
+    ranges,
+    ...(ranges.length === 0
+      ? {}
+      : { content: `${ranges.map((range) => range.content.trim()).join("\n\n")}\n` }),
+  };
+};
+
+const removeManagedInstructionSections = (
+  content: string,
+  ranges: ReadonlyArray<ManagedInstructionRange>,
+): string => {
+  const first = ranges[0];
+  const last = ranges.at(-1);
+  const hasOnlyManagedSeparators = ranges.every((range, index) => {
+    const next = ranges[index + 1];
+
+    return next === undefined || /^\s*$/.test(content.slice(range.end, next.start));
+  });
+
+  if (first?.start === 0 && last !== undefined && hasOnlyManagedSeparators) {
+    let end = last.end;
+
+    if (content.startsWith("\r\n", end)) end += 2;
+    else if (content.startsWith("\n", end)) end += 1;
+
+    return content.slice(end);
+  }
+  let result = content;
+
+  for (const range of [...ranges].reverse()) {
+    result = result.slice(0, range.start) + result.slice(range.end);
+  }
+
+  return result;
+};
+
+const prependManagedInstructionSections = (content: string, managed: string): string => {
+  if (content.trim().length === 0) return managed;
+
+  return `${managed}${content}`;
+};
+
+const reconcileManagedInstructionSections = (
+  content: string,
+  inspection: Extract<ManagedInstructionInspection, { readonly kind: "valid" }>,
+  managed: string,
+): string =>
+  prependManagedInstructionSections(
+    removeManagedInstructionSections(content, inspection.ranges),
+    managed,
+  );
+
+const renderVitePlusCommandPolicy = (
+  scripts: Readonly<Record<string, string>>,
+  managesQualityConfig: boolean,
+): string => {
+  const hasCheck = managesQualityConfig || scripts.check !== undefined;
+  const hasTypecheck = managesQualityConfig || scripts.typecheck !== undefined;
+
+  return [
+    "## Project command policy",
+    "",
+    "Vite+ is the command authority for this repository. This policy takes precedence over generic tool guidance:",
+    "",
+    "- Install dependencies: `vp install`.",
+    ...(hasCheck ? ["- Full validation: `vp run check`."] : []),
+    "- Static checks: `vp check`.",
+    "- Format check: `vp fmt --check`; format fixes: `vp fmt`.",
+    "- Lint only: `vp lint`; lint fixes: `vp lint --fix`.",
+    "- Tests only: `vp test`.",
+    ...(hasTypecheck ? ["- Typecheck only: `vp run typecheck`."] : []),
+    "- Other repository tasks and package scripts: `vp run <task>`.",
+    "",
+    "Do not use `bun run`, `npm run`, `pnpm run`, or `yarn run` in this repository. Do not invoke underlying tools such as `tsc`, `vitest`, `oxlint`, or `oxfmt` directly; use the Vite+ entry points above.",
+  ].join("\n");
+};
+
+const PACKAGE_MANAGER_COMMANDS = {
+  bun: { install: "bun install", label: "Bun" },
+  npm: { install: "npm install", label: "npm" },
+  pnpm: { install: "pnpm install", label: "pnpm" },
+  yarn: { install: "yarn install", label: "Yarn" },
+} as const;
+
+type PackageManagerName = keyof typeof PACKAGE_MANAGER_COMMANDS;
+
+const packageManagerName = (declaration: string | undefined): PackageManagerName | undefined => {
+  const name = declaration?.split("@", 1)[0];
+
+  return name !== undefined && name in PACKAGE_MANAGER_COMMANDS
+    ? (name as PackageManagerName)
+    : undefined;
+};
+
+const detectPackageManager = Effect.fn("detectPackageManager")(function* (
+  projectDir: string,
+  declaration: string | undefined,
+) {
+  const declared = packageManagerName(declaration);
+
+  if (declared !== undefined || declaration !== undefined) return declared;
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const lockfiles: ReadonlyArray<readonly [PackageManagerName, ReadonlyArray<string>]> = [
+    ["bun", ["bun.lock", "bun.lockb"]],
+    ["npm", ["package-lock.json", "npm-shrinkwrap.json"]],
+    ["pnpm", ["pnpm-lock.yaml"]],
+    ["yarn", ["yarn.lock"]],
+  ];
+  const detected: Array<PackageManagerName> = [];
+
+  for (const [manager, files] of lockfiles) {
+    let found = false;
+
+    for (const file of files) {
+      if (yield* fs.exists(path.join(projectDir, file))) {
+        found = true;
+        break;
+      }
+    }
+    if (found) {
+      detected.push(manager);
+    }
+  }
+
+  return detected.length === 1 ? detected[0] : undefined;
+});
+
+const renderPackageScriptCommandPolicy = (
+  manager: PackageManagerName | undefined,
+  scripts: Readonly<Record<string, string>>,
+): string => {
+  const installer = manager === undefined ? undefined : PACKAGE_MANAGER_COMMANDS[manager];
+  const entries = [
+    ["check", "Full validation"],
+    ["format:check", "Format check"],
+    ["format", "Format"],
+    ["lint", "Lint"],
+    ["test", "Tests"],
+    ["typecheck", "Typecheck"],
+  ] as const;
+  const commands = entries.flatMap(([script, label]) =>
+    scripts[script] === undefined ? [] : [`- ${label}: \`bun run ${script}\`.`],
+  );
+  const knownScripts = new Set(entries.map(([script]) => script));
+  const additionalCommands = Object.keys(scripts)
+    .filter(
+      (script) =>
+        !knownScripts.has(script as (typeof entries)[number][0]) &&
+        /^(?:check|validate|fmt|format|lint|test|type-?check)(?::|$)/.test(script),
+    )
+    .sort()
+    .map((script) => `- Script \`${script}\`: \`bun run ${script}\`.`);
+  const qualityCommands = [...commands, ...additionalCommands];
+
+  return [
+    "## Project command policy",
+    "",
+    "Bun is the package-script runner for this repository:",
+    "",
+    ...(installer === undefined
+      ? []
+      : [`- Install dependencies with ${installer.label}: \`${installer.install}\`.`]),
+    ...qualityCommands,
+    ...(qualityCommands.length === 0 ? ["- No root quality scripts are currently declared."] : []),
+    "",
+    "Run only declared scripts through `bun run <script>`. Do not use `npm run`, `pnpm run`, or `yarn run`, invent missing scripts, or invoke underlying tools such as `tsc`, `vitest`, `eslint`, or `prettier` directly. The Bun script-runner requirement does not choose the package manager used to install dependencies.",
+  ].join("\n");
+};
 
 const resolvePackageRoot = Effect.fn("resolvePackageRoot")(function* () {
   const path = yield* Path.Path;
@@ -521,6 +765,7 @@ const renderAgentInstructions = Effect.fn("renderAgentInstructions")(function* (
   packageRoot: string,
   projectDir: string,
   sourceBySkill: ReadonlyMap<string, ResolvedSkillSource>,
+  managesVitePlusQuality: boolean,
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -538,6 +783,11 @@ const renderAgentInstructions = Effect.fn("renderAgentInstructions")(function* (
       message: `dev-kit agent instructions template is missing ${DEV_KIT_SKILL_PATH_PLACEHOLDER}`,
     });
   }
+  if (!template.includes(PROJECT_COMMAND_POLICY_PLACEHOLDER)) {
+    return yield* new InvalidProjectStateError({
+      message: `dev-kit agent instructions template is missing ${PROJECT_COMMAND_POLICY_PLACEHOLDER}`,
+    });
+  }
 
   const devKitSkill = sourceBySkill.get("dev-kit");
   const devKitSkillPath =
@@ -550,9 +800,23 @@ const renderAgentInstructions = Effect.fn("renderAgentInstructions")(function* (
             path.join(devKitSkill.linkPath ?? devKitSkill.path, "SKILL.md"),
           ),
         );
-  const sections = [template.replaceAll(DEV_KIT_SKILL_PATH_PLACEHOLDER, devKitSkillPath).trimEnd()];
+  const usesVitePlus = (yield* readDirectDependencyNames(projectDir)).includes("vite-plus");
+  const projectPackage = yield* readProjectPackage(projectDir).pipe(
+    Effect.catchTag("ProjectPackageError", (error) =>
+      error.message.startsWith("package.json not found:") ? Effect.void : Effect.fail(error),
+    ),
+  );
+  const manager = yield* detectPackageManager(projectDir, projectPackage?.packageManager);
+  const commandPolicy = usesVitePlus
+    ? renderVitePlusCommandPolicy(projectPackage?.scripts ?? {}, managesVitePlusQuality)
+    : renderPackageScriptCommandPolicy(manager, projectPackage?.scripts ?? {});
+  const devKitInstructions = template
+    .replaceAll(DEV_KIT_SKILL_PATH_PLACEHOLDER, devKitSkillPath)
+    .replaceAll(PROJECT_COMMAND_POLICY_PLACEHOLDER, commandPolicy)
+    .trimEnd();
+  const sections: Array<string> = [];
 
-  if ((yield* readDirectDependencyNames(projectDir)).includes("vite-plus")) {
+  if (usesVitePlus) {
     const vitePlusTemplate = path.join(projectDir, "node_modules", "vite-plus", "AGENTS.md");
 
     if ((yield* observePath(vitePlusTemplate)).kind !== "file") {
@@ -561,8 +825,26 @@ const renderAgentInstructions = Effect.fn("renderAgentInstructions")(function* (
           "Vite+ is a direct dependency but its agent instructions are not a regular file: node_modules/vite-plus/AGENTS.md",
       });
     }
-    sections.push((yield* fs.readFileString(vitePlusTemplate)).trim());
+    const vitePlusInstructions = (yield* fs.readFileString(vitePlusTemplate)).trim();
+    const viteMarkers = AGENT_INSTRUCTION_MARKERS[1];
+    const viteStarts = findOccurrences(vitePlusInstructions, viteMarkers.start);
+    const viteEnds = findOccurrences(vitePlusInstructions, viteMarkers.end);
+
+    if (
+      viteStarts.length !== 1 ||
+      viteEnds.length !== 1 ||
+      viteStarts[0] === undefined ||
+      viteEnds[0] === undefined ||
+      viteStarts[0] >= viteEnds[0]
+    ) {
+      return yield* new InvalidProjectStateError({
+        message:
+          "Vite+ agent instructions must contain exactly one marker pair: <!--VITE PLUS START-->/<!--VITE PLUS END-->",
+      });
+    }
+    sections.push(vitePlusInstructions.slice(viteStarts[0], viteEnds[0] + viteMarkers.end.length));
   }
+  sections.push(devKitInstructions);
 
   return `${sections.join("\n\n")}\n`;
 });
@@ -597,7 +879,12 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
 
   if (setup.agentInstructions.enabled) {
     const managed = yield* resolveManagedPath(projectDir, "AGENTS.md");
-    const content = yield* renderAgentInstructions(packageRoot, projectDir, sourceBySkill);
+    const content = yield* renderAgentInstructions(
+      packageRoot,
+      projectDir,
+      sourceBySkill,
+      setup.vitePlus.quality.config.enabled,
+    );
 
     outputs.push({
       resourceId: "setup:agent-instructions",
@@ -803,6 +1090,89 @@ const planDesiredOutputs = Effect.fn("planDesiredSkillOutputs")(function* (
         (rawModeObservation?.kind === matchingLockedOutput.kind &&
           rawModeObservation.digest === matchingLockedOutput.digest));
 
+    if (output.resourceId === "setup:agent-instructions" && "content" in output) {
+      if (observed.kind === "missing") {
+        actions.push({
+          action: "create",
+          desired: output,
+          observed,
+          stagedContent: output.content,
+        });
+        continue;
+      }
+      if (observed.kind !== "file") {
+        actions.push({
+          action: "conflict",
+          path: output.path,
+          reason: "destination is not a regular file",
+        });
+        continue;
+      }
+      const existingContent = yield* FileSystem.FileSystem.pipe(
+        Effect.flatMap((fs) => fs.readFileString(output.destination)),
+      );
+      const inspection = inspectManagedInstructionSections(existingContent);
+
+      if (inspection.kind === "invalid") {
+        actions.push({ action: "conflict", path: output.path, reason: inspection.reason });
+        continue;
+      }
+      const managedDigest =
+        inspection.content === undefined ? undefined : yield* digestFileContent(inspection.content);
+      const receiptOwnsManaged =
+        sameReceipt !== undefined &&
+        (managedDigest === sameReceipt.digest || observed.digest === sameReceipt.digest);
+      const lockOwnsManaged =
+        matchingLockedOutput !== undefined &&
+        (managedDigest === matchingLockedOutput.digest ||
+          observed.digest === matchingLockedOutput.digest);
+      const legacyOwnsWholeFile =
+        (sameReceipt !== undefined &&
+          observed.digest === sameReceipt.digest &&
+          managedDigest !== sameReceipt.digest) ||
+        (matchingLockedOutput !== undefined &&
+          lockedOwnsObserved &&
+          managedDigest !== matchingLockedOutput.digest);
+
+      if (managedDigest === output.digest && !legacyOwnsWholeFile) {
+        if (sameReceipt !== undefined || lockOwnsManaged || lockedOwnsObserved) {
+          actions.push({
+            action: "unchanged",
+            desired: output,
+            observed,
+            adopted: sameReceipt === undefined,
+          });
+        } else {
+          actions.push({
+            action: "conflict",
+            path: output.path,
+            reason: "managed instruction sections exist but are not owned",
+          });
+        }
+      } else if (
+        managedDigest === undefined ||
+        receiptOwnsManaged ||
+        lockOwnsManaged ||
+        lockedOwnsObserved
+      ) {
+        actions.push({
+          action: "update",
+          desired: output,
+          observed,
+          stagedContent: legacyOwnsWholeFile
+            ? output.content
+            : reconcileManagedInstructionSections(existingContent, inspection, output.content),
+        });
+      } else {
+        actions.push({
+          action: "conflict",
+          path: output.path,
+          reason: "managed instruction sections exist but are not owned",
+        });
+      }
+      continue;
+    }
+
     if (observed.kind === "missing") {
       actions.push({ action: "create", desired: output, observed });
     } else if (observed.kind === output.kind && observed.digest === output.digest) {
@@ -839,6 +1209,46 @@ const planDesiredOutputs = Effect.fn("planDesiredSkillOutputs")(function* (
     const observed = yield* observePath(managed.absolute);
 
     if (observed.kind === "missing") continue;
+    if (receipt.resourceId === "setup:agent-instructions") {
+      if (observed.kind !== "file") {
+        actions.push({
+          action: "conflict",
+          path: receipt.path,
+          reason: "stale owned destination is not a regular file",
+        });
+        continue;
+      }
+      const existingContent = yield* FileSystem.FileSystem.pipe(
+        Effect.flatMap((fs) => fs.readFileString(managed.absolute)),
+      );
+      const inspection = inspectManagedInstructionSections(existingContent);
+
+      if (inspection.kind === "invalid") {
+        actions.push({ action: "conflict", path: receipt.path, reason: inspection.reason });
+        continue;
+      }
+      if (inspection.content === undefined) continue;
+      const managedDigest = yield* digestFileContent(inspection.content);
+
+      if (managedDigest === receipt.digest || observed.digest === receipt.digest) {
+        const remaining = removeManagedInstructionSections(existingContent, inspection.ranges);
+
+        actions.push({
+          action: "remove",
+          previous: receipt,
+          destination: managed.absolute,
+          observed,
+          ...(remaining.trim().length === 0 ? {} : { stagedContent: remaining }),
+        });
+      } else {
+        actions.push({
+          action: "conflict",
+          path: receipt.path,
+          reason: "stale owned managed instruction sections were modified",
+        });
+      }
+      continue;
+    }
     if (observed.kind === receipt.kind && observed.digest === receipt.digest) {
       actions.push({
         action: "remove",
@@ -1110,16 +1520,6 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
   const currentLock = yield* readOptionalStructuredFile(lockManaged.absolute, DevKitLockSchema);
   const currentState = yield* readOptionalStructuredFile(stateManaged.absolute, AppliedStateSchema);
 
-  if (
-    manifest.setup.claudeInstructions.enabled &&
-    !manifest.setup.agentInstructions.enabled &&
-    currentState?.outputs.some((output) => output.resourceId === "setup:agent-instructions")
-  ) {
-    return yield* new InvalidProjectStateError({
-      message:
-        "cannot disable agentInstructions while claudeInstructions still links to its AGENTS.md wrapper",
-    });
-  }
   yield* validateReservedPaths(projectDir, reservedPaths, [
     ...(currentLock?.outputs ?? []),
     ...(currentState?.outputs ?? []),
@@ -1143,6 +1543,19 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
     currentState,
     nextLock,
   );
+  const removesClaudeInstructionsSource = planned.actions.some(
+    (action) =>
+      action.action === "remove" &&
+      action.previous.resourceId === "setup:agent-instructions" &&
+      action.stagedContent === undefined,
+  );
+
+  if (manifest.setup.claudeInstructions.enabled && removesClaudeInstructionsSource) {
+    return yield* new InvalidProjectStateError({
+      message:
+        "cannot disable agentInstructions while claudeInstructions still links to an AGENTS.md that would be removed",
+    });
+  }
 
   return {
     projectDir,
@@ -1310,13 +1723,28 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
   let stageIndex = 0;
 
   for (const action of mutating) {
-    if (action.action === "remove") continue;
+    if (action.action === "remove" && action.stagedContent === undefined) continue;
     const staged = path.join(stageDir, String(stageIndex++));
 
     yield* fs.makeDirectory(path.dirname(staged), { recursive: true });
-    if (action.desired.mode === "copy") {
+    if (action.stagedContent !== undefined && action.observed.kind === "file") {
+      const destination =
+        action.action === "remove" ? action.destination : action.desired.destination;
+
+      yield* fs.copy(destination, staged, { overwrite: true });
+      yield* fs.writeFileString(staged, action.stagedContent);
+    } else if (action.action === "remove") {
+      if (action.stagedContent === undefined) {
+        return yield* new InvalidProjectStateError({
+          message: `missing staged content for ${action.previous.resourceId}`,
+        });
+      }
+      yield* fs.writeFileString(staged, action.stagedContent, { mode: 0o644 });
+    } else if (action.desired.mode === "copy") {
       if (action.desired.kind === "file") {
-        yield* fs.writeFileString(staged, action.desired.content, { mode: 0o644 });
+        yield* fs.writeFileString(staged, action.stagedContent ?? action.desired.content, {
+          mode: 0o644,
+        });
       } else {
         yield* fs.copy(action.desired.source, staged, { overwrite: true });
         const symbolicLink = yield* findNestedSymbolicLink(staged);
@@ -1330,14 +1758,35 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
     } else {
       yield* fs.symlink(action.desired.linkTarget, staged);
     }
-    const observation = yield* observePath(staged);
+    if (action.action !== "remove") {
+      const observation = yield* observePath(staged);
 
-    if (observation.kind !== action.desired.kind || observation.digest !== action.desired.digest) {
-      return yield* new InvalidProjectStateError({
-        message: `staged output digest mismatch for ${action.desired.path}`,
-      });
+      if (action.desired.resourceId === "setup:agent-instructions") {
+        const content = yield* fs.readFileString(staged);
+        const inspection = inspectManagedInstructionSections(content);
+        const digest =
+          inspection.kind === "valid" && inspection.content !== undefined
+            ? yield* digestFileContent(inspection.content)
+            : undefined;
+
+        if (observation.kind !== "file" || digest !== action.desired.digest) {
+          return yield* new InvalidProjectStateError({
+            message: `staged output digest mismatch for ${action.desired.path}`,
+          });
+        }
+      } else if (
+        observation.kind !== action.desired.kind ||
+        observation.digest !== action.desired.digest
+      ) {
+        return yield* new InvalidProjectStateError({
+          message: `staged output digest mismatch for ${action.desired.path}`,
+        });
+      }
     }
-    stagedByResource.set(action.desired.resourceId, staged);
+    stagedByResource.set(
+      action.action === "remove" ? action.previous.resourceId : action.desired.resourceId,
+      staged,
+    );
   }
 
   yield* verifyPackageSkillSources(plan);
@@ -1360,11 +1809,18 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
 
   for (const action of mutating) {
     const staged =
-      action.action === "remove" ? undefined : stagedByResource.get(action.desired.resourceId);
+      action.action === "remove"
+        ? stagedByResource.get(action.previous.resourceId)
+        : stagedByResource.get(action.desired.resourceId);
 
-    if (action.action !== "remove" && staged === undefined) {
+    if (
+      (action.action !== "remove" || action.stagedContent !== undefined) &&
+      staged === undefined
+    ) {
       return yield* new InvalidProjectStateError({
-        message: `missing staged output for ${action.desired.resourceId}`,
+        message: `missing staged output for ${
+          action.action === "remove" ? action.previous.resourceId : action.desired.resourceId
+        }`,
       });
     }
     replacements.push({

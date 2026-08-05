@@ -31,7 +31,7 @@
       "sourcePath": "templates/AGENTS.md",
       "mode": "copy",
       "kind": "file",
-      "digest": "sha256:6b3920049027898fd10ba62a8c78045812c21397a1649cf67a253a8f6ddb0950"
+      "digest": "sha256:6f903093ce6d76b0547bd97eaaa1062b7e9f68af08f77aaa32dfcc923529758a"
     },
     {
       "resourceId": "setup:claude-instructions",

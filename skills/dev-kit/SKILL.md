@@ -95,14 +95,26 @@ use symlinks for additional harness discovery paths. Keep every target path
 project-relative and separate from the manifest, lock, state, and process-lock
 paths.
 
-Enable `setup.agentInstructions` to manage a project-root `AGENTS.md` wrapper
-that points agents back to this skill. When `vite-plus` is a declared direct
-dependency, dev-kit includes its installed agent instructions in the wrapper.
+Enable `setup.agentInstructions` to manage marked sections in a project-root
+`AGENTS.md` while preserving handwritten project guidance. The Dev Kit section
+points agents back to this skill. When `vite-plus` is a declared direct
+dependency, dev-kit also manages its installed marked instruction section.
+Treat duplicate, overlapping, reversed, or unmatched managed markers as a
+conflict rather than guessing which content Dev Kit owns.
+The managed section also publishes the repository's command authority. Direct
+Vite+ projects must use `vp` built-ins and `vp run <task>`; managed quality
+projects use `vp run check` for the complete format/lint/test/typecheck suite
+and `vp run typecheck` for the Effect-patched compiler. Non-Vite+ projects run
+existing root quality scripts through `bun run`; package-manager metadata and
+lockfiles affect dependency-install guidance only. Never substitute another
+script runner or call raw `tsc`, test, lint, or format binaries when a project
+command exists.
 Enable `setup.claudeInstructions` when Claude Code should consume the same
 project-root instructions; it manages `CLAUDE.md` as a relative symlink to the
-wrapper or to an existing regular `AGENTS.md`. Preserve conflicting paths;
-when disabled, dev-kit removes only unchanged outputs recorded in local
-ownership state.
+section-managed file or to an existing regular `AGENTS.md`. Preserve
+conflicting paths; when disabled, dev-kit removes only unchanged marked
+sections recorded in local ownership state and leaves handwritten content in
+place.
 
 Enable `setup.vitePlus.hooks` when an installed direct `vite-plus` dependency
 should manage Git hooks. Each apply checks the local `.vite-hooks/_` dispatcher,
@@ -272,7 +284,7 @@ in the consuming project.
 
 ## Current boundary
 
-Manage skill outputs, the `setup.agentInstructions` wrapper, the
+Manage skill outputs, the `setup.agentInstructions` marked sections, the
 `setup.claudeInstructions` link, the `setup.vitePlus.hooks` dispatcher, the
 independently opt-in `setup.vitePlus.quality` config and GitHub workflow, the
 `setup.effectSource` checkout, and the explicit `setup.effectTsgo` task.

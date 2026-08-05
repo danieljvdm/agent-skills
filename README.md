@@ -216,7 +216,7 @@ The patch is idempotent, preserves existing lines, and refuses symlinked
 
 ## Agent instructions
 
-Enable a managed project-root instruction wrapper and a portable Claude Code
+Enable managed project-root instruction sections and a portable Claude Code
 bridge in the manifest:
 
 ```jsonc
@@ -229,18 +229,34 @@ bridge in the manifest:
 }
 ```
 
-`setup.agentInstructions` manages `AGENTS.md` as a generated wrapper with a
-short description of dev-kit and a pointer to the installed `dev-kit` skill.
-When the root `package.json` declares `vite-plus` directly, the wrapper also
-includes Vite+'s installed `node_modules/vite-plus/AGENTS.md` instructions.
-Transitive installations do not opt a project in.
+`setup.agentInstructions` manages marked sections in the project-root
+`AGENTS.md`, preserving handwritten project guidance around them. The Dev Kit
+section contains a short description and a pointer to the installed `dev-kit`
+skill. When the root `package.json` declares `vite-plus` directly, Dev Kit also
+manages the marked section from Vite+'s installed
+`node_modules/vite-plus/AGENTS.md`; transitive installations do not opt a
+project in. Ambiguous or malformed managed markers fail closed.
+
+The Dev Kit section also renders an opinionated project command policy. A
+direct Vite+ dependency makes `vp` the only supported front door: built-in
+format, lint, and test commands use `vp`, while repository tasks and package
+scripts use `vp run`. When Dev Kit manages the quality config, the canonical
+full validation and typecheck commands are `vp run check` and
+`vp run typecheck`; `vp check` alone is only the Vite+ static-check command.
+Without Vite+, Bun is the required package-script runner and Dev Kit lists only
+quality scripts the root package actually declares. The package manager named
+by `package.json#packageManager`, or inferred from a single recognized root
+lockfile, is used only for dependency-install guidance. The policy forbids
+switching script runners or bypassing project entry points with raw `tsc`,
+test-runner, linter, or formatter commands.
 
 `setup.claudeInstructions` manages `CLAUDE.md` as the relative symlink
-`CLAUDE.md → AGENTS.md`. It can link to the generated wrapper in the same apply,
+`CLAUDE.md → AGENTS.md`. It can link to the section-managed file in the same apply,
 or retain the older behavior of linking to an existing regular `AGENTS.md` when
-the wrapper task is disabled. Both outputs are recorded independently in the
-lockfile and local ownership state. Dev Kit refuses to replace unowned files
-and removes only unchanged owned outputs.
+the section task is disabled. Both outputs are recorded independently in the
+lockfile and local ownership state. Disabling agent instructions removes only
+unchanged managed sections and deletes `AGENTS.md` only when no handwritten
+content remains.
 
 ## Vite+ Git hooks
 

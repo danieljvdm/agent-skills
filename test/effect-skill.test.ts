@@ -82,6 +82,20 @@ describe("shipped skills", () => {
         assert.isTrue(referenceNames.has("atom-tanstack-start.md"));
         assert.isTrue(referenceNames.has("atom-testing.md"));
         assert.match(skill, /Prefer Effect `DateTime` over vanilla JavaScript `Date`/);
+
+        const atomDataFetching = yield* fs.readFileString(
+          path.join(referencesDir, "guide-atom-data-fetching.md"),
+        );
+        const atomHttp = yield* fs.readFileString(
+          path.join(referencesDir, "atom-http-and-invalidation.md"),
+        );
+        const atomTesting = yield* fs.readFileString(path.join(referencesDir, "atom-testing.md"));
+
+        assert.match(atomDataFetching, /Use `useAtom\(atom\)` instead/);
+        assert.match(atomDataFetching, /Do not add a cleanup-only effect/);
+        assert.match(atomDataFetching, /React Strict Mode's development effect replay/);
+        assert.match(atomHttp, /partially completed operation/);
+        assert.match(atomTesting, /unmounting one consumer does not cancel work/);
         for (const duplicateReference of [
           "guide-functions-and-errors.md",
           "guide-logging.md",

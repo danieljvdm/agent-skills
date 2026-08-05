@@ -1,5 +1,12 @@
 # @danieljvdm/dev-kit
 
+## 0.11.3
+
+### Patch Changes
+
+- 1926864: Clarify Effect Atom React hook ownership, interruption cleanup, and durable multi-step action guidance.
+- c9ea09d: Prefer inline type specifiers and merge mixed type and value imports in the recommended Oxlint preset.
+
 ## 0.11.2
 
 ### Patch Changes

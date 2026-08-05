@@ -1,5 +1,11 @@
 # @danieljvdm/dev-kit
 
+## 0.11.2
+
+### Patch Changes
+
+- e50051d: Use readable release tags for the third-party actions in the managed Vite+ check workflow.
+
 ## 0.11.1
 
 ### Patch Changes

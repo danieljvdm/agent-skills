@@ -8,6 +8,7 @@ export class ProjectPackageError extends Schema.TaggedErrorClass<ProjectPackageE
 const ProjectPackageSchema = Schema.fromJsonString(
   Schema.Struct({
     name: Schema.optional(Schema.String),
+    packageManager: Schema.optional(Schema.String),
     scripts: Schema.optional(Schema.Record(Schema.String, Schema.String)),
     dependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
     devDependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),

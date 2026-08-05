@@ -68,7 +68,7 @@
   "required": ["include"],
   "$defs": {
     "agentInstructionsSetup": {
-      "description": "Manage a project-root AGENTS.md wrapper with dev-kit guidance and conditional tool instructions.",
+      "description": "Manage marked sections in project-root AGENTS.md with dev-kit guidance and conditional tool instructions while preserving handwritten content.",
       "type": "object",
       "additionalProperties": false,
       "properties": {

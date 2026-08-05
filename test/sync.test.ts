@@ -453,6 +453,27 @@ describe("project apply", () => {
       }),
     );
 
+    it.effect("does not adopt exact managed sections without a receipt or lock", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const fixture = yield* createInstructionProject();
+
+        yield* fs.remove(path.join(fixture.projectDir, "dev-kit.lock.json"));
+        yield* fs.remove(fixture.statePath, { recursive: true });
+        yield* fs.remove(path.join(fixture.projectDir, ".agents"), { recursive: true });
+
+        const result = yield* runDevKit(fixture.projectDir, [
+          "apply",
+          "--project-dir",
+          fixture.projectDir,
+        ]);
+
+        assert.notStrictEqual(result.exitCode, 0);
+        assert.match(result.output, /managed instruction sections exist but are not owned/);
+      }),
+    );
+
     it.effect("updates an unchanged pre-normalization lock without local state", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
@@ -483,27 +504,28 @@ describe("project apply", () => {
       }),
     );
 
-    it.effect("preserves a locked output modified without local state", () =>
-      Effect.gen(function* () {
-        const fs = yield* FileSystem.FileSystem;
-        const fixture = yield* createInstructionProject();
+    it.effect(
+      "preserves handwritten content added outside managed sections without local state",
+      () =>
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.FileSystem;
+          const fixture = yield* createInstructionProject();
 
-        yield* fs.writeFileString(
-          fixture.instructionsPath,
-          `${yield* fs.readFileString(fixture.instructionsPath)}local edit\n`,
-        );
-        yield* fs.remove(fixture.statePath, { force: true, recursive: true });
+          yield* fs.writeFileString(
+            fixture.instructionsPath,
+            `${yield* fs.readFileString(fixture.instructionsPath)}local edit\n`,
+          );
+          yield* fs.remove(fixture.statePath, { force: true, recursive: true });
 
-        const result = yield* runDevKit(fixture.projectDir, [
-          "apply",
-          "--project-dir",
-          fixture.projectDir,
-        ]);
+          const result = yield* runDevKit(fixture.projectDir, [
+            "apply",
+            "--project-dir",
+            fixture.projectDir,
+          ]);
 
-        assert.notStrictEqual(result.exitCode, 0);
-        assert.match(result.output, /destination exists but is not owned/);
-        assert.include(yield* fs.readFileString(fixture.instructionsPath), "local edit");
-      }),
+          assert.strictEqual(result.exitCode, 0, result.output);
+          assert.include(yield* fs.readFileString(fixture.instructionsPath), "local edit");
+        }),
     );
 
     it.effect("retains relative-link semantics for symlink targets", () =>
@@ -529,7 +551,7 @@ describe("project apply", () => {
       }),
     );
 
-    it.effect("manages a dev-kit AGENTS.md wrapper and Claude link", () =>
+    it.effect("manages Dev Kit AGENTS.md sections and a Claude link", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
@@ -596,7 +618,70 @@ describe("project apply", () => {
       }),
     );
 
-    it.effect("includes Vite+ instructions only for a direct dependency", () =>
+    it.effect("routes non-Vite quality commands through package scripts", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const projectDir = yield* createProject();
+
+        yield* writeManifest(projectDir, { agentInstructionsEnabled: true });
+        yield* writeProjectPackage(projectDir, {
+          packageManager: "bun@1.3.14",
+          scripts: {
+            check: "project check",
+            fmt: "project fmt",
+            format: "project format",
+            lint: "project lint",
+            test: "project test",
+            "test:unit": "project unit tests",
+            typecheck: "project typecheck",
+          },
+        });
+
+        const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+        const instructions = yield* fs.readFileString(path.join(projectDir, "AGENTS.md"));
+
+        assert.strictEqual(result.exitCode, 0, result.output);
+        assert.include(instructions, "Bun is the package-script runner");
+        assert.include(instructions, "Install dependencies with Bun: `bun install`");
+        assert.include(instructions, "Full validation: `bun run check`");
+        assert.include(instructions, "Format: `bun run format`");
+        assert.include(instructions, "Script `fmt`: `bun run fmt`");
+        assert.include(instructions, "Lint: `bun run lint`");
+        assert.include(instructions, "Tests: `bun run test`");
+        assert.include(instructions, "Script `test:unit`: `bun run test:unit`");
+        assert.include(instructions, "Typecheck: `bun run typecheck`");
+        assert.include(instructions, "invoke underlying tools such as `tsc`");
+      }),
+    );
+
+    it.effect("detects the dependency installer without changing the Bun script runner", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const projectDir = yield* createProject();
+
+        yield* writeManifest(projectDir, { agentInstructionsEnabled: true });
+        yield* writeProjectPackage(projectDir, { scripts: { test: "project test" } });
+        yield* fs.writeFileString(
+          path.join(projectDir, "pnpm-lock.yaml"),
+          "lockfileVersion: '9.0'\n",
+        );
+
+        const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
+        assert.strictEqual(result.exitCode, 0, result.output);
+        const instructions = yield* fs.readFileString(path.join(projectDir, "AGENTS.md"));
+
+        assert.include(instructions, "Bun is the package-script runner");
+        assert.include(instructions, "Install dependencies with pnpm: `pnpm install`");
+        assert.include(instructions, "Tests: `bun run test`");
+        assert.notInclude(instructions, "bun run typecheck");
+        assert.include(instructions, "does not choose the package manager");
+      }),
+    );
+
+    it.effect("synthesizes non-conflicting Vite+ guidance only for a direct dependency", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
@@ -605,25 +690,31 @@ describe("project apply", () => {
         yield* writeManifest(directProject, { agentInstructionsEnabled: true });
         yield* writeProjectPackage(directProject, {
           devDependencies: { "vite-plus": "0.2.6" },
+          scripts: { check: "project check", typecheck: "project typecheck" },
         });
-        const viteInstructions = "<!--VITE PLUS START-->\n\n# Vite+ Test\n\n<!--VITE PLUS END-->\n";
-
-        yield* installFakeVitePlusInstructions(directProject, viteInstructions);
 
         const direct = yield* runDevKit(directProject, ["apply", "--project-dir", directProject]);
 
         assert.strictEqual(direct.exitCode, 0, direct.output);
-        assert.isTrue(
-          (yield* fs.readFileString(path.join(directProject, "AGENTS.md"))).endsWith(
-            viteInstructions,
-          ),
-        );
+        const directInstructions = yield* fs.readFileString(path.join(directProject, "AGENTS.md"));
+
+        assert.include(directInstructions, "Vite+ is the unified toolchain and command authority");
+        assert.include(directInstructions, "Vite+ is distinct from Vite");
+        assert.include(directInstructions, "Run `vp help`");
+        assert.include(directInstructions, "`node_modules/vite-plus/docs`");
+        assert.include(directInstructions, "https://viteplus.dev/guide/");
+        assert.include(directInstructions, "Install dependencies: `vp install`");
+        assert.include(directInstructions, "Full validation: `vp run check`");
+        assert.include(directInstructions, "Typecheck only: `vp run typecheck`");
+        assert.include(directInstructions, "Tests only: `vp test`");
+        assert.include(directInstructions, "run `vp env doctor`");
+        assert.include(directInstructions, "Do not use `bun run`, `npm run`, `pnpm run`");
+        assert.notInclude(directInstructions, "VITE PLUS START");
 
         const transitiveProject = yield* createProject();
 
         yield* writeManifest(transitiveProject, { agentInstructionsEnabled: true });
         yield* writeProjectPackage(transitiveProject, { dependencies: {} });
-        yield* installFakeVitePlusInstructions(transitiveProject, viteInstructions);
         const transitive = yield* runDevKit(transitiveProject, [
           "apply",
           "--project-dir",
@@ -631,55 +722,220 @@ describe("project apply", () => {
         ]);
 
         assert.strictEqual(transitive.exitCode, 0, transitive.output);
-        assert.notMatch(
-          yield* fs.readFileString(path.join(transitiveProject, "AGENTS.md")),
-          /VITE PLUS START/,
+        const transitiveInstructions = yield* fs.readFileString(
+          path.join(transitiveProject, "AGENTS.md"),
         );
+
+        assert.include(transitiveInstructions, "Bun is the package-script runner");
+        assert.notInclude(transitiveInstructions, "Vite+ is the unified toolchain");
       }),
     );
 
-    it.effect("requires installed Vite+ instructions for a declared dependency", () =>
+    it.effect("does not import installed Vite+ instructions", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
 
         yield* writeManifest(projectDir, { agentInstructionsEnabled: true });
+        yield* writeProjectPackage(projectDir, {
+          devDependencies: { "vite-plus": "0.2.6" },
+        });
+        yield* installFakeVitePlusInstructions(
+          projectDir,
+          "unmarked upstream guidance\nRun npm run everything.\n<!--VITE PLUS START-->",
+        );
+
+        const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+        const instructions = yield* fs.readFileString(path.join(projectDir, "AGENTS.md"));
+
+        assert.strictEqual(result.exitCode, 0, result.output);
+        assert.include(instructions, "Vite+ is the unified toolchain");
+        assert.notInclude(instructions, "unmarked upstream guidance");
+        assert.notInclude(instructions, "npm run everything");
+        assert.notInclude(instructions, "VITE PLUS START");
+      }),
+    );
+
+    it.effect("removes a legacy owned Vite+ section while preserving handwritten guidance", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const projectDir = yield* createProject();
+        const instructionsPath = path.join(projectDir, "AGENTS.md");
+        const lockPath = path.join(projectDir, "dev-kit.lock.json");
+        const statePath = path.join(projectDir, ".dev-kit", "state.json");
+        const handwritten = "# Project guidance\n\nKeep this.\n";
+
+        yield* fs.writeFileString(instructionsPath, handwritten);
+        yield* writeManifest(projectDir, { agentInstructionsEnabled: true });
         yield* writeProjectPackage(projectDir, { dependencies: { "vite-plus": "0.2.6" } });
+        const initial = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
+        assert.strictEqual(initial.exitCode, 0, initial.output);
+        const current = yield* fs.readFileString(instructionsPath);
+        const devEnd = current.indexOf("<!-- DEV KIT END -->") + "<!-- DEV KIT END -->".length;
+        const devSection = current.slice(0, devEnd);
+        const legacySection =
+          "<!--VITE PLUS START-->\n\n# Legacy Vite+ guidance\n\n<!--VITE PLUS END-->";
+        const legacyManagedContent = `${legacySection}\n\n${devSection.trim()}\n`;
+        const legacyDigest = yield* rawModeFileDigest(legacyManagedContent, 0o644);
+        const lock = JSON.parse(yield* fs.readFileString(lockPath)) as {
+          outputs: Array<{ resourceId: string; digest: string }>;
+        };
+        const state = JSON.parse(yield* fs.readFileString(statePath)) as {
+          outputs: Array<{ resourceId: string; digest: string }>;
+        };
+
+        for (const document of [lock, state]) {
+          const output = document.outputs.find(
+            (candidate) => candidate.resourceId === "setup:agent-instructions",
+          );
+
+          assert.isDefined(output);
+          output.digest = legacyDigest;
+        }
+        yield* fs.writeFileString(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
+        yield* fs.writeFileString(statePath, `${JSON.stringify(state, null, 2)}\n`);
+        yield* fs.writeFileString(instructionsPath, `${legacySection}\n\n${current}`);
+
+        const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+        const migrated = yield* fs.readFileString(instructionsPath);
+
+        assert.strictEqual(result.exitCode, 0, result.output);
+        assert.notInclude(migrated, "VITE PLUS START");
+        assert.notInclude(migrated, "Legacy Vite+ guidance");
+        assert.include(migrated, "Vite+ is the unified toolchain");
+        assert.isTrue(migrated.endsWith(handwritten));
+      }),
+    );
+
+    it.effect("adds managed instructions to an existing handwritten AGENTS.md", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const projectDir = yield* createProject();
+        const handwritten = "# Project guidance\n\nKeep this.\n";
+
+        yield* fs.writeFileString(path.join(projectDir, "AGENTS.md"), handwritten);
+        yield* fs.chmod(path.join(projectDir, "AGENTS.md"), 0o600);
+        yield* writeManifest(projectDir, { agentInstructionsEnabled: true });
+
+        const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
+        assert.strictEqual(result.exitCode, 0, result.output);
+        const instructions = yield* fs.readFileString(path.join(projectDir, "AGENTS.md"));
+
+        assert.isTrue(instructions.startsWith("<!-- DEV KIT START -->"));
+        assert.isTrue(instructions.endsWith(handwritten));
+        assert.include(instructions, "## Project command policy");
+        assert.strictEqual(
+          (yield* fs.stat(path.join(projectDir, "AGENTS.md"))).mode & 0o777,
+          0o600,
+        );
+      }),
+    );
+
+    it.effect("refuses ambiguous managed instruction markers", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const projectDir = yield* createProject();
+        const ambiguous = "<!-- DEV KIT START -->\ncustom\n";
+
+        yield* fs.writeFileString(path.join(projectDir, "AGENTS.md"), ambiguous);
+        yield* writeManifest(projectDir, { agentInstructionsEnabled: true });
 
         const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
 
         assert.notStrictEqual(result.exitCode, 0);
-        assert.match(
-          result.output,
-          /Vite\+ is a direct dependency.*node_modules\/vite-plus\/AGENTS\.md/,
-        );
-        assert.isFalse(yield* fs.exists(path.join(projectDir, "AGENTS.md")));
+        assert.match(result.output, /expected exactly one.*DEV KIT START.*DEV KIT END/);
+        assert.strictEqual(yield* fs.readFileString(path.join(projectDir, "AGENTS.md")), ambiguous);
         assert.isFalse(yield* fs.exists(path.join(projectDir, "dev-kit.lock.json")));
       }),
     );
 
-    it.effect("preserves an unowned AGENTS.md wrapper destination", () =>
+    it.effect("removes only managed sections when agent instructions are disabled", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
+        const handwritten = "# Project guidance\n\nKeep this.\n";
 
-        yield* fs.writeFileString(path.join(projectDir, "AGENTS.md"), "custom\n");
+        yield* fs.writeFileString(path.join(projectDir, "AGENTS.md"), handwritten);
+        yield* fs.chmod(path.join(projectDir, "AGENTS.md"), 0o600);
         yield* writeManifest(projectDir, { agentInstructionsEnabled: true });
-
-        const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
-
-        assert.notStrictEqual(result.exitCode, 0);
-        assert.match(result.output, /AGENTS\.md: destination exists but is not owned/);
         assert.strictEqual(
-          yield* fs.readFileString(path.join(projectDir, "AGENTS.md")),
-          "custom\n",
+          (yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir])).exitCode,
+          0,
+        );
+        const amended = `Important.\n\n${handwritten}`;
+
+        yield* fs.writeFileString(
+          path.join(projectDir, "AGENTS.md"),
+          (yield* fs.readFileString(path.join(projectDir, "AGENTS.md"))).replace(
+            handwritten,
+            amended,
+          ),
+        );
+        yield* writeManifest(projectDir);
+
+        const removed = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
+        assert.strictEqual(removed.exitCode, 0, removed.output);
+        assert.strictEqual(yield* fs.readFileString(path.join(projectDir, "AGENTS.md")), amended);
+        assert.strictEqual(
+          (yield* fs.stat(path.join(projectDir, "AGENTS.md"))).mode & 0o777,
+          0o600,
         );
       }),
     );
 
-    it.effect("updates and removes only an unchanged owned AGENTS.md wrapper", () =>
+    it.effect("preserves handwritten trailing whitespace after managed section cleanup", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+
+        for (const handwritten of [
+          "# Handwritten",
+          "# Handwritten\n",
+          "# Handwritten\n\n",
+          "# Handwritten\n\n\n",
+          "# Handwritten\r\n\r\n",
+        ]) {
+          const projectDir = yield* createProject();
+
+          yield* fs.writeFileString(path.join(projectDir, "AGENTS.md"), handwritten);
+          yield* writeManifest(projectDir, { agentInstructionsEnabled: true });
+          assert.strictEqual(
+            (yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir])).exitCode,
+            0,
+          );
+          if (handwritten === "# Handwritten\n\n\n") {
+            yield* writeProjectPackage(projectDir, {
+              devDependencies: { "vite-plus": "0.2.6" },
+            });
+            const updated = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
+            assert.strictEqual(updated.exitCode, 0, updated.output);
+            assert.isTrue(
+              (yield* fs.readFileString(path.join(projectDir, "AGENTS.md"))).endsWith(handwritten),
+            );
+          }
+          yield* writeManifest(projectDir);
+
+          const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
+          assert.strictEqual(result.exitCode, 0, result.output);
+          assert.strictEqual(
+            yield* fs.readFileString(path.join(projectDir, "AGENTS.md")),
+            handwritten,
+          );
+        }
+      }),
+    );
+
+    it.effect("updates and removes an unchanged managed-only AGENTS.md", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
@@ -692,14 +948,13 @@ describe("project apply", () => {
         );
 
         yield* writeProjectPackage(projectDir, { devDependencies: { "vite-plus": "0.2.6" } });
-        yield* installFakeVitePlusInstructions(
-          projectDir,
-          "<!--VITE PLUS START-->\nupdated\n<!--VITE PLUS END-->\n",
-        );
         const updated = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
 
         assert.strictEqual(updated.exitCode, 0, updated.output);
-        assert.match(yield* fs.readFileString(path.join(projectDir, "AGENTS.md")), /updated/);
+        assert.include(
+          yield* fs.readFileString(path.join(projectDir, "AGENTS.md")),
+          "Vite+ is the unified toolchain",
+        );
 
         yield* writeManifest(projectDir);
         const removed = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
@@ -709,7 +964,7 @@ describe("project apply", () => {
       }),
     );
 
-    it.effect("preserves a modified owned AGENTS.md wrapper", () =>
+    it.effect("preserves an AGENTS.md whose managed sections were removed", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
@@ -725,8 +980,7 @@ describe("project apply", () => {
 
         const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
 
-        assert.notStrictEqual(result.exitCode, 0);
-        assert.match(result.output, /AGENTS\.md: stale owned destination was modified/);
+        assert.strictEqual(result.exitCode, 0, result.output);
         assert.strictEqual(
           yield* fs.readFileString(path.join(projectDir, "AGENTS.md")),
           "customized\n",
@@ -734,7 +988,34 @@ describe("project apply", () => {
       }),
     );
 
-    it.effect("rejects Vite+ instruction drift in locked mode", () =>
+    it.effect("refuses to remove modified managed instruction sections", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const projectDir = yield* createProject();
+
+        yield* writeManifest(projectDir, { agentInstructionsEnabled: true });
+        assert.strictEqual(
+          (yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir])).exitCode,
+          0,
+        );
+        const instructionsPath = path.join(projectDir, "AGENTS.md");
+
+        yield* fs.writeFileString(
+          instructionsPath,
+          (yield* fs.readFileString(instructionsPath)).replace("# Dev Kit", "# Customized"),
+        );
+        yield* writeManifest(projectDir);
+
+        const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
+        assert.notStrictEqual(result.exitCode, 0);
+        assert.match(result.output, /managed instruction sections were modified/);
+        assert.include(yield* fs.readFileString(instructionsPath), "# Customized");
+      }),
+    );
+
+    it.effect("ignores installed Vite+ instruction drift in locked mode", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
@@ -742,12 +1023,14 @@ describe("project apply", () => {
 
         yield* writeManifest(projectDir, { agentInstructionsEnabled: true });
         yield* writeProjectPackage(projectDir, { devDependencies: { "vite-plus": "0.2.6" } });
-        yield* installFakeVitePlusInstructions(projectDir, "first\n");
+        yield* installFakeVitePlusInstructions(projectDir, "first generic instructions\n");
         assert.strictEqual(
           (yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir])).exitCode,
           0,
         );
-        yield* installFakeVitePlusInstructions(projectDir, "second\n");
+        const first = yield* fs.readFileString(path.join(projectDir, "AGENTS.md"));
+
+        yield* installFakeVitePlusInstructions(projectDir, "second contradictory instructions\n");
 
         const result = yield* runDevKit(projectDir, [
           "apply",
@@ -756,14 +1039,13 @@ describe("project apply", () => {
           projectDir,
         ]);
 
-        assert.notStrictEqual(result.exitCode, 0);
-        assert.match(result.output, /packaged skills differ from dev-kit\.lock\.json/);
-        assert.match(yield* fs.readFileString(path.join(projectDir, "AGENTS.md")), /first/);
-        assert.notMatch(yield* fs.readFileString(path.join(projectDir, "AGENTS.md")), /second/);
+        assert.strictEqual(result.exitCode, 0, result.output);
+        assert.match(result.output, /Dev kit up to date/);
+        assert.strictEqual(yield* fs.readFileString(path.join(projectDir, "AGENTS.md")), first);
       }),
     );
 
-    it.effect("does not remove an AGENTS.md wrapper while Claude still links to it", () =>
+    it.effect("does not remove a managed-only AGENTS.md while Claude still links to it", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
@@ -789,6 +1071,36 @@ describe("project apply", () => {
         assert.isTrue(yield* fs.exists(path.join(projectDir, "AGENTS.md")));
         assert.strictEqual(yield* fs.readLink(path.join(projectDir, "CLAUDE.md")), "AGENTS.md");
       }),
+    );
+
+    it.effect(
+      "removes managed sections while Claude keeps linking to handwritten instructions",
+      () =>
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.FileSystem;
+          const path = yield* Path.Path;
+          const projectDir = yield* createProject();
+
+          yield* fs.writeFileString(path.join(projectDir, "AGENTS.md"), "# Handwritten\n");
+          yield* writeManifest(projectDir, {
+            agentInstructionsEnabled: true,
+            claudeInstructionsEnabled: true,
+          });
+          assert.strictEqual(
+            (yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir])).exitCode,
+            0,
+          );
+          yield* writeManifest(projectDir, { claudeInstructionsEnabled: true });
+
+          const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
+          assert.strictEqual(result.exitCode, 0, result.output);
+          assert.strictEqual(
+            yield* fs.readFileString(path.join(projectDir, "AGENTS.md")),
+            "# Handwritten\n",
+          );
+          assert.strictEqual(yield* fs.readLink(path.join(projectDir, "CLAUDE.md")), "AGENTS.md");
+        }),
     );
 
     it.effect("manages a portable CLAUDE.md link to AGENTS.md", () =>

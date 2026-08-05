@@ -6,4 +6,6 @@ This project uses `@danieljvdm/dev-kit` to manage portable agent skills and repr
 
 For dev-kit operations, use the `dev-kit` skill and read `{{DEV_KIT_SKILL_PATH}}` before changing managed outputs.
 
+{{PROJECT_COMMAND_POLICY}}
+
 <!-- DEV KIT END -->

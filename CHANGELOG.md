@@ -1,5 +1,12 @@
 # @danieljvdm/dev-kit
 
+## 0.11.0
+
+### Minor Changes
+
+- b7ebbdd: Require Bun 1.3 or newer for the Dev Kit CLI, run its Effect program on the Bun platform, and execute TypeScript natively without `tsx`.
+- f95ccd6: Manage Dev Kit instructions within an existing `AGENTS.md`, preserving handwritten project guidance across updates and cleanup. Generate an opinionated command policy that synthesizes non-conflicting Vite+ guidance for direct Vite+ projects and runs declared scripts in non-Vite+ projects through Bun, independently of the dependency installer. Safely remove legacy owned Vite+ instruction sections instead of continuing to import the generic upstream block.
+
 ## 0.10.0
 
 ### Minor Changes

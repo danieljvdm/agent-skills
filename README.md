@@ -376,8 +376,8 @@ install, runs `dev-kit apply --locked`, and only then runs custom preparation,
 formatting, linting, tests, and typechecking. Its default typecheck command is
 `vp run typecheck`; `workflow.typecheck` replaces it. Vite+ maps install flags
 to the detected package manager. The template installs the consumer's declared
-Bun version and pins exact `setup-bun` and `setup-vp` releases; the latter's
-`v1` tag is frozen. Keep both current with Renovate or Dependabot. Existing
+Bun version, follows the maintained `setup-bun@v2` tag, and names the current
+`setup-vp` release because that action's `v1` tag is frozen. Existing
 workflows remain user-owned until their rendered content matches exactly—Dev
 Kit never merges YAML. See the primary
 [`setup-vp` versioning guidance](https://github.com/voidzero-dev/setup-vp#versioning),

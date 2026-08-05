@@ -321,14 +321,8 @@ describe("Vite+ quality setup", () => {
 
         assert.strictEqual((workflow.match(/run-install:/g) ?? []).length, 1);
         assert.strictEqual((workflow.match(/run:\s+vp install/g) ?? []).length, 0);
-        assert.include(
-          workflow,
-          "oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # setup-bun action v2.2.0",
-        );
-        assert.include(
-          workflow,
-          "voidzero-dev/setup-vp@143f5f385f39b1b753ffed1a01ad443811855c8b # v1.16.1",
-        );
+        assert.include(workflow, "oven-sh/setup-bun@v2");
+        assert.include(workflow, "voidzero-dev/setup-vp@v1.16.1");
         assert.notMatch(workflow, /^\s+version:/m);
         assert.include(workflow, 'args: ["--frozen-lockfile", "--ignore-scripts"]');
         assert.include(

@@ -239,6 +239,8 @@ const DEV_KIT_SKILL_PATH_PLACEHOLDER = "{{DEV_KIT_SKILL_PATH}}";
 const PROJECT_COMMAND_POLICY_PLACEHOLDER = "{{PROJECT_COMMAND_POLICY}}";
 const AGENT_INSTRUCTION_MARKERS = [
   { start: "<!-- DEV KIT START -->", end: "<!-- DEV KIT END -->" },
+  // Legacy Dev Kit releases copied this upstream section into AGENTS.md. Keep
+  // recognizing it so an owned section can be removed during migration.
   { start: "<!--VITE PLUS START-->", end: "<!--VITE PLUS END-->" },
 ] as const;
 
@@ -371,7 +373,11 @@ const renderVitePlusCommandPolicy = (
   return [
     "## Project command policy",
     "",
-    "Vite+ is the command authority for this repository. This policy takes precedence over generic tool guidance:",
+    "Vite+ is the unified toolchain and command authority for this repository. It wraps Vite, Rolldown, Vitest, tsdown, Oxlint, Oxfmt, and Vite Task behind the `vp` CLI; Vite+ is distinct from Vite.",
+    "",
+    "Run `vp help` for available commands and `vp <command> --help` for command-specific options. Documentation is available locally in `node_modules/vite-plus/docs` and online at https://viteplus.dev/guide/.",
+    "",
+    "Use these repository commands:",
     "",
     "- Install dependencies: `vp install`.",
     ...(hasCheck ? ["- Full validation: `vp run check`."] : []),
@@ -381,6 +387,7 @@ const renderVitePlusCommandPolicy = (
     "- Tests only: `vp test`.",
     ...(hasTypecheck ? ["- Typecheck only: `vp run typecheck`."] : []),
     "- Other repository tasks and package scripts: `vp run <task>`.",
+    "- Toolchain or runtime troubleshooting: run `vp env doctor` and include its output when asking for help.",
     "",
     "Do not use `bun run`, `npm run`, `pnpm run`, or `yarn run` in this repository. Do not invoke underlying tools such as `tsc`, `vitest`, `oxlint`, or `oxfmt` directly; use the Vite+ entry points above.",
   ].join("\n");
@@ -814,39 +821,8 @@ const renderAgentInstructions = Effect.fn("renderAgentInstructions")(function* (
     .replaceAll(DEV_KIT_SKILL_PATH_PLACEHOLDER, devKitSkillPath)
     .replaceAll(PROJECT_COMMAND_POLICY_PLACEHOLDER, commandPolicy)
     .trimEnd();
-  const sections: Array<string> = [];
 
-  if (usesVitePlus) {
-    const vitePlusTemplate = path.join(projectDir, "node_modules", "vite-plus", "AGENTS.md");
-
-    if ((yield* observePath(vitePlusTemplate)).kind !== "file") {
-      return yield* new InvalidProjectStateError({
-        message:
-          "Vite+ is a direct dependency but its agent instructions are not a regular file: node_modules/vite-plus/AGENTS.md",
-      });
-    }
-    const vitePlusInstructions = (yield* fs.readFileString(vitePlusTemplate)).trim();
-    const viteMarkers = AGENT_INSTRUCTION_MARKERS[1];
-    const viteStarts = findOccurrences(vitePlusInstructions, viteMarkers.start);
-    const viteEnds = findOccurrences(vitePlusInstructions, viteMarkers.end);
-
-    if (
-      viteStarts.length !== 1 ||
-      viteEnds.length !== 1 ||
-      viteStarts[0] === undefined ||
-      viteEnds[0] === undefined ||
-      viteStarts[0] >= viteEnds[0]
-    ) {
-      return yield* new InvalidProjectStateError({
-        message:
-          "Vite+ agent instructions must contain exactly one marker pair: <!--VITE PLUS START-->/<!--VITE PLUS END-->",
-      });
-    }
-    sections.push(vitePlusInstructions.slice(viteStarts[0], viteEnds[0] + viteMarkers.end.length));
-  }
-  sections.push(devKitInstructions);
-
-  return `${sections.join("\n\n")}\n`;
+  return `${devKitInstructions}\n`;
 });
 
 const readGeneratedFileTemplate = Effect.fn("readGeneratedFileTemplate")(function* (

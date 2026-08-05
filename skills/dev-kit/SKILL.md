@@ -98,9 +98,13 @@ paths.
 Enable `setup.agentInstructions` to manage marked sections in a project-root
 `AGENTS.md` while preserving handwritten project guidance. The Dev Kit section
 points agents back to this skill. When `vite-plus` is a declared direct
-dependency, dev-kit also manages its installed marked instruction section.
-Treat duplicate, overlapping, reversed, or unmatched managed markers as a
-conflict rather than guessing which content Dev Kit owns.
+dependency, dev-kit synthesizes repository-specific Vite+ guidance inside its
+own section instead of importing Vite+'s generic `AGENTS.md`. Preserve the
+useful unified-toolchain overview, help and documentation entry points, and
+`vp env doctor` troubleshooting without duplicating generic commands that can
+contradict the repository policy. Treat duplicate, overlapping, reversed, or
+unmatched managed markers as a conflict rather than guessing which content Dev
+Kit owns; remove a legacy owned Vite+ section during migration.
 The managed section also publishes the repository's command authority. Direct
 Vite+ projects must use `vp` built-ins and `vp run <task>`; managed quality
 projects use `vp run check` for the complete format/lint/test/typecheck suite

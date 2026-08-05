@@ -681,7 +681,7 @@ describe("project apply", () => {
       }),
     );
 
-    it.effect("includes Vite+ instructions only for a direct dependency", () =>
+    it.effect("synthesizes non-conflicting Vite+ guidance only for a direct dependency", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
@@ -692,32 +692,29 @@ describe("project apply", () => {
           devDependencies: { "vite-plus": "0.2.6" },
           scripts: { check: "project check", typecheck: "project typecheck" },
         });
-        const viteInstructions = "<!--VITE PLUS START-->\n\n# Vite+ Test\n\n<!--VITE PLUS END-->\n";
-
-        yield* installFakeVitePlusInstructions(directProject, viteInstructions);
 
         const direct = yield* runDevKit(directProject, ["apply", "--project-dir", directProject]);
 
         assert.strictEqual(direct.exitCode, 0, direct.output);
         const directInstructions = yield* fs.readFileString(path.join(directProject, "AGENTS.md"));
 
-        assert.include(directInstructions, "Vite+ is the command authority");
+        assert.include(directInstructions, "Vite+ is the unified toolchain and command authority");
+        assert.include(directInstructions, "Vite+ is distinct from Vite");
+        assert.include(directInstructions, "Run `vp help`");
+        assert.include(directInstructions, "`node_modules/vite-plus/docs`");
+        assert.include(directInstructions, "https://viteplus.dev/guide/");
         assert.include(directInstructions, "Install dependencies: `vp install`");
         assert.include(directInstructions, "Full validation: `vp run check`");
         assert.include(directInstructions, "Typecheck only: `vp run typecheck`");
         assert.include(directInstructions, "Tests only: `vp test`");
+        assert.include(directInstructions, "run `vp env doctor`");
         assert.include(directInstructions, "Do not use `bun run`, `npm run`, `pnpm run`");
-        assert.isAbove(
-          directInstructions.indexOf("## Project command policy"),
-          directInstructions.indexOf("<!--VITE PLUS END-->"),
-        );
-        assert.isTrue(directInstructions.startsWith(viteInstructions.trimEnd()));
+        assert.notInclude(directInstructions, "VITE PLUS START");
 
         const transitiveProject = yield* createProject();
 
         yield* writeManifest(transitiveProject, { agentInstructionsEnabled: true });
         yield* writeProjectPackage(transitiveProject, { dependencies: {} });
-        yield* installFakeVitePlusInstructions(transitiveProject, viteInstructions);
         const transitive = yield* runDevKit(transitiveProject, [
           "apply",
           "--project-dir",
@@ -725,106 +722,91 @@ describe("project apply", () => {
         ]);
 
         assert.strictEqual(transitive.exitCode, 0, transitive.output);
-        assert.notMatch(
-          yield* fs.readFileString(path.join(transitiveProject, "AGENTS.md")),
-          /VITE PLUS START/,
+        const transitiveInstructions = yield* fs.readFileString(
+          path.join(transitiveProject, "AGENTS.md"),
         );
+
+        assert.include(transitiveInstructions, "Bun is the package-script runner");
+        assert.notInclude(transitiveInstructions, "Vite+ is the unified toolchain");
       }),
     );
 
-    it.effect("removes only Vite+ instructions when the direct dependency is removed", () =>
+    it.effect("does not import installed Vite+ instructions", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
-        const handwritten = "# Project guidance\n";
-        const viteInstructions = "<!--VITE PLUS START-->\n\n# Vite+ Test\n\n<!--VITE PLUS END-->\n";
 
-        yield* fs.writeFileString(path.join(projectDir, "AGENTS.md"), handwritten);
         yield* writeManifest(projectDir, { agentInstructionsEnabled: true });
         yield* writeProjectPackage(projectDir, {
           devDependencies: { "vite-plus": "0.2.6" },
         });
-        yield* installFakeVitePlusInstructions(projectDir, viteInstructions);
-        assert.strictEqual(
-          (yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir])).exitCode,
-          0,
+        yield* installFakeVitePlusInstructions(
+          projectDir,
+          "unmarked upstream guidance\nRun npm run everything.\n<!--VITE PLUS START-->",
         );
-        yield* writeProjectPackage(projectDir, {});
 
         const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
         const instructions = yield* fs.readFileString(path.join(projectDir, "AGENTS.md"));
 
         assert.strictEqual(result.exitCode, 0, result.output);
-        assert.include(instructions, handwritten);
-        assert.include(instructions, "DEV KIT START");
+        assert.include(instructions, "Vite+ is the unified toolchain");
+        assert.notInclude(instructions, "unmarked upstream guidance");
+        assert.notInclude(instructions, "npm run everything");
         assert.notInclude(instructions, "VITE PLUS START");
       }),
     );
 
-    it.effect("requires installed Vite+ instructions for a declared dependency", () =>
+    it.effect("removes a legacy owned Vite+ section while preserving handwritten guidance", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* createProject();
+        const instructionsPath = path.join(projectDir, "AGENTS.md");
+        const lockPath = path.join(projectDir, "dev-kit.lock.json");
+        const statePath = path.join(projectDir, ".dev-kit", "state.json");
+        const handwritten = "# Project guidance\n\nKeep this.\n";
 
+        yield* fs.writeFileString(instructionsPath, handwritten);
         yield* writeManifest(projectDir, { agentInstructionsEnabled: true });
         yield* writeProjectPackage(projectDir, { dependencies: { "vite-plus": "0.2.6" } });
+        const initial = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
+        assert.strictEqual(initial.exitCode, 0, initial.output);
+        const current = yield* fs.readFileString(instructionsPath);
+        const devEnd = current.indexOf("<!-- DEV KIT END -->") + "<!-- DEV KIT END -->".length;
+        const devSection = current.slice(0, devEnd);
+        const legacySection =
+          "<!--VITE PLUS START-->\n\n# Legacy Vite+ guidance\n\n<!--VITE PLUS END-->";
+        const legacyManagedContent = `${legacySection}\n\n${devSection.trim()}\n`;
+        const legacyDigest = yield* rawModeFileDigest(legacyManagedContent, 0o644);
+        const lock = JSON.parse(yield* fs.readFileString(lockPath)) as {
+          outputs: Array<{ resourceId: string; digest: string }>;
+        };
+        const state = JSON.parse(yield* fs.readFileString(statePath)) as {
+          outputs: Array<{ resourceId: string; digest: string }>;
+        };
+
+        for (const document of [lock, state]) {
+          const output = document.outputs.find(
+            (candidate) => candidate.resourceId === "setup:agent-instructions",
+          );
+
+          assert.isDefined(output);
+          output.digest = legacyDigest;
+        }
+        yield* fs.writeFileString(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
+        yield* fs.writeFileString(statePath, `${JSON.stringify(state, null, 2)}\n`);
+        yield* fs.writeFileString(instructionsPath, `${legacySection}\n\n${current}`);
 
         const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
-
-        assert.notStrictEqual(result.exitCode, 0);
-        assert.match(
-          result.output,
-          /Vite\+ is a direct dependency.*node_modules\/vite-plus\/AGENTS\.md/,
-        );
-        assert.isFalse(yield* fs.exists(path.join(projectDir, "AGENTS.md")));
-        assert.isFalse(yield* fs.exists(path.join(projectDir, "dev-kit.lock.json")));
-      }),
-    );
-
-    it.effect("requires installed Vite+ instructions to have one managed marker pair", () =>
-      Effect.gen(function* () {
-        const fs = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
-        const projectDir = yield* createProject();
-
-        yield* writeManifest(projectDir, { agentInstructionsEnabled: true });
-        yield* writeProjectPackage(projectDir, { dependencies: { "vite-plus": "0.2.6" } });
-        yield* installFakeVitePlusInstructions(projectDir, "# Unmarked instructions\n");
-
-        const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
-
-        assert.notStrictEqual(result.exitCode, 0);
-        assert.match(
-          result.output,
-          /Vite\+ agent instructions must contain exactly one marker pair/,
-        );
-        assert.isFalse(yield* fs.exists(path.join(projectDir, "AGENTS.md")));
-        assert.isFalse(yield* fs.exists(path.join(projectDir, "dev-kit.lock.json")));
-      }),
-    );
-
-    it.effect("imports only the marked section from Vite+ instructions", () =>
-      Effect.gen(function* () {
-        const fs = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
-        const projectDir = yield* createProject();
-
-        yield* writeManifest(projectDir, { agentInstructionsEnabled: true });
-        yield* writeProjectPackage(projectDir, { dependencies: { "vite-plus": "0.2.6" } });
-        yield* installFakeVitePlusInstructions(
-          projectDir,
-          "package preamble\n<!--VITE PLUS START-->\n# Vite+\n<!--VITE PLUS END-->\npackage postamble\n",
-        );
-
-        const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
-        const instructions = yield* fs.readFileString(path.join(projectDir, "AGENTS.md"));
+        const migrated = yield* fs.readFileString(instructionsPath);
 
         assert.strictEqual(result.exitCode, 0, result.output);
-        assert.include(instructions, "# Vite+");
-        assert.notInclude(instructions, "package preamble");
-        assert.notInclude(instructions, "package postamble");
+        assert.notInclude(migrated, "VITE PLUS START");
+        assert.notInclude(migrated, "Legacy Vite+ guidance");
+        assert.include(migrated, "Vite+ is the unified toolchain");
+        assert.isTrue(migrated.endsWith(handwritten));
       }),
     );
 
@@ -933,10 +915,6 @@ describe("project apply", () => {
             yield* writeProjectPackage(projectDir, {
               devDependencies: { "vite-plus": "0.2.6" },
             });
-            yield* installFakeVitePlusInstructions(
-              projectDir,
-              "<!--VITE PLUS START-->\n# Vite+\n<!--VITE PLUS END-->\n",
-            );
             const updated = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
 
             assert.strictEqual(updated.exitCode, 0, updated.output);
@@ -970,14 +948,13 @@ describe("project apply", () => {
         );
 
         yield* writeProjectPackage(projectDir, { devDependencies: { "vite-plus": "0.2.6" } });
-        yield* installFakeVitePlusInstructions(
-          projectDir,
-          "<!--VITE PLUS START-->\nupdated\n<!--VITE PLUS END-->\n",
-        );
         const updated = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
 
         assert.strictEqual(updated.exitCode, 0, updated.output);
-        assert.match(yield* fs.readFileString(path.join(projectDir, "AGENTS.md")), /updated/);
+        assert.include(
+          yield* fs.readFileString(path.join(projectDir, "AGENTS.md")),
+          "Vite+ is the unified toolchain",
+        );
 
         yield* writeManifest(projectDir);
         const removed = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
@@ -1038,7 +1015,7 @@ describe("project apply", () => {
       }),
     );
 
-    it.effect("rejects Vite+ instruction drift in locked mode", () =>
+    it.effect("ignores installed Vite+ instruction drift in locked mode", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
@@ -1046,18 +1023,14 @@ describe("project apply", () => {
 
         yield* writeManifest(projectDir, { agentInstructionsEnabled: true });
         yield* writeProjectPackage(projectDir, { devDependencies: { "vite-plus": "0.2.6" } });
-        yield* installFakeVitePlusInstructions(
-          projectDir,
-          "<!--VITE PLUS START-->\nfirst\n<!--VITE PLUS END-->\n",
-        );
+        yield* installFakeVitePlusInstructions(projectDir, "first generic instructions\n");
         assert.strictEqual(
           (yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir])).exitCode,
           0,
         );
-        yield* installFakeVitePlusInstructions(
-          projectDir,
-          "<!--VITE PLUS START-->\nsecond\n<!--VITE PLUS END-->\n",
-        );
+        const first = yield* fs.readFileString(path.join(projectDir, "AGENTS.md"));
+
+        yield* installFakeVitePlusInstructions(projectDir, "second contradictory instructions\n");
 
         const result = yield* runDevKit(projectDir, [
           "apply",
@@ -1066,10 +1039,9 @@ describe("project apply", () => {
           projectDir,
         ]);
 
-        assert.notStrictEqual(result.exitCode, 0);
-        assert.match(result.output, /packaged skills differ from dev-kit\.lock\.json/);
-        assert.match(yield* fs.readFileString(path.join(projectDir, "AGENTS.md")), /first/);
-        assert.notMatch(yield* fs.readFileString(path.join(projectDir, "AGENTS.md")), /second/);
+        assert.strictEqual(result.exitCode, 0, result.output);
+        assert.match(result.output, /Dev kit up to date/);
+        assert.strictEqual(yield* fs.readFileString(path.join(projectDir, "AGENTS.md")), first);
       }),
     );
 

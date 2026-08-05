@@ -232,10 +232,13 @@ bridge in the manifest:
 `setup.agentInstructions` manages marked sections in the project-root
 `AGENTS.md`, preserving handwritten project guidance around them. The Dev Kit
 section contains a short description and a pointer to the installed `dev-kit`
-skill. When the root `package.json` declares `vite-plus` directly, Dev Kit also
-manages the marked section from Vite+'s installed
-`node_modules/vite-plus/AGENTS.md`; transitive installations do not opt a
-project in. Ambiguous or malformed managed markers fail closed.
+skill. When the root `package.json` declares `vite-plus` directly, Dev Kit
+renders its own repository-specific Vite+ guidance, including the unified
+toolchain overview, help and documentation entry points, and `vp env doctor`
+troubleshooting. It does not import Vite+'s generic `AGENTS.md`, which can
+conflict with the repository's exact commands; transitive installations do not
+opt a project in. Previously managed Vite+ sections are removed during a safe
+owned update. Ambiguous or malformed managed markers fail closed.
 
 The Dev Kit section also renders an opinionated project command policy. A
 direct Vite+ dependency makes `vp` the only supported front door: built-in

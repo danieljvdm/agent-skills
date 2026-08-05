@@ -1,5 +1,11 @@
 # @danieljvdm/dev-kit
 
+## 0.10.0
+
+### Minor Changes
+
+- b445126: Approve Expo's official framework and EAS skills from `expo/skills` in the external skill catalog.
+
 ## 0.9.0
 
 ### Minor Changes

@@ -32,7 +32,8 @@ export type VitePlusQualitySelection = {
 };
 
 const SINGLE_PROJECT_TYPECHECK_TASK = '      typecheck: "tsc --noEmit",';
-const LOCKED_DEV_KIT_COMMAND = "vp exec dev-kit apply --locked";
+const LOCKED_DEV_KIT_COMMAND =
+  "bun ./node_modules/@danieljvdm/dev-kit/bin/dev-kit.mjs apply --locked";
 const BEFORE_CHECKS_MARKER =
   "      # Dev Kit inserts configured quality.workflow.beforeChecks steps here.\n\n";
 const DEFAULT_WORKFLOW_TYPECHECK = `      - name: Type check with Effect TypeScript-Go

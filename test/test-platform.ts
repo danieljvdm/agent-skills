@@ -56,12 +56,6 @@ export const runDevKit = Effect.fn("runTestDevKit")(function* (
 ) {
   const path = yield* Path.Path;
   const root = yield* repositoryRoot();
-  const tsx = yield* path.fromFileUrl(new URL(import.meta.resolve("tsx")));
 
-  return yield* runCommand(
-    cwd,
-    "node",
-    ["--import", tsx, path.join(root, "src", "bin", "dev-kit.ts"), ...args],
-    env,
-  );
+  return yield* runCommand(cwd, "bun", [path.join(root, "src", "bin", "dev-kit.ts"), ...args], env);
 });

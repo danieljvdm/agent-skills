@@ -662,7 +662,7 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
       devKitCommand:
         projectDir === packageRoot
           ? "./bin/dev-kit.mjs apply --locked"
-          : "vp exec dev-kit apply --locked",
+          : "bun ./node_modules/@danieljvdm/dev-kit/bin/dev-kit.mjs apply --locked",
       workflow: setup.vitePlus.quality.workflow,
     });
 

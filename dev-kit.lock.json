@@ -23,7 +23,7 @@
       "sourcePath": "templates/vite-plus/github-actions-check.yml",
       "mode": "copy",
       "kind": "file",
-      "digest": "sha256:1e0b46b9eeb11f71956de5a65c7c1e4a39d0e805b43bb3005006485ef959c99f"
+      "digest": "sha256:575e21bb080641ebca0e18e997ce97f645b1d9e95c213c85407b02b225110f16"
     },
     {
       "resourceId": "setup:agent-instructions",

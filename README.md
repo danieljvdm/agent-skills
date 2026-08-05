@@ -20,6 +20,9 @@ Install the published Dev Kit package:
 bun add -d @danieljvdm/dev-kit
 ```
 
+Dev Kit requires Bun 1.3 or newer. Its published executable runs TypeScript
+natively with Bun and rejects direct Node.js execution.
+
 Initialize the project, browse available built-in, approved Git, and installed
 package skills, then add the ones you want:
 
@@ -94,12 +97,14 @@ before running locked mode:
 
 ```bash
 bun install --ignore-scripts
-bun x dev-kit apply --locked
+bun ./node_modules/@danieljvdm/dev-kit/bin/dev-kit.mjs apply --locked
 ```
 
 Or allow the normal postinstall and fail CI when it leaves tracked changes.
 Do not run an unlocked apply before a locked verification because that would
 regenerate the drift being checked.
+The package-qualified path cannot be shadowed by a consumer script named
+`dev-kit`.
 
 This repository dogfoods the same flow with its committed `dev-kit.jsonc` and
 `dev-kit.lock.json`. From this source checkout, invoke the local CLI with:
@@ -351,10 +356,11 @@ scripts, or TypeScript topology. It performs one frozen, script-suppressed
 install, runs `dev-kit apply --locked`, and only then runs custom preparation,
 formatting, linting, tests, and typechecking. Its default typecheck command is
 `vp run typecheck`; `workflow.typecheck` replaces it. Vite+ maps install flags
-to the detected package manager. The template pins an exact `setup-vp` release
-commit because its `v1` tag is frozen; keep it current with Renovate or
-Dependabot. Existing workflows remain user-owned until their rendered content
-matches exactly—Dev Kit never merges YAML. See the primary
+to the detected package manager. The template installs the consumer's declared
+Bun version and pins exact `setup-bun` and `setup-vp` releases; the latter's
+`v1` tag is frozen. Keep both current with Renovate or Dependabot. Existing
+workflows remain user-owned until their rendered content matches exactly—Dev
+Kit never merges YAML. See the primary
 [`setup-vp` versioning guidance](https://github.com/voidzero-dev/setup-vp#versioning),
 [Vite+ install guide](https://viteplus.dev/guide/install), and
 [Vite Task run guide](https://viteplus.dev/guide/run) when maintaining the

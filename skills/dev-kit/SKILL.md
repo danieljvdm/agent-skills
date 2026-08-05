@@ -129,9 +129,11 @@ builds custom. Workflow-only consumers may configure `workflow.beforeChecks`
 and `workflow.typecheck`; treat these commands as trusted manifest input.
 
 The workflow must use one frozen, script-suppressed install, then locked Dev Kit
-convergence before preparation or checks. Keep `setup-vp` pinned to a reviewed
-release commit—the `v1` tag is frozen—and let Vite+ resolve the consumer's
-compatible locked version.
+convergence before preparation or checks. Set up Bun from the consumer's
+`packageManager` or `engines.bun` declaration before Vite+ setup. Keep both
+`setup-bun` and `setup-vp` pinned to reviewed release commits—the `setup-vp`
+`v1` tag is frozen—and let Vite+ resolve the consumer's compatible locked
+version.
 
 ## Ownership and conflicts
 
@@ -157,6 +159,10 @@ Run `dev-kit gitignore` to add `.repos/` and `.dev-kit/` additively. Preview wit
 `dev-kit gitignore --dry-run`. Treat `.repos/<source-id>` as the reserved source
 checkout root.
 
+Require Bun 1.3 or newer wherever Dev Kit runs. The published `dev-kit`
+executable uses Bun directly and rejects Node execution; keep Bun available to
+package lifecycle scripts and locked CI verification.
+
 For one lifecycle entry point, configure:
 
 ```jsonc
@@ -171,7 +177,10 @@ This intentionally refreshes the committed lock and owned outputs when the
 package manager installs a new Dev Kit or selected package-skill version.
 Review and commit those changes with the dependency update. Keep
 `dev-kit apply --locked` as a verification command, not the normal local
-lifecycle; in CI, run it only before any unlocked apply.
+lifecycle; in CI, run it only before any unlocked apply. Invoke locked consumer
+verification as
+`bun ./node_modules/@danieljvdm/dev-kit/bin/dev-kit.mjs apply --locked` so a
+package script named `dev-kit` cannot shadow the executable.
 
 ## Effect source checkout
 

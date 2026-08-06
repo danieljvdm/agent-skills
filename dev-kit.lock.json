@@ -1,7 +1,7 @@
 {
   "version": 1,
   "toolVersion": "0.11.3",
-  "manifestDigest": "sha256:f94cc6ae63b73e12fffa7d38176d47c4d84cdbabf9f01e3ad867804cd9be88ab",
+  "manifestDigest": "sha256:3eececd65b6e33e758015a556f78bfa3b5fc8ca3951527217803e7426e8684d8",
   "setup": {
     "effectSource": {
       "packageName": "effect",
@@ -40,14 +40,6 @@
       "mode": "symlink",
       "kind": "symlink",
       "digest": "sha256:07728883f9dfed017a4810db4ea26e3248d1e603ce8b085ec87953359caae216"
-    },
-    {
-      "resourceId": "setup:vite-plus-config",
-      "path": "vite.config.ts",
-      "sourcePath": "templates/vite-plus/vite.config.ts",
-      "mode": "copy",
-      "kind": "file",
-      "digest": "sha256:ca1ca16d473c83899c2dc07081b380d576ccae35f3d5e35efd5ac4b8c0fe5189"
     }
   ]
 }

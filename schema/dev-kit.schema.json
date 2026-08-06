@@ -161,29 +161,12 @@
       }
     },
     "vitePlusQualitySetup": {
-      "description": "Opt into independently managed Vite+ quality resources for supported Effect TypeScript-Go repositories.",
+      "description": "Manage the Vite+ quality workflow while the repository owns and extends vite.config.ts.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "config": {
-          "$ref": "#/$defs/vitePlusQualityConfigSetup"
-        },
         "workflow": {
           "$ref": "#/$defs/vitePlusQualityWorkflowSetup"
-        }
-      }
-    },
-    "vitePlusQualityConfigSetup": {
-      "description": "Manage the canonical root Vite config without requiring Dev Kit to own CI.",
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "default": false
-        },
-        "typecheck": {
-          "$ref": "#/$defs/vitePlusQualityTypecheckSetup"
         }
       }
     },
@@ -232,34 +215,6 @@
             "type": "string",
             "minLength": 1
           }
-        }
-      }
-    },
-    "vitePlusQualityTypecheckSetup": {
-      "description": "Select the managed typecheck topology. Single-project is the default; workspace mode runs explicitly scoped package scripts through Vite Task.",
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "strategy": {
-          "enum": ["single-project", "workspace"],
-          "default": "single-project"
-        },
-        "concurrency": {
-          "description": "Maximum concurrent workspace typecheck tasks.",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 32,
-          "default": 4
-        },
-        "packages": {
-          "description": "Project-relative workspace package directories whose typecheck scripts should run.",
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          },
-          "uniqueItems": true,
-          "default": []
         }
       }
     },

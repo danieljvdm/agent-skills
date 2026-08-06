@@ -4,7 +4,12 @@
  * This file is intentionally plain JavaScript because Node does not strip
  * TypeScript from packages in node_modules when Vite+ loads vite.config.ts.
  */
+import { devKitToolIgnorePatterns } from "./tool-ignore-patterns.js";
+
+export { devKitToolIgnorePatterns } from "./tool-ignore-patterns.js";
+
 export const recommendedOxlintConfig = {
+  ignorePatterns: [...devKitToolIgnorePatterns],
   options: {
     typeAware: true,
   },

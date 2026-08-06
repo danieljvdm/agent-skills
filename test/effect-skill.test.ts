@@ -229,7 +229,6 @@ describe("shipped skills", () => {
         assert.isTrue(selfManifest.setup.effectSource.enabled);
         assert.isTrue(selfManifest.setup.effectTsgo.enabled);
         assert.isTrue(selfManifest.setup.vitePlus.hooks.enabled);
-        assert.isTrue(selfManifest.setup.vitePlus.quality.config.enabled);
         assert.isTrue(selfManifest.setup.vitePlus.quality.workflow.enabled);
         assert.isUndefined(packageJson.scripts.check);
         assert.isUndefined(packageJson.scripts.typecheck);
@@ -240,7 +239,6 @@ describe("shipped skills", () => {
             "setup:vite-plus-github-actions",
             "setup:agent-instructions",
             "setup:claude-instructions",
-            "setup:vite-plus-config",
           ],
         );
         assert.strictEqual(selfLock.setup.effectSource.tag, "effect@4.0.0-beta.102");

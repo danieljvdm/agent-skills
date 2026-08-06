@@ -51,11 +51,8 @@ import {
   type VitePlusHooksPlan,
 } from "./vite-plus-hooks.ts";
 import {
-  renderVitePlusConfigTemplate,
   renderVitePlusWorkflowTemplate,
   validateVitePlusQualitySupport,
-  VITE_PLUS_CONFIG_PATH,
-  VITE_PLUS_CONFIG_TEMPLATE,
   VITE_PLUS_GITHUB_ACTIONS_PATH,
   VITE_PLUS_GITHUB_ACTIONS_TEMPLATE,
 } from "./vite-plus-quality.ts";
@@ -819,7 +816,7 @@ const renderAgentInstructions = Effect.fn("renderAgentInstructions")(function* (
   packageRoot: string,
   projectDir: string,
   sourceBySkill: ReadonlyMap<string, ResolvedSkillSource>,
-  managesVitePlusQuality: boolean,
+  usesRecommendedVitePlusTasks: boolean,
   targets: ReturnType<typeof normalizeManifest>["targets"],
 ) {
   const fs = yield* FileSystem.FileSystem;
@@ -868,7 +865,7 @@ const renderAgentInstructions = Effect.fn("renderAgentInstructions")(function* (
   );
   const manager = yield* detectPackageManager(projectDir, projectPackage?.packageManager);
   const commandPolicy = usesVitePlus
-    ? renderVitePlusCommandPolicy(projectPackage?.scripts ?? {}, managesVitePlusQuality)
+    ? renderVitePlusCommandPolicy(projectPackage?.scripts ?? {}, usesRecommendedVitePlusTasks)
     : renderPackageScriptCommandPolicy(manager, projectPackage?.scripts ?? {});
   const devKitInstructions = template
     .replaceAll(DEV_KIT_SKILL_PATH_PLACEHOLDER, devKitSkillPath)
@@ -912,7 +909,9 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
       packageRoot,
       projectDir,
       sourceBySkill,
-      setup.vitePlus.quality.config.enabled,
+      setup.vitePlus.quality.workflow.enabled &&
+        setup.vitePlus.quality.workflow.typecheck.length === 1 &&
+        setup.vitePlus.quality.workflow.typecheck[0] === "vp run typecheck",
       targets,
     );
 
@@ -950,23 +949,6 @@ const buildDesiredOutputs = Effect.fn("buildDesiredSkillOutputs")(function* (
       digest: yield* digestSymlinkTarget(linkTarget),
       destination: managed.absolute,
       linkTarget,
-    });
-  }
-  if (setup.vitePlus.quality.config.enabled) {
-    const managed = yield* resolveManagedPath(projectDir, VITE_PLUS_CONFIG_PATH);
-    const template = yield* readGeneratedFileTemplate(packageRoot, VITE_PLUS_CONFIG_TEMPLATE);
-    const content = renderVitePlusConfigTemplate(template, setup.vitePlus.quality.config.typecheck);
-
-    outputs.push({
-      resourceId: "setup:vite-plus-config",
-      path: managed.relative,
-      sourcePath: VITE_PLUS_CONFIG_TEMPLATE,
-      mode: "copy",
-      kind: "file",
-      digest: yield* digestFileContent(content),
-      destination: managed.absolute,
-      content,
-      adoptIfExact: true,
     });
   }
   if (setup.vitePlus.quality.workflow.enabled) {
@@ -1365,7 +1347,7 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
   const manifest = normalizeManifest(yield* readManifest(manifestManaged.absolute));
 
   const vitePlusQuality = manifest.setup.vitePlus.quality;
-  const vitePlusQualityEnabled = vitePlusQuality.config.enabled || vitePlusQuality.workflow.enabled;
+  const vitePlusQualityEnabled = vitePlusQuality.workflow.enabled;
 
   if (vitePlusQualityEnabled) {
     if (!manifest.setup.effectTsgo.enabled) {
@@ -1379,15 +1361,10 @@ export const planProjectSkills = Effect.fn("planProjectSkills")(function* (optio
       packageRoot,
       manifest.setup.effectTsgo.typescriptPackage,
       {
-        ...(vitePlusQuality.config.enabled ? { config: vitePlusQuality.config.typecheck } : {}),
-        ...(vitePlusQuality.workflow.enabled
-          ? {
-              workflow: {
-                beforeChecks: vitePlusQuality.workflow.beforeChecks,
-                typecheck: vitePlusQuality.workflow.typecheck,
-              },
-            }
-          : {}),
+        workflow: {
+          beforeChecks: vitePlusQuality.workflow.beforeChecks,
+          typecheck: vitePlusQuality.workflow.typecheck,
+        },
       },
     );
   }
@@ -1726,7 +1703,9 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const mutating = plan.actions.filter(
-    (action): action is Exclude<SkillPlanAction, { readonly action: "unchanged" | "conflict" }> =>
+    (
+      action,
+    ): action is Extract<SkillPlanAction, { readonly action: "create" | "update" | "remove" }> =>
       action.action === "create" || action.action === "update" || action.action === "remove",
   );
 

@@ -66,6 +66,18 @@ external source ID is also a family, but expands to every approved skill from
 that source, so prefer individually relevant external skills. Include this
 skill as `dev-kit` when project agents should carry the toolkit procedure.
 
+Select skills bundled inside installed packages with the exact
+`<package>#<skill>` selector. The selector stays package-qualified in the
+manifest, lock, and CLI listings, and the installed output keeps that identity:
+the copied directory is named by flattening the package name (drop `@`, turn
+every other non-alphanumeric run into one dash) and appending the skill name,
+so `@tanstack/table-core#core` installs as `tanstack-table-core-core`. The
+copied `SKILL.md` frontmatter `name:` is rewritten to the same install name;
+everything else is verbatim. Symlink-mode targets still point at
+`node_modules`, so their frontmatter keeps the upstream bare name. Two selected
+skills that flatten to the same install name are rejected before any output
+changes.
+
 ```jsonc
 {
   "$schema": "./node_modules/@danieljvdm/dev-kit/schema/dev-kit.schema.json",

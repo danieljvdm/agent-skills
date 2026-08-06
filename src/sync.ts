@@ -1652,12 +1652,11 @@ const verifyPackageSkillSources = Effect.fn("verifyPackageSkillSources")(functio
     const observation = yield* observePath(resolved.path);
 
     if (
-      resolved.path !== action.desired.source ||
       resolved.version !== catalog.version ||
       observation.kind !== "directory" ||
       observation.digest !== catalog.digest
     ) {
-      return yield* new ApplyRaceError({ path: action.desired.source });
+      return yield* new ApplyRaceError({ path: resolved.path });
     }
     verified.add(key);
   }

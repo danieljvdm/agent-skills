@@ -141,6 +141,10 @@ describe("remote catalog resolution", () => {
           catalog.skills.map((skill) => skill.selector),
           ["@scope/tools#package-skill"],
         );
+        assert.deepEqual(
+          catalog.skills.map((skill) => skill.name),
+          ["scope-tools-package-skill"],
+        );
         const resolved = yield* resolveSkillSources(packageRoot, projectDir, catalog, [
           "@scope/tools#package-skill",
         ]);
@@ -149,7 +153,18 @@ describe("remote catalog resolution", () => {
         if (skill === undefined) assert.fail("package skill was not resolved");
         assert.strictEqual(
           skill.path,
-          path.join(yield* fs.realPath(installed), "skills", "package-skill"),
+          path.join(
+            projectDir,
+            ".dev-kit",
+            "cache",
+            "package-skills",
+            "scope-tools-package-skill",
+            "skill",
+          ),
+        );
+        assert.strictEqual(
+          yield* fs.readFileString(path.join(skill.path, "SKILL.md")),
+          "---\nname: scope-tools-package-skill\ndescription: Installed package skill.\n---\n\nHello.\n",
         );
         assert.strictEqual(skill.linkPath, path.join(installed, "skills", "package-skill"));
         if (skill.catalog === undefined || !("package" in skill.catalog)) {
@@ -159,7 +174,23 @@ describe("remote catalog resolution", () => {
         assert.strictEqual(skill.catalog.version, "2.3.4");
         assert.strictEqual(skill.catalog.skill, "package-skill");
         assert.match(skill.catalog.digest, /^sha256:/);
-        assert.isFalse(yield* fs.exists(path.join(projectDir, ".dev-kit", "cache")));
+
+        yield* fs.writeFileString(
+          path.join(installed, "skills", "package-skill", "SKILL.md"),
+          "---\nname: package-skill\ndescription: Installed package skill.\n---\n\nChanged.\n",
+        );
+        const restaged = (yield* resolveSkillSources(packageRoot, projectDir, catalog, [
+          "@scope/tools#package-skill",
+        ])).get("@scope/tools#package-skill");
+
+        if (restaged?.catalog === undefined || !("package" in restaged.catalog)) {
+          assert.fail("package catalog provenance was not recorded");
+        }
+        assert.notStrictEqual(restaged.catalog.digest, skill.catalog.digest);
+        assert.strictEqual(
+          yield* fs.readFileString(path.join(restaged.path, "SKILL.md")),
+          "---\nname: scope-tools-package-skill\ndescription: Installed package skill.\n---\n\nChanged.\n",
+        );
       }),
     );
   });

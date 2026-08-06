@@ -111,13 +111,24 @@ const inspectVitePlusHooks = Effect.fn("inspectVitePlusHooks")(function* (projec
     return yield* VitePlusHooksConflictError.make({ hooksPath });
   }
   const internalDir = path.join(projectDir, VITE_PLUS_HOOKS_DIR, "_");
-  const [hasLauncher, hasDispatcher, hasPreCommit] = yield* Effect.all([
+  const [hasLauncher, hasDispatcher, hasPreCommit, hasInternalIgnore] = yield* Effect.all([
     hasExecutableFile(path.join(internalDir, "h")),
     hasExecutableFile(path.join(internalDir, "pre-commit")),
     hasVitePlusPreCommitHook(path.join(projectDir, VITE_PLUS_HOOKS_DIR, "pre-commit")),
+    FileSystem.FileSystem.pipe(
+      Effect.flatMap((fs) => fs.readFileString(path.join(internalDir, ".gitignore"))),
+      Effect.map((contents) => contents.split(/\r?\n/).includes("*")),
+      Effect.orElseSucceed(() => false),
+    ),
   ]);
 
-  return hooksPath === VITE_PLUS_HOOKS_PATH && hasLauncher && hasDispatcher && hasPreCommit;
+  return (
+    hooksPath === VITE_PLUS_HOOKS_PATH &&
+    hasLauncher &&
+    hasDispatcher &&
+    hasPreCommit &&
+    hasInternalIgnore
+  );
 });
 
 export const planVitePlusHooks = Effect.fn("planVitePlusHooks")(function* (projectDir: string) {

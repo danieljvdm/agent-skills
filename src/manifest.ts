@@ -53,22 +53,6 @@ export const VitePlusHooksSetupSchema = Schema.Struct({
   enabled: Schema.optional(Schema.Boolean),
 });
 
-export const VitePlusTypecheckStrategySchema = Schema.Literals(["single-project", "workspace"]);
-export type VitePlusTypecheckStrategy = typeof VitePlusTypecheckStrategySchema.Type;
-
-export const VitePlusQualityTypecheckSetupSchema = Schema.Struct({
-  strategy: Schema.optional(VitePlusTypecheckStrategySchema),
-  concurrency: Schema.optional(Schema.Int),
-  packages: Schema.optional(Schema.Array(Schema.String)),
-});
-export type VitePlusQualityTypecheckSetup = typeof VitePlusQualityTypecheckSetupSchema.Type;
-
-export const VitePlusQualityConfigSetupSchema = Schema.Struct({
-  enabled: Schema.optional(Schema.Boolean),
-  typecheck: Schema.optional(VitePlusQualityTypecheckSetupSchema),
-});
-export type VitePlusQualityConfigSetup = typeof VitePlusQualityConfigSetupSchema.Type;
-
 export const VitePlusQualityWorkflowStepSchema = Schema.Struct({
   name: Schema.String,
   run: Schema.Array(Schema.String),
@@ -83,7 +67,6 @@ export const VitePlusQualityWorkflowSetupSchema = Schema.Struct({
 export type VitePlusQualityWorkflowSetup = typeof VitePlusQualityWorkflowSetupSchema.Type;
 
 export const VitePlusQualitySetupSchema = Schema.Struct({
-  config: Schema.optional(VitePlusQualityConfigSetupSchema),
   workflow: Schema.optional(VitePlusQualityWorkflowSetupSchema),
 });
 export type VitePlusQualitySetup = typeof VitePlusQualitySetupSchema.Type;
@@ -153,14 +136,6 @@ export type NormalizedManifest = {
         readonly enabled: boolean;
       };
       readonly quality: {
-        readonly config: {
-          readonly enabled: boolean;
-          readonly typecheck: {
-            readonly strategy: VitePlusTypecheckStrategy;
-            readonly concurrency: number;
-            readonly packages: ReadonlyArray<string>;
-          };
-        };
         readonly workflow: {
           readonly enabled: boolean;
           readonly beforeChecks: ReadonlyArray<VitePlusQualityWorkflowStep>;
@@ -201,7 +176,6 @@ export const normalizeManifest = (manifest: DevKitManifest): NormalizedManifest 
     }
   }
   const quality = manifest.setup?.vitePlus?.quality;
-  const typecheck = quality?.config?.typecheck;
 
   return {
     exclude: manifest.exclude ?? [],
@@ -230,14 +204,6 @@ export const normalizeManifest = (manifest: DevKitManifest): NormalizedManifest 
           enabled: manifest.setup?.vitePlus?.hooks?.enabled ?? false,
         },
         quality: {
-          config: {
-            enabled: quality?.config?.enabled ?? false,
-            typecheck: {
-              strategy: typecheck?.strategy ?? "single-project",
-              concurrency: typecheck?.concurrency ?? 4,
-              packages: typecheck?.packages ?? [],
-            },
-          },
           workflow: {
             enabled: quality?.workflow?.enabled ?? false,
             beforeChecks: quality?.workflow?.beforeChecks ?? [],

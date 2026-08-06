@@ -1,5 +1,9 @@
 import type { OxlintConfig } from "oxlint";
 
+import { devKitToolIgnorePatterns } from "./tool-ignore-patterns.ts";
+
+export { devKitToolIgnorePatterns } from "./tool-ignore-patterns.ts";
+
 /**
  * High-signal Oxlint defaults for TypeScript projects.
  *
@@ -8,6 +12,7 @@ import type { OxlintConfig } from "oxlint";
  * without losing nested configuration.
  */
 export const recommendedOxlintConfig = {
+  ignorePatterns: [...devKitToolIgnorePatterns],
   options: {
     typeAware: true,
   },

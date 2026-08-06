@@ -38,6 +38,10 @@
       "types": "./src/oxfmt.ts",
       "default": "./src/oxfmt.js"
     },
+    "./vite-plus": {
+      "types": "./src/vite-plus.ts",
+      "default": "./src/vite-plus.js"
+    },
     "./oxlint-plugin-effect": {
       "types": "./src/oxlint-plugin-effect.d.ts",
       "default": "./src/oxlint-plugin-effect.js"

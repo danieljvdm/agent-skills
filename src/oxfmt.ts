@@ -1,5 +1,9 @@
 import type { OxfmtConfig } from "oxfmt";
 
+import { devKitToolIgnorePatterns } from "./tool-ignore-patterns.ts";
+
+export { devKitToolIgnorePatterns } from "./tool-ignore-patterns.ts";
+
 /**
  * Canonical formatting defaults for standalone Oxfmt and Vite+ projects.
  *
@@ -9,6 +13,7 @@ import type { OxfmtConfig } from "oxfmt";
 export const recommendedOxfmtConfig = {
   arrowParens: "always",
   endOfLine: "lf",
+  ignorePatterns: [...devKitToolIgnorePatterns],
   printWidth: 100,
   semi: true,
   singleQuote: false,

@@ -50,7 +50,7 @@ export const ManagedClaudeInstructionsOutputSchema = Schema.Struct({
 export type ManagedClaudeInstructionsOutput = typeof ManagedClaudeInstructionsOutputSchema.Type;
 
 export const ManagedGeneratedFileOutputSchema = Schema.Struct({
-  resourceId: Schema.Literals(["setup:vite-plus-config", "setup:vite-plus-github-actions"]),
+  resourceId: Schema.Literal("setup:vite-plus-github-actions"),
   path: Schema.String,
   sourcePath: Schema.String,
   mode: Schema.Literal("copy"),

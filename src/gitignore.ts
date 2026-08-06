@@ -94,7 +94,7 @@ const planGitignorePatch = Effect.fn("planGitignorePatch")(function* (
   const observation = yield* observeSymbolicLink(gitignorePath);
 
   if (observation.kind === "symlink") {
-    return yield* new UnsafeGitignorePathError({
+    return yield* UnsafeGitignorePathError.make({
       path: gitignorePath,
       reason: "the file is a symlink",
     });
@@ -107,7 +107,7 @@ const planGitignorePatch = Effect.fn("planGitignorePatch")(function* (
     const info = yield* fs.stat(gitignorePath);
 
     if (info.type !== "File") {
-      return yield* new UnsafeGitignorePathError({
+      return yield* UnsafeGitignorePathError.make({
         path: gitignorePath,
         reason: "the path is not a regular file",
       });
@@ -152,7 +152,7 @@ const applyGitignorePatch = Effect.fn("applyGitignorePatch")(function* (
     : currentObservation.kind !== "missing";
 
   if (changed) {
-    return yield* new GitignoreConflictError({ path: patch.path });
+    return yield* GitignoreConflictError.make({ path: patch.path });
   }
 
   let backedUp = false;

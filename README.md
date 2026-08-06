@@ -427,7 +427,7 @@ Pin the compatible packages in the consuming project:
 {
   "devDependencies": {
     "@danieljvdm/dev-kit": "^0.2.0",
-    "@effect/tsgo": "0.24.3",
+    "@effect/tsgo": "0.33.0",
     "typescript": "7.0.2",
   },
 }

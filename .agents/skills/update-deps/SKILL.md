@@ -67,15 +67,17 @@ For a tsgo upgrade:
 
 1. Resolve the latest published `@effect/tsgo` release from GitHub releases and
    npm. Do not take the unreleased version from repository `main`.
-2. Inspect the published platform package's `lib/tsc.json` and
-   `lib/tsc-next.json`. Prefer the `tsc.json` stable profile unless the user
-   explicitly requests TypeScript next. The release tag's
-   `_packages/tsgo/upstream.json` may describe the setup default or preview
-   profile only; never use it alone to select the stable compiler.
-3. Verify both `version` and `gitHead`: the chosen profile's `tsVersion` and
-   `tsGitHead` must equal the metadata from the exact published `typescript`
-   package. If the platform package is not installed yet, inspect its npm
-   tarball in a temporary directory.
+2. Inspect the published platform package's compiler metadata. Schema-v4
+   packages use `lib/upstream.json`: select `tags.typescript.latest` unless the
+   user explicitly requests TypeScript next, then verify its entry under
+   `components.typescript`. Older packages use `lib/tsc.json` and
+   `lib/tsc-next.json`; prefer the stable `tsc.json` profile. Do not infer the
+   stable compiler from an unversioned repository checkout.
+3. Verify both `version` and `gitHead`: for schema v4, the selected version key
+   and its `components.typescript[version].gitHead` must equal the metadata from
+   the exact published `typescript` package; for older metadata, compare
+   `tsVersion` and `tsGitHead`. If the platform package is not installed yet,
+   inspect its npm tarball in a temporary directory.
 4. Update both exact dev-dependency pins together.
 5. Update the coupled constants in `src/effect-tsgo.ts`:
    - `EFFECT_TSGO_VERSION`
@@ -83,9 +85,11 @@ For a tsgo upgrade:
 6. Update README examples and tests that contain either pin.
 7. Refresh `.repos/tsgo` to the published release tag when source-level
    verification is needed. Keep the checkout under `.repos/`, never `repos/`.
-8. Install first, then run `bun run tsgo:patch`. Do not use upstream `--force`
-   for a normal update.
-9. Confirm `bun run tsgo:patch` converges on a second run without creating a
+8. Install first, then run `vp run tsgo:patch`. When the TypeScript version is
+   unchanged, confirm Dev Kit restores any stale prior-version patch backup
+   before applying the new binary. Do not use upstream `--force` for a normal
+   update.
+9. Confirm `vp run tsgo:patch` converges on a second run without creating a
    numbered backup.
 
 Keep the `@effect/language-service` plugin and tsgo schema in `tsconfig.json`.
@@ -125,10 +129,10 @@ safe. Keep direct dependencies exact unless the repository policy changes.
 Run all of the following after the final group:
 
 ```bash
-bun run tsgo:patch
+vp run tsgo:patch
 vp run check
-bun run test
-./bin/dev-kit.mjs tsgo patch --dry-run --project-dir .
+vp test
+vp run tsgo:patch --dry-run
 npm pack --dry-run --json
 git diff --check
 ```

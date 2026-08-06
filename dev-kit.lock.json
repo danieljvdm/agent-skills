@@ -1,7 +1,7 @@
 {
   "version": 1,
   "toolVersion": "0.11.3",
-  "manifestDigest": "sha256:04c172398d3e61603a4ca4735673dc98f5842a0abbd55c231222735a1dde19a1",
+  "manifestDigest": "sha256:f94cc6ae63b73e12fffa7d38176d47c4d84cdbabf9f01e3ad867804cd9be88ab",
   "setup": {
     "effectSource": {
       "packageName": "effect",
@@ -11,7 +11,7 @@
       "tag": "effect@4.0.0-beta.102"
     },
     "effectTsgo": {
-      "effectTsgoVersion": "0.24.3",
+      "effectTsgoVersion": "0.33.0",
       "typescriptPackage": "typescript",
       "typescriptVersion": "7.0.2"
     }

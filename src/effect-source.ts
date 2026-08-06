@@ -28,6 +28,19 @@ export type EffectSourcePlan = {
   readonly tag: string;
 };
 
+const EffectSourcePlanJsonSchema = Schema.fromJsonString(
+  Schema.Struct({
+    action: Schema.Literals(["sync", "unchanged", "skipped"]),
+    checkoutDir: Schema.String,
+    packageName: Schema.String,
+    packageVersion: Schema.String,
+    path: Schema.String,
+    projectDir: Schema.String,
+    repository: Schema.String,
+    tag: Schema.String,
+  }),
+);
+
 export class EffectSourceDependencyError extends Schema.TaggedErrorClass<EffectSourceDependencyError>()(
   "EffectSourceDependencyError",
   { packageName: Schema.String },
@@ -76,7 +89,7 @@ const runCommand = Effect.fn("runEffectSourceCommand")(function* (
   const trimmed = output.trim();
 
   if (exitCode !== 0) {
-    return yield* new EffectSourceCommandError({
+    return yield* EffectSourceCommandError.make({
       command: [command, ...args].join(" "),
       exitCode,
       output: trimmed,
@@ -104,12 +117,12 @@ const readPackageVersion = Effect.fn("readEffectSourcePackageVersion")(function*
     .readFileString(manifestPath)
     .pipe(
       Effect.catchReason("PlatformError", "NotFound", () =>
-        Effect.fail(new EffectSourceDependencyError({ packageName })),
+        Effect.fail(EffectSourceDependencyError.make({ packageName })),
       ),
     );
 
-  return yield* Schema.decodeUnknownEffect(PackageVersionSchema)(contents).pipe(
-    Effect.mapError(() => new EffectSourceDependencyError({ packageName })),
+  return yield* Schema.decodeEffect(PackageVersionSchema)(contents).pipe(
+    Effect.mapError(() => EffectSourceDependencyError.make({ packageName })),
     Effect.map((manifest) => manifest.version),
   );
 });
@@ -121,7 +134,7 @@ const resolveCheckoutPath = Effect.fn("resolveEffectSourceCheckoutPath")(functio
   const path = yield* Path.Path;
 
   if (candidate.length === 0 || path.isAbsolute(candidate)) {
-    return yield* new EffectSourceCheckoutError({
+    return yield* EffectSourceCheckoutError.make({
       message: `Effect source path must be a non-empty project-relative path: ${candidate}`,
     });
   }
@@ -134,7 +147,7 @@ const resolveCheckoutPath = Effect.fn("resolveEffectSourceCheckoutPath")(functio
     relative.startsWith(`..${path.sep}`) ||
     path.isAbsolute(relative)
   ) {
-    return yield* new EffectSourceCheckoutError({
+    return yield* EffectSourceCheckoutError.make({
       message: `Effect source path resolves outside the project: ${candidate}`,
     });
   }
@@ -143,7 +156,7 @@ const resolveCheckoutPath = Effect.fn("resolveEffectSourceCheckoutPath")(functio
   for (const segment of relative.split(path.sep).slice(0, -1)) {
     ancestor = path.join(ancestor, segment);
     if ((yield* observeSymbolicLink(ancestor)).kind === "symlink") {
-      return yield* new EffectSourceCheckoutError({
+      return yield* EffectSourceCheckoutError.make({
         message: `Effect source path has a symlink ancestor: ${ancestor}`,
       });
     }
@@ -163,31 +176,30 @@ const inspectExistingCheckout = Effect.fn("inspectExistingEffectSource")(functio
   const fs = yield* FileSystem.FileSystem;
 
   if ((yield* observeSymbolicLink(checkoutDir)).kind === "symlink") {
-    return yield* new EffectSourceCheckoutError({
+    return yield* EffectSourceCheckoutError.make({
       message: `Effect source destination is a symlink: ${checkoutDir}`,
     });
   }
   if (!(yield* fs.exists(checkoutDir))) return "sync" as const;
 
   const actualRoot = yield* runGit(checkoutDir, ["rev-parse", "--show-toplevel"]).pipe(
-    Effect.mapError(
-      () =>
-        new EffectSourceCheckoutError({
-          message: `Effect source destination exists but is not a Git checkout: ${checkoutDir}`,
-        }),
+    Effect.mapError(() =>
+      EffectSourceCheckoutError.make({
+        message: `Effect source destination exists but is not a Git checkout: ${checkoutDir}`,
+      }),
     ),
   );
   const expectedRoot = yield* fs.realPath(checkoutDir);
 
   if ((yield* fs.realPath(actualRoot)) !== expectedRoot) {
-    return yield* new EffectSourceCheckoutError({
+    return yield* EffectSourceCheckoutError.make({
       message: `Effect source destination is nested inside another Git checkout: ${checkoutDir}`,
     });
   }
   const remote = yield* runGit(checkoutDir, ["remote", "get-url", "origin"]);
 
   if (remote !== repository) {
-    return yield* new EffectSourceCheckoutError({
+    return yield* EffectSourceCheckoutError.make({
       message: `Effect source origin is ${remote}; expected ${repository}`,
     });
   }
@@ -208,7 +220,7 @@ const inspectExistingCheckout = Effect.fn("inspectExistingEffectSource")(functio
   const dirty = yield* runGit(checkoutDir, ["status", "--porcelain", "--untracked-files=all"]);
 
   if (dirty.length > 0) {
-    return yield* new EffectSourceCheckoutError({
+    return yield* EffectSourceCheckoutError.make({
       message: `Effect source checkout has local changes; refusing to switch ${checkoutDir} to ${tag}`,
     });
   }
@@ -225,14 +237,14 @@ export const planEffectSource = Effect.fn("planEffectSource")(function* (
   const packageName = options.packageName ?? "effect";
 
   if (!isTypeScriptPackageName(packageName)) {
-    return yield* new EffectSourceCheckoutError({
+    return yield* EffectSourceCheckoutError.make({
       message: `invalid Effect source package name: ${packageName}`,
     });
   }
   const repository = options.repository ?? DEFAULT_EFFECT_REPOSITORY;
 
   if (repository.length === 0) {
-    return yield* new EffectSourceCheckoutError({
+    return yield* EffectSourceCheckoutError.make({
       message: "Effect source repository cannot be empty",
     });
   }
@@ -289,7 +301,7 @@ export const applyEffectSourcePlan = Effect.fn("applyEffectSourcePlan")(function
       staged,
     ]);
     if (yield* fs.exists(plan.checkoutDir)) {
-      return yield* new EffectSourceCheckoutError({
+      return yield* EffectSourceCheckoutError.make({
         message: `Effect source destination appeared while cloning: ${plan.checkoutDir}`,
       });
     }
@@ -344,9 +356,19 @@ export const syncEffectSource = Effect.fn("syncEffectSource")(function* (
   }
   yield* acquireProjectProcessLock(plan.projectDir);
   const replanned = yield* planEffectSource(options);
+  const [plannedSignature, replannedSignature] = yield* Effect.all([
+    Schema.encodeEffect(EffectSourcePlanJsonSchema)(plan),
+    Schema.encodeEffect(EffectSourcePlanJsonSchema)(replanned),
+  ]).pipe(
+    Effect.mapError((error) =>
+      EffectSourceCheckoutError.make({
+        message: `could not encode Effect source plan: ${error.message}`,
+      }),
+    ),
+  );
 
-  if (JSON.stringify(plan) !== JSON.stringify(replanned)) {
-    return yield* new EffectSourceCheckoutError({
+  if (plannedSignature !== replannedSignature) {
+    return yield* EffectSourceCheckoutError.make({
       message: "Effect source checkout changed after planning; rerun the command",
     });
   }

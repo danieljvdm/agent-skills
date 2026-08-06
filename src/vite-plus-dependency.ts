@@ -26,42 +26,41 @@ export const validateInstalledVitePlus = Effect.fn("validateInstalledVitePlus")(
   const dependencies = yield* readDirectDependencyNames(projectDir);
 
   if (!dependencies.includes("vite-plus")) {
-    return yield* new VitePlusDependencyError({
+    return yield* VitePlusDependencyError.make({
       message: "vite-plus must be a direct project dependency",
     });
   }
   const packagePath = path.join(projectDir, "node_modules", "vite-plus", "package.json");
 
   if (!(yield* fs.exists(packagePath))) {
-    return yield* new VitePlusDependencyError({
+    return yield* VitePlusDependencyError.make({
       message:
         "vite-plus must be installed before enabling this setup: node_modules/vite-plus/package.json is missing",
     });
   }
   const installed = yield* fs.readFileString(packagePath).pipe(
     Effect.flatMap(Schema.decodeUnknownEffect(InstalledVitePlusPackageSchema)),
-    Effect.mapError(
-      () =>
-        new VitePlusDependencyError({
-          message: "installed vite-plus package metadata has no valid version",
-        }),
+    Effect.mapError(() =>
+      VitePlusDependencyError.make({
+        message: "installed vite-plus package metadata has no valid version",
+      }),
     ),
   );
 
   if (!semver.valid(installed.version)) {
-    return yield* new VitePlusDependencyError({
+    return yield* VitePlusDependencyError.make({
       message: `installed vite-plus package metadata has invalid version: ${installed.version}`,
     });
   }
   if (!semver.satisfies(installed.version, VITE_PLUS_SUPPORTED_RANGE)) {
-    return yield* new VitePlusDependencyError({
+    return yield* VitePlusDependencyError.make({
       message: `installed vite-plus ${installed.version} is incompatible with @danieljvdm/dev-kit; supported range: ${VITE_PLUS_SUPPORTED_RANGE}`,
     });
   }
   const vpBin = path.join(projectDir, "node_modules", ".bin", "vp");
 
   if (!(yield* fs.exists(vpBin))) {
-    return yield* new VitePlusDependencyError({
+    return yield* VitePlusDependencyError.make({
       message: "vite-plus is installed but node_modules/.bin/vp is missing",
     });
   }

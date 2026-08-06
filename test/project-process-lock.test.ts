@@ -26,9 +26,9 @@ describe("project process lock", () => {
         yield* Effect.scoped(
           Effect.gen(function* () {
             assert.strictEqual(yield* acquireProjectProcessLock(projectDir), lockDir);
-            const owner = yield* Schema.decodeUnknownEffect(
-              Schema.fromJsonString(ProcessLockOwnerSchema),
-            )(yield* fs.readFileString(ownerPath));
+            const owner = yield* Schema.decodeEffect(Schema.fromJsonString(ProcessLockOwnerSchema))(
+              yield* fs.readFileString(ownerPath),
+            );
 
             assert.isString(owner.token);
             assert.isString(owner.startedAt);

@@ -5,7 +5,7 @@ import { printStatus, withSpinner } from "./cli-ui.ts";
 import { acquireProjectProcessLock } from "./project-process-lock.ts";
 import { isTypeScriptPackageName } from "./typescript-package-name.ts";
 
-export const EFFECT_TSGO_VERSION = "0.24.3";
+export const EFFECT_TSGO_VERSION = "0.33.0";
 export const EFFECT_TSGO_TYPESCRIPT_VERSION = "7.0.2";
 export const EFFECT_TSGO_PLUGIN_NAME = "@effect/language-service";
 
@@ -18,6 +18,7 @@ export type EffectTsgoPatchOptions = {
 
 export type EffectTsgoPatchPlan = {
   readonly alreadyPatched: boolean;
+  readonly unpatchArgs?: ReadonlyArray<string>;
   readonly projectDir: string;
   readonly executable: string;
   readonly args: ReadonlyArray<string>;
@@ -82,15 +83,15 @@ const readExactPackageVersion = Effect.fn("readExactEffectTsgoPackageVersion")(f
     .readFileString(manifestPath)
     .pipe(
       Effect.catchReason("PlatformError", "NotFound", () =>
-        Effect.fail(new EffectTsgoDependencyError({ packageName, expectedVersion })),
+        Effect.fail(EffectTsgoDependencyError.make({ packageName, expectedVersion })),
       ),
     );
-  const manifest = yield* Schema.decodeUnknownEffect(PackageVersionSchema)(contents).pipe(
-    Effect.mapError(() => new EffectTsgoDependencyError({ packageName, expectedVersion })),
+  const manifest = yield* Schema.decodeEffect(PackageVersionSchema)(contents).pipe(
+    Effect.mapError(() => EffectTsgoDependencyError.make({ packageName, expectedVersion })),
   );
 
   if (manifest.version !== expectedVersion) {
-    return yield* new EffectTsgoDependencyError({
+    return yield* EffectTsgoDependencyError.make({
       packageName,
       expectedVersion,
       actualVersion: manifest.version,
@@ -115,7 +116,7 @@ const resolveEffectTsgoExecutable = Effect.fn("resolveEffectTsgoExecutable")(fun
     if (yield* fs.exists(candidate)) return candidate;
   }
 
-  return yield* new EffectTsgoDependencyError({
+  return yield* EffectTsgoDependencyError.make({
     packageName: "@effect/tsgo",
     expectedVersion: EFFECT_TSGO_VERSION,
   });
@@ -140,7 +141,7 @@ const findNodeModulesRoot = (path: Path.Path, packageJsonPath: string): string |
   }
 };
 
-const isEffectTsgoPatched = Effect.fn("isEffectTsgoPatched")(function* (
+const inspectEffectTsgoPatch = Effect.fn("inspectEffectTsgoPatch")(function* (
   projectDir: string,
   typescriptPackage: string,
 ) {
@@ -153,22 +154,28 @@ const isEffectTsgoPatched = Effect.fn("isEffectTsgoPatched")(function* (
   const typescriptNodeModules = findNodeModulesRoot(path, typescriptPackageJson);
   const effectNodeModules = findNodeModulesRoot(path, effectTsgoPackageJson);
 
-  if (typescriptNodeModules === undefined || effectNodeModules === undefined) return false;
+  if (typescriptNodeModules === undefined || effectNodeModules === undefined) {
+    return { alreadyPatched: false, hasBackup: false };
+  }
 
   const typescriptScope = path.join(typescriptNodeModules, "@typescript");
   const effectScope = path.join(effectNodeModules, "@effect");
 
-  if (!(yield* fs.exists(typescriptScope)) || !(yield* fs.exists(effectScope))) return false;
+  if (!(yield* fs.exists(typescriptScope)) || !(yield* fs.exists(effectScope))) {
+    return { alreadyPatched: false, hasBackup: false };
+  }
 
   const executableName = path.sep === "\\" ? "tsc.exe" : "tsc";
   const effectExecutableNames =
     path.sep === "\\" ? ["tsc.exe", "tsc-next.exe"] : ["tsc", "tsc-next"];
+  let hasBackup = false;
 
   for (const entry of yield* fs.readDirectory(typescriptScope)) {
     if (!entry.startsWith("typescript-")) continue;
     const platform = entry.slice("typescript-".length);
     const installedPath = path.join(typescriptScope, entry, "lib", executableName);
 
+    if (yield* fs.exists(`${installedPath}.original`)) hasBackup = true;
     if (!(yield* fs.exists(installedPath))) continue;
     const installedDigest = yield* digestFileContents(installedPath);
 
@@ -184,12 +191,12 @@ const isEffectTsgoPatched = Effect.fn("isEffectTsgoPatched")(function* (
         (yield* fs.exists(effectBinaryPath)) &&
         installedDigest === (yield* digestFileContents(effectBinaryPath))
       ) {
-        return true;
+        return { alreadyPatched: true, hasBackup };
       }
     }
   }
 
-  return false;
+  return { alreadyPatched: false, hasBackup };
 });
 
 export const planEffectTsgoPatch = Effect.fn("planEffectTsgoPatch")(function* (
@@ -201,7 +208,7 @@ export const planEffectTsgoPatch = Effect.fn("planEffectTsgoPatch")(function* (
   const typescriptPackage = options.typescriptPackage ?? "typescript";
 
   if (!isTypeScriptPackageName(typescriptPackage)) {
-    return yield* new InvalidEffectTsgoPackageNameError({ packageName: typescriptPackage });
+    return yield* InvalidEffectTsgoPackageNameError.make({ packageName: typescriptPackage });
   }
   const effectTsgoVersion = yield* readExactPackageVersion(
     projectDir,
@@ -214,15 +221,22 @@ export const planEffectTsgoPatch = Effect.fn("planEffectTsgoPatch")(function* (
     EFFECT_TSGO_TYPESCRIPT_VERSION,
   );
   const executable = yield* resolveEffectTsgoExecutable(projectDir);
+  const patchState = yield* inspectEffectTsgoPatch(projectDir, typescriptPackage);
+  const typescriptPackageArgs =
+    typescriptPackage === "typescript" ? [] : ["--typescript-package", typescriptPackage];
 
   return {
-    alreadyPatched: yield* isEffectTsgoPatched(projectDir, typescriptPackage),
+    alreadyPatched: patchState.alreadyPatched,
+    ...(patchState.hasBackup && !patchState.alreadyPatched
+      ? { unpatchArgs: ["unpatch", "--typescript", ...typescriptPackageArgs] }
+      : {}),
     projectDir,
     executable,
     args: [
       "patch",
+      "--typescript",
       ...(options.force ? ["--force"] : []),
-      ...(typescriptPackage === "typescript" ? [] : ["--typescript-package", typescriptPackage]),
+      ...typescriptPackageArgs,
     ],
     effectTsgoVersion,
     typescriptPackage,
@@ -230,12 +244,13 @@ export const planEffectTsgoPatch = Effect.fn("planEffectTsgoPatch")(function* (
   } satisfies EffectTsgoPatchPlan;
 });
 
-export const applyEffectTsgoPatchPlan = Effect.fn("applyEffectTsgoPatchPlan")(function* (
-  plan: EffectTsgoPatchPlan,
+const runEffectTsgoCommand = Effect.fn("runEffectTsgoCommand")(function* (
+  executable: string,
+  args: ReadonlyArray<string>,
+  projectDir: string,
 ) {
-  if (plan.alreadyPatched) return;
-  const child = yield* ChildProcess.make(plan.executable, plan.args, {
-    cwd: plan.projectDir,
+  const child = yield* ChildProcess.make(executable, args, {
+    cwd: projectDir,
     stderr: "pipe",
     stdout: "pipe",
   });
@@ -246,12 +261,22 @@ export const applyEffectTsgoPatchPlan = Effect.fn("applyEffectTsgoPatchPlan")(fu
   const trimmed = output.trim();
 
   if (exitCode !== 0) {
-    return yield* new EffectTsgoPatchCommandError({
-      command: [plan.executable, ...plan.args].join(" "),
+    return yield* EffectTsgoPatchCommandError.make({
+      command: [executable, ...args].join(" "),
       exitCode,
       output: trimmed,
     });
   }
+});
+
+export const applyEffectTsgoPatchPlan = Effect.fn("applyEffectTsgoPatchPlan")(function* (
+  plan: EffectTsgoPatchPlan,
+) {
+  if (plan.alreadyPatched) return;
+  if (plan.unpatchArgs !== undefined) {
+    yield* runEffectTsgoCommand(plan.executable, plan.unpatchArgs, plan.projectDir);
+  }
+  yield* runEffectTsgoCommand(plan.executable, plan.args, plan.projectDir);
 });
 
 export const patchEffectTsgo = Effect.fn("patchEffectTsgo")(function* (

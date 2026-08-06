@@ -24,15 +24,16 @@ export const readProjectPackage = Effect.fn("readProjectPackage")(function* (pro
   const manifestPath = path.join(projectDir, "package.json");
 
   if (!(yield* fs.exists(manifestPath))) {
-    return yield* new ProjectPackageError({ message: `package.json not found: ${manifestPath}` });
+    return yield* ProjectPackageError.make({
+      message: `package.json not found: ${manifestPath}`,
+    });
   }
   const manifest = yield* fs.readFileString(manifestPath).pipe(
     Effect.flatMap(Schema.decodeUnknownEffect(ProjectPackageSchema)),
-    Effect.mapError(
-      () =>
-        new ProjectPackageError({
-          message: `invalid project package.json: ${manifestPath}`,
-        }),
+    Effect.mapError(() =>
+      ProjectPackageError.make({
+        message: `invalid project package.json: ${manifestPath}`,
+      }),
     ),
   );
 

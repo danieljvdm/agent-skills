@@ -29,6 +29,7 @@ const writePackageVersion = Effect.fn("writeTestPackageVersion")(function* (
 const installIsolatedPatchedToolchain = Effect.fn("installIsolatedPatchedToolchain")(function* (
   projectDir: string,
   storeName: ".bun" | ".pnpm",
+  options: { readonly stale?: boolean } = {},
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -76,11 +77,13 @@ const installIsolatedPatchedToolchain = Effect.fn("installIsolatedPatchedToolcha
   }
 
   const executableName = path.sep === "\\" ? "tsc.exe" : "tsc";
+  const installedExecutable = path.join(typescriptPlatformRoot, "lib", executableName);
 
   yield* fs.makeDirectory(path.join(typescriptPlatformRoot, "lib"), { recursive: true });
   yield* fs.makeDirectory(path.join(effectPlatformRoot, "lib"), { recursive: true });
-  yield* fs.writeFileString(path.join(typescriptPlatformRoot, "lib", executableName), "patched\n");
+  yield* fs.writeFileString(installedExecutable, options.stale ? "stale\n" : "patched\n");
   yield* fs.writeFileString(path.join(effectPlatformRoot, "lib", executableName), "patched\n");
+  if (options.stale) yield* fs.writeFileString(`${installedExecutable}.original`, "original\n");
 
   const typescriptDependencies = path.join(path.dirname(typescriptRoot), "@typescript");
   const effectDependencies = path.join(path.dirname(path.dirname(effectTsgoRoot)), "@effect");
@@ -127,7 +130,8 @@ describe("Effect tsgo patch", () => {
           plan.executable,
           path.join(yield* fs.realPath(projectDir), "node_modules", ".bin", "effect-tsgo"),
         );
-        assert.deepEqual(plan.args, ["patch"]);
+        assert.deepEqual(plan.args, ["patch", "--typescript"]);
+        assert.isUndefined(plan.unpatchArgs);
         assert.strictEqual(plan.effectTsgoVersion, EFFECT_TSGO_VERSION);
         assert.strictEqual(plan.typescriptVersion, EFFECT_TSGO_TYPESCRIPT_VERSION);
       }),
@@ -160,6 +164,23 @@ describe("Effect tsgo patch", () => {
         const plan = yield* planEffectTsgoPatch({ projectDir });
 
         assert.isTrue(plan.alreadyPatched);
+      }),
+    );
+
+    it.effect("restores a stale patch backup before applying the pinned tsgo version", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const projectDir = yield* fs.makeTempDirectoryScoped({
+          prefix: "dev-kit-tsgo-stale-test-",
+        });
+
+        yield* installIsolatedPatchedToolchain(projectDir, ".bun", { stale: true });
+
+        const plan = yield* planEffectTsgoPatch({ projectDir });
+
+        assert.isFalse(plan.alreadyPatched);
+        assert.deepEqual(plan.unpatchArgs, ["unpatch", "--typescript"]);
+        assert.deepEqual(plan.args, ["patch", "--typescript"]);
       }),
     );
 
@@ -215,6 +236,7 @@ describe("Effect tsgo patch", () => {
 
         assert.deepEqual(plan.args, [
           "patch",
+          "--typescript",
           "--force",
           "--typescript-package",
           "@typescript/native",

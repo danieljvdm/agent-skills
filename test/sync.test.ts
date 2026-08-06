@@ -293,9 +293,9 @@ describe("project apply", () => {
         const planned = yield* runDevKit(projectDir, ["plan", "--project-dir", projectDir]);
 
         assert.strictEqual(planned.exitCode, 0, planned.output);
-        assert.match(
+        assert.include(
           planned.output,
-          /TypeScript patch @effect\/tsgo@0\.24\.3 → typescript@7\.0\.2/,
+          `TypeScript patch @effect/tsgo@${EFFECT_TSGO_VERSION} → typescript@${EFFECT_TSGO_TYPESCRIPT_VERSION}`,
         );
         assert.isFalse(yield* fs.exists(marker));
 

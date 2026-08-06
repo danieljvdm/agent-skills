@@ -1,4 +1,4 @@
-import { Effect, FileSystem, Path, Schema, Stream } from "effect";
+import { Effect, FileSystem, Path, Schema, SchemaGetter, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
 import { parse as parseJsonc, printParseErrorCode, type ParseError } from "jsonc-parser";
 
@@ -95,6 +95,16 @@ class CommandError extends Schema.TaggedErrorClass<CommandError>()("CommandError
   }
 }
 
+const SkillSourcesLockJsonSchema = Schema.fromJsonString(SkillSourcesLockSchema);
+const SkillSourcesLockPrettyJsonSchema = Schema.String.pipe(
+  Schema.decodeTo(Schema.toCodecJson(SkillSourcesLockSchema), {
+    decode: SchemaGetter.parseJson(),
+    encode: SchemaGetter.stringifyJson({ space: 2 }),
+  }),
+);
+const encodeSkillSourcesLockJson = Schema.encodeSync(SkillSourcesLockJsonSchema);
+const encodeSkillSourcesLockPrettyJson = Schema.encodeSync(SkillSourcesLockPrettyJsonSchema);
+
 const DEFAULT_SOURCES_PATH = "skill-sources.jsonc";
 const DEFAULT_LOCKFILE_PATH = "skill-sources.lock.json";
 const SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -131,7 +141,7 @@ const normalizeRepositoryLocator = (
 > => {
   if (containsControlCharacter(repository)) {
     return Effect.fail(
-      new InvalidSourceError({
+      InvalidSourceError.make({
         source: repository,
         reason: "repository contains control characters",
       }),
@@ -142,7 +152,7 @@ const normalizeRepositoryLocator = (
 
     if ((url.protocol === "http:" || url.protocol === "https:") && (url.username || url.password)) {
       return Effect.fail(
-        new InvalidSourceError({
+        InvalidSourceError.make({
           source: repository,
           reason: "repository URLs must not contain credentials",
         }),
@@ -184,7 +194,7 @@ const runCommand = Effect.fn("runVendorCommand")(function* (
   const trimmed = output.trim();
 
   if (exitCode !== 0) {
-    return yield* new CommandError({ command: formatted, exitCode, output: trimmed });
+    return yield* CommandError.make({ command: formatted, exitCode, output: trimmed });
   }
 
   return trimmed;
@@ -201,7 +211,7 @@ const readJsonc = Effect.fn("readVendorJsonc")(function* <A>(
   const fs = yield* FileSystem.FileSystem;
 
   if (!(yield* fs.exists(filePath))) {
-    return yield* new SourceManifestError({ path: filePath, message: "file not found" });
+    return yield* SourceManifestError.make({ path: filePath, message: "file not found" });
   }
 
   const raw = yield* fs.readFileString(filePath);
@@ -211,14 +221,16 @@ const readJsonc = Effect.fn("readVendorJsonc")(function* <A>(
   const first = errors[0];
 
   if (first !== undefined) {
-    return yield* new SourceManifestError({
+    return yield* SourceManifestError.make({
       path: filePath,
       message: `${printParseErrorCode(first.error)} at offset ${first.offset}`,
     });
   }
 
   return yield* Schema.decodeUnknownEffect(schema)(parsed).pipe(
-    Effect.mapError((cause) => new SourceManifestError({ path: filePath, message: cause.message })),
+    Effect.mapError((cause) =>
+      SourceManifestError.make({ path: filePath, message: cause.message }),
+    ),
   );
 });
 
@@ -239,7 +251,7 @@ const resolveInside = (
     path.isAbsolute(relative)
   ) {
     return Effect.fail(
-      new InvalidSourceError({
+      InvalidSourceError.make({
         source: sourceId,
         reason: `${field} must be a relative path inside the source repository`,
       }),
@@ -264,7 +276,7 @@ const ensureCanonicalPathInside = Effect.fn("ensureCanonicalSourcePathInside")(f
   const relative = path.relative(canonicalRoot, canonicalTarget);
 
   if (relative.startsWith("..") || path.isAbsolute(relative)) {
-    return yield* new InvalidSourceError({
+    return yield* InvalidSourceError.make({
       source: sourceId,
       reason: `${field} resolves outside the source repository`,
     });
@@ -287,7 +299,7 @@ const rejectGitSymlinks = Effect.fn("rejectGitSymlinks")(function* (
   const symlink = entries.split(/\r?\n/).find((line) => line.startsWith("120000 "));
 
   if (symlink) {
-    return yield* new InvalidSourceError({
+    return yield* InvalidSourceError.make({
       source: sourceId,
       reason: `symlinks are not allowed in catalog paths: ${symlink.slice(symlink.indexOf("\t") + 1)}`,
     });
@@ -302,7 +314,7 @@ const discoverSkills = Effect.fn("discoverVendoredSkills")(function* (
   const path = yield* Path.Path;
 
   if (!(yield* fs.exists(skillsDir))) {
-    return yield* new InvalidSourceError({
+    return yield* InvalidSourceError.make({
       source: source.id,
       reason: `skillsPath does not exist: ${source.skillsPath}`,
     });
@@ -327,7 +339,7 @@ const discoverSkills = Effect.fn("discoverVendoredSkills")(function* (
         .replace(/^(['"])(.*)\1$/, "$2");
 
       if (declaredName !== entry) {
-        return yield* new InvalidSourceError({
+        return yield* InvalidSourceError.make({
           source: source.id,
           reason: `${source.skillsPath}/${entry}/SKILL.md must declare name: ${entry}`,
         });
@@ -340,7 +352,7 @@ const discoverSkills = Effect.fn("discoverVendoredSkills")(function* (
   const includeAll = source.include.length === 1 && source.include[0] === "*";
 
   if (source.include.includes("*") && !includeAll) {
-    return yield* new InvalidSourceError({
+    return yield* InvalidSourceError.make({
       source: source.id,
       reason: 'include must contain either "*" or explicit skill names, not both',
     });
@@ -351,7 +363,7 @@ const discoverSkills = Effect.fn("discoverVendoredSkills")(function* (
   );
 
   if (selected.length === 0) {
-    return yield* new InvalidSourceError({
+    return yield* InvalidSourceError.make({
       source: source.id,
       reason: "include must select at least one skill",
     });
@@ -359,13 +371,13 @@ const discoverSkills = Effect.fn("discoverVendoredSkills")(function* (
 
   for (const skill of selected) {
     if (!SKILL_NAME_PATTERN.test(skill)) {
-      return yield* new InvalidSourceError({
+      return yield* InvalidSourceError.make({
         source: source.id,
         reason: `invalid skill name "${skill}"`,
       });
     }
     if (!discovered.includes(skill)) {
-      return yield* new InvalidSourceError({
+      return yield* InvalidSourceError.make({
         source: source.id,
         reason: `skill not found under ${source.skillsPath}: ${skill}`,
       });
@@ -386,19 +398,19 @@ const prepareSource = Effect.fn("prepareSkillSource")(function* (
   const path = yield* Path.Path;
 
   if (!SOURCE_ID_PATTERN.test(source.id)) {
-    return yield* new InvalidSourceError({
+    return yield* InvalidSourceError.make({
       source: source.id,
       reason: "id must use lowercase letters, numbers, and hyphens",
     });
   }
   if (RESERVED_SOURCE_IDS.has(source.id)) {
-    return yield* new InvalidSourceError({
+    return yield* InvalidSourceError.make({
       source: source.id,
       reason: "id conflicts with a built-in skill family",
     });
   }
   if (source.repository.length === 0 || source.ref.length === 0) {
-    return yield* new InvalidSourceError({
+    return yield* InvalidSourceError.make({
       source: source.id,
       reason: "repository and ref must not be empty",
     });
@@ -417,7 +429,7 @@ const prepareSource = Effect.fn("prepareSkillSource")(function* (
       [...(lockedSource.stripFrontmatter ?? [])].sort().join("\0") !==
         [...(source.stripFrontmatter ?? [])].sort().join("\0"))
   ) {
-    return yield* new InvalidSourceError({
+    return yield* InvalidSourceError.make({
       source: source.id,
       reason: "no matching lockfile entry; run catalog refresh without --locked first",
     });
@@ -431,7 +443,7 @@ const prepareSource = Effect.fn("prepareSkillSource")(function* (
   const fetchRef = useLock ? lockedSource?.resolved : source.ref;
 
   if (fetchRef === undefined) {
-    return yield* new InvalidSourceError({
+    return yield* InvalidSourceError.make({
       source: source.id,
       reason: "no matching lockfile entry; run catalog refresh without --locked first",
     });
@@ -469,7 +481,7 @@ const prepareSource = Effect.fn("prepareSkillSource")(function* (
     );
     yield* rejectGitSymlinks(checkoutDir, source.licensePath, source.id);
     if (!(yield* fs.exists(licenseSource))) {
-      return yield* new InvalidSourceError({
+      return yield* InvalidSourceError.make({
         source: source.id,
         reason: `licensePath does not exist: ${source.licensePath}`,
       });
@@ -483,7 +495,7 @@ const prepareSource = Effect.fn("prepareSkillSource")(function* (
     const licenseInfo = yield* fs.stat(licenseSource);
 
     if (licenseInfo.type !== "File") {
-      return yield* new InvalidSourceError({
+      return yield* InvalidSourceError.make({
         source: source.id,
         reason: `licensePath must be a file: ${source.licensePath}`,
       });
@@ -520,33 +532,33 @@ const validateCurrentLock = Effect.fn("validateCurrentSkillSourcesLock")(functio
 
   for (const source of lock.sources) {
     if (!SOURCE_ID_PATTERN.test(source.id) || RESERVED_SOURCE_IDS.has(source.id)) {
-      return yield* new InvalidSourceError({
+      return yield* InvalidSourceError.make({
         source: source.id,
         reason: "lockfile contains an invalid source id",
       });
     }
     if (sourceIds.has(source.id)) {
-      return yield* new InvalidSourceError({
+      return yield* InvalidSourceError.make({
         source: source.id,
         reason: "lockfile source ids must be unique",
       });
     }
     sourceIds.add(source.id);
     if (!/^[0-9a-f]{40,64}$/.test(source.resolved)) {
-      return yield* new InvalidSourceError({
+      return yield* InvalidSourceError.make({
         source: source.id,
         reason: "lockfile resolved commit must be a full hexadecimal object id",
       });
     }
     for (const skill of source.skills) {
       if (!SKILL_NAME_PATTERN.test(skill)) {
-        return yield* new InvalidSourceError({
+        return yield* InvalidSourceError.make({
           source: source.id,
           reason: `lockfile contains an invalid skill name: ${skill}`,
         });
       }
       if (skills.has(skill)) {
-        return yield* new SkillCollisionError({
+        return yield* SkillCollisionError.make({
           skill,
           owners: ["multiple lockfile sources"],
         });
@@ -590,12 +602,12 @@ const validateOwnership = Effect.fn("validateSkillOwnership")(function* (
   }
   for (const [skill, skillOwners] of owners) {
     if (skillOwners.length > 1) {
-      return yield* new SkillCollisionError({ skill, owners: skillOwners });
+      return yield* SkillCollisionError.make({ skill, owners: skillOwners });
     }
   }
   for (const preparedSource of prepared) {
     if (owners.has(preparedSource.source.id)) {
-      return yield* new InvalidSourceError({
+      return yield* InvalidSourceError.make({
         source: preparedSource.source.id,
         reason: "id conflicts with a skill name",
       });
@@ -603,7 +615,7 @@ const validateOwnership = Effect.fn("validateSkillOwnership")(function* (
   }
   for (const reservedFamily of RESERVED_SOURCE_IDS) {
     if (owners.has(reservedFamily)) {
-      return yield* new InvalidSourceError({
+      return yield* InvalidSourceError.make({
         source: reservedFamily,
         reason: "skill name conflicts with a built-in skill family",
       });
@@ -703,7 +715,7 @@ const buildLock = Effect.fn("buildSkillCatalogLock")(function* (
       const observation = yield* observePath(stagedSkill);
 
       if (observation.kind !== "directory") {
-        return yield* new InvalidSourceError({
+        return yield* InvalidSourceError.make({
           source: source.id,
           reason: `could not digest ${skill}`,
         });
@@ -740,7 +752,7 @@ export const inspectCatalogRepository = Effect.fn("inspectCatalogRepository")(fu
   const id = options.id ?? inferSourceId(repository);
 
   if (id.length === 0) {
-    return yield* new InvalidSourceError({
+    return yield* InvalidSourceError.make({
       source: repository,
       reason: "could not infer a source id; pass --id",
     });
@@ -844,7 +856,7 @@ export const refreshSkillCatalog = Effect.fn("refreshSkillCatalog")(function* (
 
   for (const source of manifest.sources) {
     if (sourceIds.has(source.id)) {
-      return yield* new InvalidSourceError({
+      return yield* InvalidSourceError.make({
         source: source.id,
         reason: "source ids must be unique",
       });
@@ -853,7 +865,7 @@ export const refreshSkillCatalog = Effect.fn("refreshSkillCatalog")(function* (
   }
   if (options.locked) {
     if (!currentLock) {
-      return yield* new SourceManifestError({
+      return yield* SourceManifestError.make({
         path: lockfilePath,
         message: "lockfile is required with --locked",
       });
@@ -863,7 +875,7 @@ export const refreshSkillCatalog = Effect.fn("refreshSkillCatalog")(function* (
     const missingFromLock = manifest.sources.find((source) => !lockedIds.has(source.id));
 
     if (missingFromManifest || missingFromLock) {
-      return yield* new SourceManifestError({
+      return yield* SourceManifestError.make({
         path: lockfilePath,
         message: "source ids differ from skill-sources.jsonc; run catalog refresh without --locked",
       });
@@ -906,8 +918,11 @@ export const refreshSkillCatalog = Effect.fn("refreshSkillCatalog")(function* (
   const summary = `${skillCount} skill${skillCount === 1 ? "" : "s"} from ${nextLock.sources.length} source${nextLock.sources.length === 1 ? "" : "s"}`;
 
   if (options.locked) {
-    if (JSON.stringify(currentLock) !== JSON.stringify(nextLock)) {
-      return yield* new SourceManifestError({
+    if (
+      currentLock === undefined ||
+      encodeSkillSourcesLockJson(currentLock) !== encodeSkillSourcesLockJson(nextLock)
+    ) {
+      return yield* SourceManifestError.make({
         path: lockfilePath,
         message:
           "approved catalog metadata differs from the lock; run catalog refresh and review it",
@@ -926,7 +941,7 @@ export const refreshSkillCatalog = Effect.fn("refreshSkillCatalog")(function* (
 
   const nextLockPath = path.join(tempDir, "next-catalog-lock.json");
 
-  yield* fs.writeFileString(nextLockPath, `${JSON.stringify(nextLock, null, 2)}\n`);
+  yield* fs.writeFileString(nextLockPath, `${encodeSkillSourcesLockPrettyJson(nextLock)}\n`);
   yield* fs.rename(nextLockPath, lockfilePath);
   yield* printStatus("success", "Catalog refreshed", summary);
 });

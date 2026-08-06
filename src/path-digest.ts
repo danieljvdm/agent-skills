@@ -124,7 +124,7 @@ const digestFileSystemPath = Effect.fn("digestFileSystemPath")(function* (
       const child = yield* digestFileSystemPath(childPath, fileMode);
 
       if (child.kind === "missing") {
-        return yield* new PathInspectionError({
+        return yield* PathInspectionError.make({
           path: childPath,
           operation: "inspect a stable directory tree",
           cause: "path disappeared during inspection",
@@ -136,7 +136,7 @@ const digestFileSystemPath = Effect.fn("digestFileSystemPath")(function* (
     return { kind: "directory", digest: yield* digestFrames(frames) };
   }
 
-  return yield* new PathInspectionError({
+  return yield* PathInspectionError.make({
     path: absolutePath,
     operation: "inspect unsupported filesystem entry",
     cause: info.type,
@@ -146,9 +146,9 @@ const digestFileSystemPath = Effect.fn("digestFileSystemPath")(function* (
 export const observePath = Effect.fn("observeManagedPath")(function* (absolutePath: string) {
   return yield* digestFileSystemPath(absolutePath, canonicalFileMode).pipe(
     Effect.mapError((cause) =>
-      cause instanceof PathInspectionError
+      Schema.is(PathInspectionError)(cause)
         ? cause
-        : new PathInspectionError({ path: absolutePath, operation: "inspect", cause }),
+        : PathInspectionError.make({ path: absolutePath, operation: "inspect", cause }),
     ),
   );
 });
@@ -158,9 +158,9 @@ export const observePathWithRawModes = Effect.fn("observeManagedPathWithRawModes
 ) {
   return yield* digestFileSystemPath(absolutePath, rawFileMode).pipe(
     Effect.mapError((cause) =>
-      cause instanceof PathInspectionError
+      Schema.is(PathInspectionError)(cause)
         ? cause
-        : new PathInspectionError({ path: absolutePath, operation: "inspect", cause }),
+        : PathInspectionError.make({ path: absolutePath, operation: "inspect", cause }),
     ),
   );
 });

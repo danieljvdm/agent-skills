@@ -62,7 +62,7 @@ const runCommand = Effect.fn("runVitePlusHooksCommand")(function* (
   const trimmed = output.trim();
 
   if (!allowedExitCodes.includes(exitCode)) {
-    return yield* new VitePlusHooksCommandError({
+    return yield* VitePlusHooksCommandError.make({
       command: [command, ...args].join(" "),
       exitCode,
       output: trimmed,
@@ -108,7 +108,7 @@ const inspectVitePlusHooks = Effect.fn("inspectVitePlusHooks")(function* (projec
     hooksPath !== ".husky" &&
     !hooksPath.startsWith(".husky/")
   ) {
-    return yield* new VitePlusHooksConflictError({ hooksPath });
+    return yield* VitePlusHooksConflictError.make({ hooksPath });
   }
   const internalDir = path.join(projectDir, VITE_PLUS_HOOKS_DIR, "_");
   const [hasLauncher, hasDispatcher, hasPreCommit] = yield* Effect.all([
@@ -122,11 +122,10 @@ const inspectVitePlusHooks = Effect.fn("inspectVitePlusHooks")(function* (projec
 
 export const planVitePlusHooks = Effect.fn("planVitePlusHooks")(function* (projectDir: string) {
   const { vpBin } = yield* validateInstalledVitePlus(projectDir).pipe(
-    Effect.mapError(
-      (error) =>
-        new VitePlusHooksDependencyError({
-          message: `${error.message} before enabling setup.vitePlus.hooks`,
-        }),
+    Effect.mapError((error) =>
+      VitePlusHooksDependencyError.make({
+        message: `${error.message} before enabling setup.vitePlus.hooks`,
+      }),
     ),
   );
   const viteGitHooks = yield* Config.string("VITE_GIT_HOOKS").pipe(Config.withDefault(""));
@@ -158,7 +157,7 @@ export const applyVitePlusHooksPlan = Effect.fn("applyVitePlusHooksPlan")(functi
     plan.hooksDir,
   ]);
   if (!(yield* inspectVitePlusHooks(plan.projectDir))) {
-    return yield* new VitePlusHooksConvergenceError({
+    return yield* VitePlusHooksConvergenceError.make({
       message: `Vite+ hook setup did not converge at ${plan.hooksPath}`,
     });
   }

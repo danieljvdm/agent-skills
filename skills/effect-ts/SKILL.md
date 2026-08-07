@@ -1,6 +1,6 @@
 ---
 name: effect-ts
-description: Use this skill whenever working in a repository that uses Effect, even if the current task is in a new file or the user does not explicitly ask for Effect help. Apply it to Effect patterns, services, layers, schemas, streams, runtimes, typed errors, DateTime, Effect Atom, observability, testing, HTTP, SQL, command-line scripts, project automation, and supporting tooling.
+description: Use this skill whenever working in a repository that uses Effect, even if the current task is in a new file or the user does not explicitly ask for Effect help. Apply it to Effect patterns, services, layers, schemas, streams, runtimes, typed errors, DateTime, observability, testing, SQL, command-line scripts, project automation, and supporting tooling.
 ---
 
 # Effect Expert
@@ -109,23 +109,11 @@ When the task touches one of these areas, consult the matching guide before impl
 - `./references/guide-datetime.md` for current time, parsing, UTC and zoned
   values, time zones, DST-safe arithmetic, formatting, Date interoperability,
   and deterministic `TestClock` tests
-- `./references/guide-atom-data-fetching.md` for the core Effect Atom HTTP
-  data-fetching workflow, React hook choice, and action-lifetime ownership rules
-- `./references/atom-cache-lifecycle.md` for Effect Atom registry scope,
-  runtime memoization, families, TTL, SWR, polling, and aggregation resets
-- `./references/atom-http-and-invalidation.md` for `AtomHttpApi.Service`,
-  queries, mutations, reactivity keys, and invalidation
-- `./references/atom-tanstack-start.md` only for TanStack Start provider
-  placement, SSR isolation, hydration, and focus guidance
-- `./references/atom-testing.md` when adding or diagnosing deterministic Effect
-  Atom lifecycle tests
 - `./references/guide-sql.md` for Effect SQL usage, transactions, resolvers, schema-aware SQL, and migrations
 - `./references/guide-testing.md` for `@effect/vitest`, deterministic testing,
   honest test Layers, property tests, and protocol round trips
 - `./references/guide-cli.md` for Effect-powered command-line scripts and
   project automation
-- `./references/guide-http-boundaries.md` for `HttpApi` contracts, handlers,
-  DTOs, transport errors, and route boundaries
 - `./references/audit-services.md` for a complete service and type-boundary
   audit workflow
 - `./references/guide-type-safety-and-boundaries.md` for `unknown`, assertions,
@@ -256,15 +244,9 @@ rely on installed declarations and version-matched canonical Effect source.
 - `./references/guide-schedule.md`
 - `./references/guide-schema.md`
 - `./references/guide-datetime.md`
-- `./references/guide-atom-data-fetching.md`
-- `./references/atom-cache-lifecycle.md`
-- `./references/atom-http-and-invalidation.md`
-- `./references/atom-tanstack-start.md`
-- `./references/atom-testing.md`
 - `./references/guide-sql.md`
 - `./references/guide-testing.md`
 - `./references/guide-cli.md`
-- `./references/guide-http-boundaries.md`
 - `./references/audit-services.md`
 - `./references/guide-type-safety-and-boundaries.md`
 - `./references/version-and-source.md`

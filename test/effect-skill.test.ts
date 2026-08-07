@@ -52,7 +52,7 @@ const writeManifest = Effect.fn("writeTestManifest")(function* (
 
 describe("shipped skills", () => {
   layer(NodeServices.layer)((it) => {
-    it.effect("ships one consolidated Effect skill with valid local references", () =>
+    it.effect("ships the broad Effect skill with valid local references", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
@@ -76,28 +76,16 @@ describe("shipped skills", () => {
 
         assert.isTrue(referenceNames.has("audit-services.md"));
         assert.isTrue(referenceNames.has("guide-datetime.md"));
-        assert.isTrue(referenceNames.has("guide-atom-data-fetching.md"));
-        assert.isTrue(referenceNames.has("atom-cache-lifecycle.md"));
-        assert.isTrue(referenceNames.has("atom-http-and-invalidation.md"));
-        assert.isTrue(referenceNames.has("atom-tanstack-start.md"));
-        assert.isTrue(referenceNames.has("atom-testing.md"));
         assert.match(skill, /Prefer Effect `DateTime` over vanilla JavaScript `Date`/);
 
-        const atomDataFetching = yield* fs.readFileString(
-          path.join(referencesDir, "guide-atom-data-fetching.md"),
-        );
-        const atomHttp = yield* fs.readFileString(
-          path.join(referencesDir, "atom-http-and-invalidation.md"),
-        );
-        const atomTesting = yield* fs.readFileString(path.join(referencesDir, "atom-testing.md"));
-
-        assert.match(atomDataFetching, /Use `useAtom\(atom\)` instead/);
-        assert.match(atomDataFetching, /Do not add a cleanup-only effect/);
-        assert.match(atomDataFetching, /React Strict Mode's development effect replay/);
-        assert.match(atomHttp, /partially completed operation/);
-        assert.match(atomTesting, /unmounting one consumer does not cancel work/);
         for (const duplicateReference of [
+          "atom-cache-lifecycle.md",
+          "atom-http-and-invalidation.md",
+          "atom-tanstack-start.md",
+          "atom-testing.md",
+          "guide-atom-data-fetching.md",
           "guide-functions-and-errors.md",
+          "guide-http-boundaries.md",
           "guide-logging.md",
           "guide-schema-first-modeling.md",
           "guide-service-design.md",
@@ -255,12 +243,24 @@ describe("shipped skills", () => {
           prefix: "dev-kit-effect-plan-test-",
         });
 
-        for (const include of [["effect"], ["effect-ts"], ["effect-atom-data-fetching"]]) {
+        for (const { include, includesApiSkill } of [
+          { include: ["effect"], includesApiSkill: true },
+          { include: ["effect-ts"], includesApiSkill: false },
+          { include: ["effect-atom-data-fetching"], includesApiSkill: true },
+        ]) {
           yield* writeManifest(projectDir, include);
           const result = yield* runCli(cli, projectDir, ["plan", "--project-dir", projectDir]);
 
           assert.strictEqual(result.exitCode, 0, result.output);
           assert.match(result.output, /copy effect-ts → \.agents\/skills\/effect-ts/);
+          if (includesApiSkill) {
+            assert.match(
+              result.output,
+              /copy build-effect-apis → \.agents\/skills\/build-effect-apis/,
+            );
+          } else {
+            assert.notMatch(result.output, /copy build-effect-apis/);
+          }
           assert.notMatch(result.output, /copy effect-atom-data-fetching|copy effect-datetime/);
           assert.notMatch(result.output, /effect-cli|effect-patterns/);
         }

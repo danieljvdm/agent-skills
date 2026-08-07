@@ -270,8 +270,8 @@ const encodePlanSnapshotJson = Schema.encodeSync(Schema.UnknownFromJsonString);
 const encodeAppliedStatePrettyJson = Schema.encodeSync(fromJsonString(AppliedStateSchema, 2));
 
 const SKILL_FAMILIES: SkillCatalog = {
-  effect: ["effect-ts"],
-  "effect-atom-data-fetching": ["effect-ts"],
+  effect: ["effect-ts", "build-effect-apis"],
+  "effect-atom-data-fetching": ["effect-ts", "build-effect-apis"],
 };
 
 export const DEFAULT_MANIFEST = "dev-kit.jsonc";

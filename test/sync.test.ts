@@ -88,6 +88,18 @@ const installFakeVitePlusInstructions = Effect.fn("installFakeVitePlusInstructio
   yield* fs.writeFileString(path.join(packageDir, "AGENTS.md"), contents);
 });
 
+const installFakeEffectInstructions = Effect.fn("installFakeEffectInstructions")(function* (
+  projectDir: string,
+  contents = "package Effect guidance\n",
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const packageDir = path.join(projectDir, "node_modules", "effect");
+
+  yield* fs.makeDirectory(packageDir, { recursive: true });
+  yield* fs.writeFileString(path.join(packageDir, "AGENTS.md"), contents);
+});
+
 const writePackageVersion = Effect.fn("writeSyncTestPackageVersion")(function* (
   projectDir: string,
   packageName: string,
@@ -238,6 +250,10 @@ describe("project apply", () => {
           result.output,
           /\+ copy build-effect-apis → \.agents\/skills\/build-effect-apis/,
         );
+        assert.match(
+          result.output,
+          /\+ copy effect-architecture-audit → \.agents\/skills\/effect-architecture-audit/,
+        );
         assert.match(result.output, /\+ copy effect-ts → \.agents\/skills\/effect-ts/);
         assert.notMatch(result.output, /copy effect-atom-data-fetching|copy effect-datetime/);
         assert.isFalse(yield* fs.exists(path.join(projectDir, ".agents")));
@@ -256,10 +272,15 @@ describe("project apply", () => {
         const first = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
 
         assert.strictEqual(first.exitCode, 0, first.output);
-        assert.match(first.output, /Dev kit ready 2 changes/);
+        assert.match(first.output, /Dev kit ready 3 changes/);
         assert.isTrue(
           yield* fs.exists(
             path.join(projectDir, ".agents", "skills", "build-effect-apis", "SKILL.md"),
+          ),
+        );
+        assert.isTrue(
+          yield* fs.exists(
+            path.join(projectDir, ".agents", "skills", "effect-architecture-audit", "SKILL.md"),
           ),
         );
         assert.isTrue(
@@ -279,6 +300,7 @@ describe("project apply", () => {
           ]),
           [
             ["skill:build-effect-apis@agents", ".agents/skills/build-effect-apis"],
+            ["skill:effect-architecture-audit@agents", ".agents/skills/effect-architecture-audit"],
             ["skill:effect-ts@agents", ".agents/skills/effect-ts"],
           ],
         );
@@ -314,7 +336,7 @@ describe("project apply", () => {
         const applied = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
 
         assert.strictEqual(applied.exitCode, 0, applied.output);
-        assert.match(applied.output, /✓ Dev kit ready 3 changes/);
+        assert.match(applied.output, /✓ Dev kit ready 4 changes/);
         assert.notMatch(applied.output, /Verification succeeded|Backed up original binary/);
         assert.strictEqual(yield* fs.readFileString(marker), "1");
 
@@ -394,9 +416,13 @@ describe("project apply", () => {
 
         assert.strictEqual(planned.exitCode, 0, planned.output);
         assert.match(planned.output, /− skill:build-effect-apis@agents/);
+        assert.match(planned.output, /− skill:effect-architecture-audit@agents/);
         assert.match(planned.output, /− skill:effect-ts@agents/);
         assert.isTrue(
           yield* fs.exists(path.join(projectDir, ".agents", "skills", "build-effect-apis")),
+        );
+        assert.isTrue(
+          yield* fs.exists(path.join(projectDir, ".agents", "skills", "effect-architecture-audit")),
         );
         assert.isTrue(yield* fs.exists(path.join(projectDir, ".agents", "skills", "effect-ts")));
 
@@ -405,6 +431,9 @@ describe("project apply", () => {
         assert.strictEqual(applied.exitCode, 0, applied.output);
         assert.isFalse(
           yield* fs.exists(path.join(projectDir, ".agents", "skills", "build-effect-apis")),
+        );
+        assert.isFalse(
+          yield* fs.exists(path.join(projectDir, ".agents", "skills", "effect-architecture-audit")),
         );
         assert.isFalse(yield* fs.exists(path.join(projectDir, ".agents", "skills", "effect-ts")));
         assert.strictEqual(yield* fs.readFileString(path.join(unrelated, "SKILL.md")), "local\n");
@@ -440,7 +469,7 @@ describe("project apply", () => {
         assert.match(yield* fs.readFileString(skillDocument), /local edit/);
         assert.lengthOf(
           JSON.parse(yield* fs.readFileString(path.join(projectDir, "dev-kit.lock.json"))).outputs,
-          2,
+          3,
         );
       }),
     );
@@ -655,6 +684,64 @@ describe("project apply", () => {
         assert.strictEqual(result.exitCode, 0, result.output);
         assert.include(instructions, ".agents/skills/dev-kit/SKILL.md");
         assert.notInclude(instructions, "node_modules/");
+      }),
+    );
+
+    it.effect("points direct Effect projects at installed package guidance", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const directProject = yield* createProject();
+
+        yield* writeManifest(directProject, { agentInstructionsEnabled: true });
+        yield* writeProjectPackage(directProject, {
+          dependencies: { effect: "4.0.0-beta.105" },
+        });
+        yield* installFakeEffectInstructions(directProject);
+        const direct = yield* runDevKit(directProject, ["apply", "--project-dir", directProject]);
+
+        assert.strictEqual(direct.exitCode, 0, direct.output);
+        const directInstructions = yield* fs.readFileString(path.join(directProject, "AGENTS.md"));
+
+        assert.include(directInstructions, "# Learning more about the Effect");
+        assert.include(directInstructions, "read `node_modules/effect/AGENTS.md`");
+        assert.include(directInstructions, "`node_modules/effect/src`");
+        assert.notInclude(directInstructions, "package Effect guidance");
+
+        const missingProject = yield* createProject();
+
+        yield* writeManifest(missingProject, { agentInstructionsEnabled: true });
+        yield* writeProjectPackage(missingProject, {
+          dependencies: { effect: "4.0.0-beta.102" },
+        });
+        const missing = yield* runDevKit(missingProject, [
+          "apply",
+          "--project-dir",
+          missingProject,
+        ]);
+
+        assert.strictEqual(missing.exitCode, 0, missing.output);
+        assert.notInclude(
+          yield* fs.readFileString(path.join(missingProject, "AGENTS.md")),
+          "node_modules/effect/AGENTS.md",
+        );
+
+        const transitiveProject = yield* createProject();
+
+        yield* writeManifest(transitiveProject, { agentInstructionsEnabled: true });
+        yield* writeProjectPackage(transitiveProject, { dependencies: {} });
+        yield* installFakeEffectInstructions(transitiveProject);
+        const transitive = yield* runDevKit(transitiveProject, [
+          "apply",
+          "--project-dir",
+          transitiveProject,
+        ]);
+
+        assert.strictEqual(transitive.exitCode, 0, transitive.output);
+        assert.notInclude(
+          yield* fs.readFileString(path.join(transitiveProject, "AGENTS.md")),
+          "node_modules/effect/AGENTS.md",
+        );
       }),
     );
 
@@ -1322,7 +1409,7 @@ describe("project apply", () => {
         assert.isTrue(yield* fs.exists(path.join(projectDir, ".agents", "skills", "effect-ts")));
         assert.lengthOf(
           JSON.parse(yield* fs.readFileString(path.join(projectDir, "dev-kit.lock.json"))).outputs,
-          2,
+          3,
         );
       }),
     );
@@ -1357,9 +1444,12 @@ describe("project apply", () => {
         ]);
 
         assert.strictEqual(result.exitCode, 0, result.output);
-        assert.match(result.output, /Dev kit ready 2 changes/);
+        assert.match(result.output, /Dev kit ready 3 changes/);
         assert.isFalse(
           yield* fs.exists(path.join(projectDir, ".agents", "skills", "build-effect-apis")),
+        );
+        assert.isFalse(
+          yield* fs.exists(path.join(projectDir, ".agents", "skills", "effect-architecture-audit")),
         );
         assert.isFalse(yield* fs.exists(path.join(projectDir, ".agents", "skills", "effect-ts")));
         assert.deepEqual(

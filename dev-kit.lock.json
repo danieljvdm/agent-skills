@@ -5,10 +5,10 @@
   "setup": {
     "effectSource": {
       "packageName": "effect",
-      "packageVersion": "4.0.0-beta.102",
+      "packageVersion": "4.0.0-beta.105",
       "path": ".repos/effect",
       "repository": "https://github.com/Effect-TS/effect.git",
-      "tag": "effect@4.0.0-beta.102"
+      "tag": "effect@4.0.0-beta.105"
     },
     "effectTsgo": {
       "effectTsgoVersion": "0.33.0",
@@ -31,7 +31,7 @@
       "sourcePath": "templates/AGENTS.md",
       "mode": "copy",
       "kind": "file",
-      "digest": "sha256:7443cbd91f6f02a2b59550cb490ea60abe4b5ded67fb2413c6c17e82740cf3a2"
+      "digest": "sha256:39af6ce20f968d66ac6bdf1624a6883f82158071401368e24a6898b95202bd19"
     },
     {
       "resourceId": "setup:claude-instructions",

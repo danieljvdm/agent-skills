@@ -36,10 +36,9 @@ export type CatalogAddOptions = CatalogCommandOptions & {
   readonly dryRun?: boolean;
 };
 
-class CatalogManagerError extends Schema.TaggedErrorClass<CatalogManagerError>()(
-  "CatalogManagerError",
-  { message: Schema.String },
-) {}
+class CatalogManagerError extends Schema.TaggedError<CatalogManagerError>()("CatalogManagerError", {
+  message: Schema.String,
+}) {}
 
 const formattingOptions = { insertSpaces: true, tabSize: 2 } as const;
 

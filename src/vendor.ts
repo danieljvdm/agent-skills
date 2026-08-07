@@ -51,39 +51,30 @@ type PreparedSource = {
   readonly licenseSource?: string;
 };
 
-class SourceManifestError extends Schema.TaggedErrorClass<SourceManifestError>()(
-  "SourceManifestError",
-  {
-    path: Schema.String,
-    message: Schema.String,
-  },
-) {}
+class SourceManifestError extends Schema.TaggedError<SourceManifestError>()("SourceManifestError", {
+  path: Schema.String,
+  message: Schema.String,
+}) {}
 
-class InvalidSourceError extends Schema.TaggedErrorClass<InvalidSourceError>()(
-  "InvalidSourceError",
-  {
-    source: Schema.String,
-    reason: Schema.String,
-  },
-) {
+class InvalidSourceError extends Schema.TaggedError<InvalidSourceError>()("InvalidSourceError", {
+  source: Schema.String,
+  reason: Schema.String,
+}) {
   override get message(): string {
     return `invalid source "${this.source}": ${this.reason}`;
   }
 }
 
-class SkillCollisionError extends Schema.TaggedErrorClass<SkillCollisionError>()(
-  "SkillCollisionError",
-  {
-    skill: Schema.String,
-    owners: Schema.Array(Schema.String),
-  },
-) {
+class SkillCollisionError extends Schema.TaggedError<SkillCollisionError>()("SkillCollisionError", {
+  skill: Schema.String,
+  owners: Schema.Array(Schema.String),
+}) {
   override get message() {
     return `skill "${this.skill}" is owned by more than one source: ${this.owners.join(", ")}`;
   }
 }
 
-class CommandError extends Schema.TaggedErrorClass<CommandError>()("CommandError", {
+class CommandError extends Schema.TaggedError<CommandError>()("CommandError", {
   command: Schema.String,
   exitCode: Schema.Int,
   output: Schema.String,

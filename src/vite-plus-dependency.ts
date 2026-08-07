@@ -8,7 +8,7 @@ const InstalledVitePlusPackageSchema = Schema.fromJsonString(
   Schema.Struct({ version: Schema.String }),
 );
 
-export class VitePlusDependencyError extends Schema.TaggedErrorClass<VitePlusDependencyError>()(
+export class VitePlusDependencyError extends Schema.TaggedError<VitePlusDependencyError>()(
   "VitePlusDependencyError",
   { message: Schema.String },
 ) {}

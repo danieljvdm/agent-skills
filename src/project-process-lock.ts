@@ -4,7 +4,7 @@ import { DEV_KIT_VERSION } from "./tool-metadata.ts";
 
 export const PROJECT_PROCESS_LOCK_PATH = ".dev-kit/apply.lock";
 
-export class ProjectAlreadyLockedError extends Schema.TaggedErrorClass<ProjectAlreadyLockedError>()(
+export class ProjectAlreadyLockedError extends Schema.TaggedError<ProjectAlreadyLockedError>()(
   "ProjectAlreadyLockedError",
   { path: Schema.String },
 ) {

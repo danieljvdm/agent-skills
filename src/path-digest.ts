@@ -9,7 +9,7 @@ export type ObservedPath =
   | { readonly kind: "missing" }
   | { readonly kind: "file" | "directory" | "symlink"; readonly digest: Digest };
 
-export class PathInspectionError extends Schema.TaggedErrorClass<PathInspectionError>()(
+export class PathInspectionError extends Schema.TaggedError<PathInspectionError>()(
   "PathInspectionError",
   {
     path: Schema.String,

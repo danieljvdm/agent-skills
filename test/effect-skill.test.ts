@@ -9,12 +9,14 @@ const repositoryPaths = Effect.fn("repositoryPaths")(function* () {
   const testPath = yield* path.fromFileUrl(new URL(import.meta.url));
   const root = path.resolve(path.dirname(testPath), "..");
   const skillDir = path.join(root, "skills", "effect-ts");
+  const architectureSkillDir = path.join(root, "skills", "effect-architecture-audit");
 
   return {
+    architectureSkillDir,
+    architectureReferencesDir: path.join(architectureSkillDir, "references"),
     root,
     skillDir,
     devKitSkillDir: path.join(root, "skills", "dev-kit"),
-    referencesDir: path.join(skillDir, "references"),
     cli: path.join(root, "src", "bin", "dev-kit.ts"),
   };
 });
@@ -52,11 +54,12 @@ const writeManifest = Effect.fn("writeTestManifest")(function* (
 
 describe("shipped skills", () => {
   layer(NodeServices.layer)((it) => {
-    it.effect("ships the broad Effect skill with valid local references", () =>
+    it.effect("ships the upstream Effect bootstrap and a focused architecture audit", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
-        const { root, skillDir, referencesDir } = yield* repositoryPaths();
+        const { architectureReferencesDir, architectureSkillDir, root, skillDir } =
+          yield* repositoryPaths();
 
         assert.isTrue(yield* fs.exists(path.join(skillDir, "SKILL.md")));
         assert.isFalse(yield* fs.exists(path.join(root, "skills", "effect-cli", "SKILL.md")));
@@ -69,108 +72,45 @@ describe("shipped skills", () => {
         const skill = yield* fs.readFileString(path.join(skillDir, "SKILL.md"));
 
         assert.match(skill, /^---\nname: effect-ts\n/);
-        assert.notMatch(skill, /name: effect-(?:cli|patterns)/);
-        assert.notMatch(skill, /stop and prompt the user.*\.repos\/effect/is);
+        assert.match(skill, /node_modules\/effect\/AGENTS\.md/);
+        assert.match(skill, /node_modules\/effect\/src/);
+        assert.notMatch(skill, /references\//);
+        assert.notMatch(skill, /4\.0\.0-beta/);
+        assert.isTrue(yield* fs.exists(path.join(skillDir, "agents", "openai.yaml")));
 
-        const referenceNames = new Set(yield* fs.readDirectory(referencesDir));
-
-        assert.isTrue(referenceNames.has("audit-services.md"));
-        assert.isTrue(referenceNames.has("guide-datetime.md"));
-        assert.match(skill, /Prefer Effect `DateTime` over vanilla JavaScript `Date`/);
-
-        for (const duplicateReference of [
-          "atom-cache-lifecycle.md",
-          "atom-http-and-invalidation.md",
-          "atom-tanstack-start.md",
-          "atom-testing.md",
-          "guide-atom-data-fetching.md",
-          "guide-functions-and-errors.md",
-          "guide-http-boundaries.md",
-          "guide-logging.md",
-          "guide-schema-first-modeling.md",
-          "guide-service-design.md",
-          "guide-service-design-audit.md",
-          "guide-testing-conventions.md",
-        ]) {
-          assert.isFalse(
-            referenceNames.has(duplicateReference),
-            `duplicate topic reference still exists: ${duplicateReference}`,
-          );
-        }
-
-        const routedReferences = [...skill.matchAll(/`\.\/references\/([^`]+\.md)`/g)].flatMap(
-          (match) => (match[1] === undefined ? [] : [match[1]]),
+        const architectureSkill = yield* fs.readFileString(
+          path.join(architectureSkillDir, "SKILL.md"),
         );
-        const uniqueRoutedReferences = new Set(routedReferences);
+        const referenceNames = new Set(yield* fs.readDirectory(architectureReferencesDir));
 
-        assert.isNotEmpty(routedReferences);
-        for (const reference of routedReferences) {
-          assert.isTrue(
-            referenceNames.has(reference),
-            `SKILL.md routes to missing reference: ${reference}`,
-          );
-        }
-        for (const reference of referenceNames) {
-          if (reference.endsWith(".md")) {
-            assert.isTrue(
-              uniqueRoutedReferences.has(reference),
-              `reference is not routed from SKILL.md: ${reference}`,
-            );
-          }
-        }
-
-        for (const reference of referenceNames) {
-          if (!reference.endsWith(".md")) continue;
-          const markdown = yield* fs.readFileString(path.join(referencesDir, reference));
-
-          for (const match of markdown.matchAll(/\]\((?!https?:|#)([^)]+\.md)(?:#[^)]+)?\)/g)) {
-            const linkedReference = match[1];
-
-            if (linkedReference === undefined) continue;
-            assert.isTrue(
-              yield* fs.exists(path.resolve(referencesDir, linkedReference)),
-              `${reference} links to missing file: ${match[1]}`,
-            );
-          }
-        }
+        assert.match(architectureSkill, /^---\nname: effect-architecture-audit\n/);
+        assert.notMatch(architectureSkill, /TODO/);
+        assert.deepEqual(referenceNames, new Set(["service-and-boundary-audit.md"]));
+        assert.match(architectureSkill, /\]\(references\/service-and-boundary-audit\.md\)/);
+        assert.isTrue(yield* fs.exists(path.join(architectureSkillDir, "agents", "openai.yaml")));
       }),
     );
 
-    it.effect("matches the pinned Effect version and avoids removed APIs", () =>
+    it.effect("keeps the installed Effect v4 family aligned with bundled guidance", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
-        const { root, skillDir, referencesDir } = yield* repositoryPaths();
+        const { root } = yield* repositoryPaths();
         const packageJson = JSON.parse(
           yield* fs.readFileString(path.join(root, "package.json")),
-        ) as { dependencies: Record<string, string> };
+        ) as {
+          dependencies: Record<string, string>;
+          devDependencies: Record<string, string>;
+        };
         const effectVersion = packageJson.dependencies.effect;
 
         if (effectVersion === undefined) assert.fail("effect dependency is missing");
 
         assert.isString(effectVersion);
         assert.strictEqual(packageJson.dependencies["@effect/platform-bun"], effectVersion);
-        assert.match(
-          yield* fs.readFileString(path.join(skillDir, "SKILL.md")),
-          new RegExp(effectVersion),
-        );
-        assert.match(
-          yield* fs.readFileString(path.join(referencesDir, "version-and-source.md")),
-          new RegExp(effectVersion),
-        );
-
-        const guidance = (yield* Effect.forEach(
-          (yield* fs.readDirectory(referencesDir)).filter(
-            (name) => name.endsWith(".md") && name !== "version-and-source.md",
-          ),
-          (name) => fs.readFileString(path.join(referencesDir, name)),
-        )).join("\n");
-
-        assert.notMatch(guidance, /Schema\.DefectWithStack/);
-        assert.notMatch(guidance, /Schedule\.either\s*\(/);
-        assert.notMatch(guidance, /ExecutionPlan\.captureRequirements\s*\(/);
-        assert.notMatch(guidance, /Context\.(?:Tag|GenericTag)\b/);
-        assert.notMatch(guidance, /Effect\.(?:Tag|Service|runtime)\b/);
+        assert.strictEqual(packageJson.devDependencies["@effect/platform-node"], effectVersion);
+        assert.strictEqual(packageJson.devDependencies["@effect/vitest"], effectVersion);
+        assert.isTrue(yield* fs.exists(path.join(root, "node_modules", "effect", "AGENTS.md")));
       }),
     );
 
@@ -206,7 +146,11 @@ describe("shipped skills", () => {
         const { root } = yield* repositoryPaths();
         const packageJson = JSON.parse(
           yield* fs.readFileString(path.join(root, "package.json")),
-        ) as { name: string; scripts: Record<string, string> };
+        ) as {
+          dependencies: Record<string, string>;
+          name: string;
+          scripts: Record<string, string>;
+        };
         const selfManifest = parseJsonc(yield* fs.readFileString(path.join(root, "dev-kit.jsonc")));
         const selfLock = JSON.parse(yield* fs.readFileString(path.join(root, "dev-kit.lock.json")));
 
@@ -229,7 +173,10 @@ describe("shipped skills", () => {
             "setup:claude-instructions",
           ],
         );
-        assert.strictEqual(selfLock.setup.effectSource.tag, "effect@4.0.0-beta.102");
+        assert.strictEqual(
+          selfLock.setup.effectSource.tag,
+          `effect@${packageJson.dependencies.effect}`,
+        );
         assert.isTrue(yield* fs.exists(path.join(root, "dev-kit.example.jsonc")));
         assert.isTrue(yield* fs.exists(path.join(root, "schema", "dev-kit.schema.json")));
       }),
@@ -243,23 +190,31 @@ describe("shipped skills", () => {
           prefix: "dev-kit-effect-plan-test-",
         });
 
-        for (const { include, includesApiSkill } of [
-          { include: ["effect"], includesApiSkill: true },
-          { include: ["effect-ts"], includesApiSkill: false },
-          { include: ["effect-atom-data-fetching"], includesApiSkill: true },
+        for (const { expectedSkills, include } of [
+          {
+            include: ["effect"],
+            expectedSkills: ["effect-ts", "effect-architecture-audit", "build-effect-apis"],
+          },
+          { include: ["effect-ts"], expectedSkills: ["effect-ts"] },
+          {
+            include: ["effect-architecture-audit"],
+            expectedSkills: ["effect-architecture-audit"],
+          },
+          {
+            include: ["effect-atom-data-fetching"],
+            expectedSkills: ["effect-ts", "effect-architecture-audit", "build-effect-apis"],
+          },
         ]) {
           yield* writeManifest(projectDir, include);
           const result = yield* runCli(cli, projectDir, ["plan", "--project-dir", projectDir]);
 
           assert.strictEqual(result.exitCode, 0, result.output);
-          assert.match(result.output, /copy effect-ts → \.agents\/skills\/effect-ts/);
-          if (includesApiSkill) {
-            assert.match(
-              result.output,
-              /copy build-effect-apis → \.agents\/skills\/build-effect-apis/,
-            );
-          } else {
-            assert.notMatch(result.output, /copy build-effect-apis/);
+          for (const skillName of ["effect-ts", "effect-architecture-audit", "build-effect-apis"]) {
+            if (expectedSkills.includes(skillName)) {
+              assert.include(result.output, `copy ${skillName} → .agents/skills/${skillName}`);
+            } else {
+              assert.notInclude(result.output, `copy ${skillName}`);
+            }
           }
           assert.notMatch(result.output, /copy effect-atom-data-fetching|copy effect-datetime/);
           assert.notMatch(result.output, /effect-cli|effect-patterns/);

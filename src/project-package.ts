@@ -1,6 +1,6 @@
 import { Effect, FileSystem, Path, Schema } from "effect";
 
-export class ProjectPackageError extends Schema.TaggedErrorClass<ProjectPackageError>()(
+export class ProjectPackageError extends Schema.TaggedError<ProjectPackageError>()(
   "ProjectPackageError",
   { message: Schema.String },
 ) {}

@@ -122,7 +122,7 @@ const writeFixture = Effect.fn("writeQualityTestFixture")(function* (
       {
         name: "quality-fixture",
         dependencies: completeDependencies
-          ? { "@danieljvdm/dev-kit": "0.11.3", effect: "4.0.0-beta.102" }
+          ? { "@danieljvdm/dev-kit": "0.11.3", effect: "4.0.0-beta.105" }
           : {},
         devDependencies: completeDependencies
           ? {

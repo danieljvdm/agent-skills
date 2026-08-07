@@ -6,6 +6,16 @@ This project uses `@danieljvdm/dev-kit` to manage portable agent skills and repr
 
 For dev-kit operations, use the `dev-kit` skill and read `skills/dev-kit/SKILL.md` before changing managed outputs.
 
+# Learning more about the Effect
+
+This repository uses the Effect Typescript library.
+
+Before writing any Effect code, first read `node_modules/effect/AGENTS.md`
+**completely**, and follow the links in the file when required.
+
+If you need to learn more about particular Effect apis and concepts that the
+guide doesn't cover, search through the source code in `node_modules/effect/src`.
+
 ## Project command policy
 
 Vite+ is the unified toolchain and command authority for this repository. It wraps Vite, Rolldown, Vitest, tsdown, Oxlint, Oxfmt, and Vite Task behind the `vp` CLI; Vite+ is distinct from Vite.

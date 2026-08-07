@@ -27,7 +27,7 @@ export type EffectTsgoPatchPlan = {
   readonly typescriptVersion: string;
 };
 
-export class EffectTsgoDependencyError extends Schema.TaggedErrorClass<EffectTsgoDependencyError>()(
+export class EffectTsgoDependencyError extends Schema.TaggedError<EffectTsgoDependencyError>()(
   "EffectTsgoDependencyError",
   {
     packageName: Schema.String,
@@ -42,7 +42,7 @@ export class EffectTsgoDependencyError extends Schema.TaggedErrorClass<EffectTsg
   }
 }
 
-export class EffectTsgoPatchCommandError extends Schema.TaggedErrorClass<EffectTsgoPatchCommandError>()(
+export class EffectTsgoPatchCommandError extends Schema.TaggedError<EffectTsgoPatchCommandError>()(
   "EffectTsgoPatchCommandError",
   {
     command: Schema.String,
@@ -57,7 +57,7 @@ export class EffectTsgoPatchCommandError extends Schema.TaggedErrorClass<EffectT
   }
 }
 
-export class InvalidEffectTsgoPackageNameError extends Schema.TaggedErrorClass<InvalidEffectTsgoPackageNameError>()(
+export class InvalidEffectTsgoPackageNameError extends Schema.TaggedError<InvalidEffectTsgoPackageNameError>()(
   "InvalidEffectTsgoPackageNameError",
   { packageName: Schema.String },
 ) {

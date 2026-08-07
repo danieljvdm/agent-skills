@@ -5,7 +5,7 @@ import { readDirectDependencyNames } from "./project-package.ts";
 import { isSkillName, parseSkillSelector } from "./skill-selector.ts";
 import { isTypeScriptPackageName } from "./typescript-package-name.ts";
 
-export class PackageSkillSourceError extends Schema.TaggedErrorClass<PackageSkillSourceError>()(
+export class PackageSkillSourceError extends Schema.TaggedError<PackageSkillSourceError>()(
   "PackageSkillSourceError",
   { message: Schema.String },
 ) {}

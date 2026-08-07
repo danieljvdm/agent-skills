@@ -7,7 +7,7 @@ import { validateInstalledVitePlus } from "./vite-plus-dependency.ts";
 export const VITE_PLUS_GITHUB_ACTIONS_PATH = ".github/workflows/check.yml";
 export const VITE_PLUS_GITHUB_ACTIONS_TEMPLATE = "templates/vite-plus/github-actions-check.yml";
 
-export class VitePlusQualitySupportError extends Schema.TaggedErrorClass<VitePlusQualitySupportError>()(
+export class VitePlusQualitySupportError extends Schema.TaggedError<VitePlusQualitySupportError>()(
   "VitePlusQualitySupportError",
   { message: Schema.String },
 ) {}

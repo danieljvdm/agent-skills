@@ -149,7 +149,7 @@ export type SkillPlan = {
   readonly metadataChanged: boolean;
 };
 
-class ManifestNotFoundError extends Schema.TaggedErrorClass<ManifestNotFoundError>()(
+class ManifestNotFoundError extends Schema.TaggedError<ManifestNotFoundError>()(
   "ManifestNotFoundError",
   { path: Schema.String },
 ) {
@@ -158,12 +158,12 @@ class ManifestNotFoundError extends Schema.TaggedErrorClass<ManifestNotFoundErro
   }
 }
 
-class StructuredFileError extends Schema.TaggedErrorClass<StructuredFileError>()(
-  "StructuredFileError",
-  { path: Schema.String, message: Schema.String },
-) {}
+class StructuredFileError extends Schema.TaggedError<StructuredFileError>()("StructuredFileError", {
+  path: Schema.String,
+  message: Schema.String,
+}) {}
 
-class UnknownSkillOrFamilyError extends Schema.TaggedErrorClass<UnknownSkillOrFamilyError>()(
+class UnknownSkillOrFamilyError extends Schema.TaggedError<UnknownSkillOrFamilyError>()(
   "UnknownSkillOrFamilyError",
   { name: Schema.String, known: Schema.Array(Schema.String) },
 ) {
@@ -172,12 +172,12 @@ class UnknownSkillOrFamilyError extends Schema.TaggedErrorClass<UnknownSkillOrFa
   }
 }
 
-class InvalidSkillCatalogError extends Schema.TaggedErrorClass<InvalidSkillCatalogError>()(
+class InvalidSkillCatalogError extends Schema.TaggedError<InvalidSkillCatalogError>()(
   "InvalidSkillCatalogError",
   { family: Schema.String, message: Schema.String },
 ) {}
 
-class CommandError extends Schema.TaggedErrorClass<CommandError>()("CommandError", {
+class CommandError extends Schema.TaggedError<CommandError>()("CommandError", {
   command: Schema.String,
   exitCode: Schema.Int,
   output: Schema.String,
@@ -189,7 +189,7 @@ class CommandError extends Schema.TaggedErrorClass<CommandError>()("CommandError
   }
 }
 
-class UnsafeManagedPathError extends Schema.TaggedErrorClass<UnsafeManagedPathError>()(
+class UnsafeManagedPathError extends Schema.TaggedError<UnsafeManagedPathError>()(
   "UnsafeManagedPathError",
   { path: Schema.String, reason: Schema.String },
 ) {
@@ -198,17 +198,17 @@ class UnsafeManagedPathError extends Schema.TaggedErrorClass<UnsafeManagedPathEr
   }
 }
 
-class InvalidProjectStateError extends Schema.TaggedErrorClass<InvalidProjectStateError>()(
+class InvalidProjectStateError extends Schema.TaggedError<InvalidProjectStateError>()(
   "InvalidProjectStateError",
   { message: Schema.String },
 ) {}
 
-class LockedPlanMismatchError extends Schema.TaggedErrorClass<LockedPlanMismatchError>()(
+class LockedPlanMismatchError extends Schema.TaggedError<LockedPlanMismatchError>()(
   "LockedPlanMismatchError",
   { message: Schema.String },
 ) {}
 
-class PlanConflictError extends Schema.TaggedErrorClass<PlanConflictError>()("PlanConflictError", {
+class PlanConflictError extends Schema.TaggedError<PlanConflictError>()("PlanConflictError", {
   conflicts: Schema.Array(Schema.String),
 }) {
   override get message() {
@@ -218,7 +218,7 @@ class PlanConflictError extends Schema.TaggedErrorClass<PlanConflictError>()("Pl
   }
 }
 
-class ApplyRaceError extends Schema.TaggedErrorClass<ApplyRaceError>()("ApplyRaceError", {
+class ApplyRaceError extends Schema.TaggedError<ApplyRaceError>()("ApplyRaceError", {
   path: Schema.String,
 }) {
   override get message() {
@@ -266,12 +266,12 @@ const encodeManagedOutputJson = Schema.encodeSync(fromJsonString(ManagedOutputSc
 const encodeOutputOwnershipIdentityJson = Schema.encodeSync(
   fromJsonString(OutputOwnershipIdentitySchema),
 );
-const encodePlanSnapshotJson = Schema.encodeSync(Schema.UnknownFromJsonString);
+const encodePlanSnapshotJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
 const encodeAppliedStatePrettyJson = Schema.encodeSync(fromJsonString(AppliedStateSchema, 2));
 
 const SKILL_FAMILIES: SkillCatalog = {
-  effect: ["effect-ts", "build-effect-apis"],
-  "effect-atom-data-fetching": ["effect-ts", "build-effect-apis"],
+  effect: ["effect-ts", "effect-architecture-audit", "build-effect-apis"],
+  "effect-atom-data-fetching": ["effect-ts", "effect-architecture-audit", "build-effect-apis"],
 };
 
 export const DEFAULT_MANIFEST = "dev-kit.jsonc";
@@ -279,6 +279,7 @@ const DEFAULT_LOCKFILE = "dev-kit.lock.json";
 const DEFAULT_STATE = ".dev-kit/state.json";
 const AGENT_INSTRUCTIONS_TEMPLATE = "templates/AGENTS.md";
 const DEV_KIT_SKILL_PATH_PLACEHOLDER = "{{DEV_KIT_SKILL_PATH}}";
+const EFFECT_INSTRUCTIONS_PLACEHOLDER = "{{EFFECT_INSTRUCTIONS}}";
 const PROJECT_COMMAND_POLICY_PLACEHOLDER = "{{PROJECT_COMMAND_POLICY}}";
 const AGENT_INSTRUCTION_MARKERS = [
   { start: "<!-- DEV KIT START -->", end: "<!-- DEV KIT END -->" },
@@ -835,6 +836,11 @@ const renderAgentInstructions = Effect.fn("renderAgentInstructions")(function* (
       message: `dev-kit agent instructions template is missing ${DEV_KIT_SKILL_PATH_PLACEHOLDER}`,
     });
   }
+  if (!template.includes(EFFECT_INSTRUCTIONS_PLACEHOLDER)) {
+    return yield* InvalidProjectStateError.make({
+      message: `dev-kit agent instructions template is missing ${EFFECT_INSTRUCTIONS_PLACEHOLDER}`,
+    });
+  }
   if (!template.includes(PROJECT_COMMAND_POLICY_PLACEHOLDER)) {
     return yield* InvalidProjectStateError.make({
       message: `dev-kit agent instructions template is missing ${PROJECT_COMMAND_POLICY_PLACEHOLDER}`,
@@ -857,7 +863,24 @@ const renderAgentInstructions = Effect.fn("renderAgentInstructions")(function* (
               path.join(devKitSkill.linkPath ?? devKitSkill.path, "SKILL.md"),
             ),
           );
-  const usesVitePlus = (yield* readDirectDependencyNames(projectDir)).includes("vite-plus");
+  const directDependencyNames = yield* readDirectDependencyNames(projectDir);
+  const usesVitePlus = directDependencyNames.includes("vite-plus");
+  const effectInstructions =
+    directDependencyNames.includes("effect") &&
+    (yield* observePath(path.join(projectDir, "node_modules", "effect", "AGENTS.md"))).kind ===
+      "file"
+      ? `# Learning more about the Effect
+
+This repository uses the Effect Typescript library.
+
+Before writing any Effect code, first read \`node_modules/effect/AGENTS.md\`
+**completely**, and follow the links in the file when required.
+
+If you need to learn more about particular Effect apis and concepts that the
+guide doesn't cover, search through the source code in \`node_modules/effect/src\`.
+
+`
+      : "";
   const projectPackage = yield* readProjectPackage(projectDir).pipe(
     Effect.catchTag("ProjectPackageError", (error) =>
       error.message.startsWith("package.json not found:") ? Effect.void : Effect.fail(error),
@@ -869,6 +892,7 @@ const renderAgentInstructions = Effect.fn("renderAgentInstructions")(function* (
     : renderPackageScriptCommandPolicy(manager, projectPackage?.scripts ?? {});
   const devKitInstructions = template
     .replaceAll(DEV_KIT_SKILL_PATH_PLACEHOLDER, devKitSkillPath)
+    .replaceAll(EFFECT_INSTRUCTIONS_PLACEHOLDER, effectInstructions)
     .replaceAll(PROJECT_COMMAND_POLICY_PLACEHOLDER, commandPolicy)
     .trimEnd();
 

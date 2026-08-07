@@ -198,9 +198,11 @@ tool versions. A project-local process lock also prevents concurrent applies.
 ```
 
 - `dev-kit` installs guidance for operating the toolkit itself.
-- `effect` expands to the `effect-ts` umbrella, whose lazy references include
-  Effect Atom HTTP data fetching and Effect DateTime guidance. The former
-  `effect-atom-data-fetching` selector remains an alias for compatibility.
+- `effect` expands to the package-guidance `effect-ts` bootstrap, the
+  opinionated `effect-architecture-audit`, and `build-effect-apis` for shared
+  HTTP contracts, Effect Atom clients, TanStack Start, and Cloudflare Workers.
+  The former `effect-atom-data-fetching` selector remains an alias for
+  compatibility.
 - Prefer individual external skills such as `workers-best-practices` and
   `wrangler`, selected after scanning the project for relevant technologies.
 - `serve-sim` selects the approved Evan Bacon simulator skill directly.

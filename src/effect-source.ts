@@ -41,7 +41,7 @@ const EffectSourcePlanJsonSchema = Schema.fromJsonString(
   }),
 );
 
-export class EffectSourceDependencyError extends Schema.TaggedErrorClass<EffectSourceDependencyError>()(
+export class EffectSourceDependencyError extends Schema.TaggedError<EffectSourceDependencyError>()(
   "EffectSourceDependencyError",
   { packageName: Schema.String },
 ) {
@@ -50,12 +50,12 @@ export class EffectSourceDependencyError extends Schema.TaggedErrorClass<EffectS
   }
 }
 
-export class EffectSourceCheckoutError extends Schema.TaggedErrorClass<EffectSourceCheckoutError>()(
+export class EffectSourceCheckoutError extends Schema.TaggedError<EffectSourceCheckoutError>()(
   "EffectSourceCheckoutError",
   { message: Schema.String },
 ) {}
 
-class EffectSourceCommandError extends Schema.TaggedErrorClass<EffectSourceCommandError>()(
+class EffectSourceCommandError extends Schema.TaggedError<EffectSourceCommandError>()(
   "EffectSourceCommandError",
   { command: Schema.String, exitCode: Schema.Int, output: Schema.String },
 ) {

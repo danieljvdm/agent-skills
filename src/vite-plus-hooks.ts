@@ -14,12 +14,12 @@ export type VitePlusHooksPlan = {
   readonly vpBin: string;
 };
 
-export class VitePlusHooksDependencyError extends Schema.TaggedErrorClass<VitePlusHooksDependencyError>()(
+export class VitePlusHooksDependencyError extends Schema.TaggedError<VitePlusHooksDependencyError>()(
   "VitePlusHooksDependencyError",
   { message: Schema.String },
 ) {}
 
-export class VitePlusHooksConflictError extends Schema.TaggedErrorClass<VitePlusHooksConflictError>()(
+export class VitePlusHooksConflictError extends Schema.TaggedError<VitePlusHooksConflictError>()(
   "VitePlusHooksConflictError",
   { hooksPath: Schema.String },
 ) {
@@ -28,7 +28,7 @@ export class VitePlusHooksConflictError extends Schema.TaggedErrorClass<VitePlus
   }
 }
 
-class VitePlusHooksCommandError extends Schema.TaggedErrorClass<VitePlusHooksCommandError>()(
+class VitePlusHooksCommandError extends Schema.TaggedError<VitePlusHooksCommandError>()(
   "VitePlusHooksCommandError",
   { command: Schema.String, exitCode: Schema.Int, output: Schema.String },
 ) {
@@ -39,7 +39,7 @@ class VitePlusHooksCommandError extends Schema.TaggedErrorClass<VitePlusHooksCom
   }
 }
 
-class VitePlusHooksConvergenceError extends Schema.TaggedErrorClass<VitePlusHooksConvergenceError>()(
+class VitePlusHooksConvergenceError extends Schema.TaggedError<VitePlusHooksConvergenceError>()(
   "VitePlusHooksConvergenceError",
   { message: Schema.String },
 ) {}

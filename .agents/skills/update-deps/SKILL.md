@@ -17,7 +17,8 @@ primary sources at execution time.
 3. Inventory direct dependencies with `bun outdated` and exact registry data
    with `npm view`. Do not infer current versions from this skill.
 4. Search every current version string with `rg` before editing. Version pins
-   also live in source constants, tests, README examples, and the Effect skill.
+   also live in source constants, tests, README examples, and generated setup
+   locks.
 5. Preserve unrelated user changes. Do not use destructive Git commands.
 
 Before mutation, summarize the proposed groups, current versions, target
@@ -30,6 +31,7 @@ versions, compatibility evidence, and any release-line migration.
 Keep these packages on one exact Effect v4 version:
 
 - `effect`
+- `@effect/platform-bun`
 - `@effect/platform-node`
 - `@effect/vitest`
 
@@ -47,10 +49,9 @@ For an Effect upgrade:
    evidence for installed behavior.
 3. Inspect changed declarations and migration notes for APIs used under `src/`
    and `test/` before editing application code.
-4. Update the review baseline and source command in:
-   - `skills/effect-ts/SKILL.md`
-   - `skills/effect-ts/references/version-and-source.md`
-   - `skills/effect-ts/UPSTREAM.md`
+4. Confirm the installed `effect` package contains its version-matched
+   `AGENTS.md` and linked guidance. Keep local Effect skills focused on project
+   policy rather than copying package API documentation.
 5. Keep `@effect/vitest` aligned with Effect, then verify its supported Vitest
    range and the version used by the matching Effect source checkout before
    changing `vitest`.

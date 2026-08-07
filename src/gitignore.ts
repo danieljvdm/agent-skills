@@ -22,7 +22,7 @@ export type GitignorePatch = {
   readonly added: ReadonlyArray<string>;
 };
 
-export class UnsafeGitignorePathError extends Schema.TaggedErrorClass<UnsafeGitignorePathError>()(
+export class UnsafeGitignorePathError extends Schema.TaggedError<UnsafeGitignorePathError>()(
   "UnsafeGitignorePathError",
   {
     path: Schema.String,
@@ -34,7 +34,7 @@ export class UnsafeGitignorePathError extends Schema.TaggedErrorClass<UnsafeGiti
   }
 }
 
-export class GitignoreConflictError extends Schema.TaggedErrorClass<GitignoreConflictError>()(
+export class GitignoreConflictError extends Schema.TaggedError<GitignoreConflictError>()(
   "GitignoreConflictError",
   { path: Schema.String },
 ) {

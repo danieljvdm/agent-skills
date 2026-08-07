@@ -9,7 +9,7 @@ import { DevKitManifestSchema } from "./manifest.ts";
 import { observeSymbolicLink } from "./node-symbolic-link.ts";
 import { runProjectSkillPlan } from "./sync.ts";
 
-class SkillManagerError extends Schema.TaggedErrorClass<SkillManagerError>()("SkillManagerError", {
+class SkillManagerError extends Schema.TaggedError<SkillManagerError>()("SkillManagerError", {
   message: Schema.String,
 }) {}
 

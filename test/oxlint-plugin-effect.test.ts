@@ -4,7 +4,10 @@ import { describe, expect, it } from "vitest";
 const reportsFor = (ruleName: string, visitor: string, node: unknown) => {
   const reports: Array<{ messageId: string }> = [];
   const rule = effectOxlintPlugin.rules[ruleName];
-  const visit = rule?.create({ report: (report) => reports.push(report) })[visitor];
+  const visit = rule?.create({
+    report: (report) => reports.push(report),
+    sourceCode: { getDeclaredVariables: () => [] },
+  })[visitor];
 
   visit?.(node);
 
@@ -20,7 +23,38 @@ describe("Effect Oxlint plugin", () => {
       "no-sync-boundary-decode",
       "no-unsafe-promise",
       "no-untyped-throw",
+      "prefer-schema-alias",
     ]);
+  });
+
+  it("requires Schema imports from effect to use the S alias", () => {
+    expect(
+      reportsFor("prefer-schema-alias", "ImportDeclaration", {
+        type: "ImportDeclaration",
+        source: { type: "Literal", value: "effect" },
+        specifiers: [
+          {
+            type: "ImportSpecifier",
+            imported: { type: "Identifier", name: "Schema" },
+            local: { type: "Identifier", name: "Schema" },
+          },
+        ],
+      }),
+    ).toEqual(["preferSchemaAlias"]);
+
+    expect(
+      reportsFor("prefer-schema-alias", "ImportDeclaration", {
+        type: "ImportDeclaration",
+        source: { type: "Literal", value: "effect" },
+        specifiers: [
+          {
+            type: "ImportSpecifier",
+            imported: { type: "Identifier", name: "Schema" },
+            local: { type: "Identifier", name: "S" },
+          },
+        ],
+      }),
+    ).toEqual([]);
   });
 
   it("reports Effect runtime execution", () => {

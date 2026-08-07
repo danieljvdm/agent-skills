@@ -1,20 +1,28 @@
-import { Crypto, Effect, Encoding, FileSystem, Path, type PlatformError, Schema } from "effect";
+import {
+  Crypto,
+  Effect,
+  Encoding,
+  FileSystem,
+  Path,
+  type PlatformError,
+  Schema as S,
+} from "effect";
 
 import { observeSymbolicLink } from "./node-symbolic-link.ts";
 
-export const DigestSchema = Schema.String.check(Schema.isPattern(/^sha256:[0-9a-f]{64}$/));
+export const DigestSchema = S.String.check(S.isPattern(/^sha256:[0-9a-f]{64}$/));
 export type Digest = typeof DigestSchema.Type;
 
 export type ObservedPath =
   | { readonly kind: "missing" }
   | { readonly kind: "file" | "directory" | "symlink"; readonly digest: Digest };
 
-export class PathInspectionError extends Schema.TaggedErrorClass<PathInspectionError>()(
+export class PathInspectionError extends S.TaggedErrorClass<PathInspectionError>()(
   "PathInspectionError",
   {
-    path: Schema.String,
-    operation: Schema.String,
-    cause: Schema.Unknown,
+    path: S.String,
+    operation: S.String,
+    cause: S.Unknown,
   },
 ) {
   override get message() {
@@ -146,7 +154,7 @@ const digestFileSystemPath = Effect.fn("digestFileSystemPath")(function* (
 export const observePath = Effect.fn("observeManagedPath")(function* (absolutePath: string) {
   return yield* digestFileSystemPath(absolutePath, canonicalFileMode).pipe(
     Effect.mapError((cause) =>
-      Schema.is(PathInspectionError)(cause)
+      S.is(PathInspectionError)(cause)
         ? cause
         : PathInspectionError.make({ path: absolutePath, operation: "inspect", cause }),
     ),
@@ -158,7 +166,7 @@ export const observePathWithRawModes = Effect.fn("observeManagedPathWithRawModes
 ) {
   return yield* digestFileSystemPath(absolutePath, rawFileMode).pipe(
     Effect.mapError((cause) =>
-      Schema.is(PathInspectionError)(cause)
+      S.is(PathInspectionError)(cause)
         ? cause
         : PathInspectionError.make({ path: absolutePath, operation: "inspect", cause }),
     ),

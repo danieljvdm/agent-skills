@@ -1,4 +1,4 @@
-import { Cause, Effect, FileSystem, Path, Schema, SchemaGetter, Stream } from "effect";
+import { Cause, Effect, FileSystem, Path, Schema as S, SchemaGetter, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
 import { parse as parseJsonc, printParseErrorCode, type ParseError } from "jsonc-parser";
 
@@ -149,38 +149,38 @@ export type SkillPlan = {
   readonly metadataChanged: boolean;
 };
 
-class ManifestNotFoundError extends Schema.TaggedErrorClass<ManifestNotFoundError>()(
+class ManifestNotFoundError extends S.TaggedErrorClass<ManifestNotFoundError>()(
   "ManifestNotFoundError",
-  { path: Schema.String },
+  { path: S.String },
 ) {
   override get message() {
     return `manifest not found: ${this.path}`;
   }
 }
 
-class StructuredFileError extends Schema.TaggedErrorClass<StructuredFileError>()(
-  "StructuredFileError",
-  { path: Schema.String, message: Schema.String },
-) {}
+class StructuredFileError extends S.TaggedErrorClass<StructuredFileError>()("StructuredFileError", {
+  path: S.String,
+  message: S.String,
+}) {}
 
-class UnknownSkillOrFamilyError extends Schema.TaggedErrorClass<UnknownSkillOrFamilyError>()(
+class UnknownSkillOrFamilyError extends S.TaggedErrorClass<UnknownSkillOrFamilyError>()(
   "UnknownSkillOrFamilyError",
-  { name: Schema.String, known: Schema.Array(Schema.String) },
+  { name: S.String, known: S.Array(S.String) },
 ) {
   override get message() {
     return `unknown skill or family "${this.name}". Known values: ${this.known.join(", ")}`;
   }
 }
 
-class InvalidSkillCatalogError extends Schema.TaggedErrorClass<InvalidSkillCatalogError>()(
+class InvalidSkillCatalogError extends S.TaggedErrorClass<InvalidSkillCatalogError>()(
   "InvalidSkillCatalogError",
-  { family: Schema.String, message: Schema.String },
+  { family: S.String, message: S.String },
 ) {}
 
-class CommandError extends Schema.TaggedErrorClass<CommandError>()("CommandError", {
-  command: Schema.String,
-  exitCode: Schema.Int,
-  output: Schema.String,
+class CommandError extends S.TaggedErrorClass<CommandError>()("CommandError", {
+  command: S.String,
+  exitCode: S.Int,
+  output: S.String,
 }) {
   override get message() {
     return this.output.length > 0
@@ -189,27 +189,27 @@ class CommandError extends Schema.TaggedErrorClass<CommandError>()("CommandError
   }
 }
 
-class UnsafeManagedPathError extends Schema.TaggedErrorClass<UnsafeManagedPathError>()(
+class UnsafeManagedPathError extends S.TaggedErrorClass<UnsafeManagedPathError>()(
   "UnsafeManagedPathError",
-  { path: Schema.String, reason: Schema.String },
+  { path: S.String, reason: S.String },
 ) {
   override get message() {
     return `unsafe managed path "${this.path}": ${this.reason}`;
   }
 }
 
-class InvalidProjectStateError extends Schema.TaggedErrorClass<InvalidProjectStateError>()(
+class InvalidProjectStateError extends S.TaggedErrorClass<InvalidProjectStateError>()(
   "InvalidProjectStateError",
-  { message: Schema.String },
+  { message: S.String },
 ) {}
 
-class LockedPlanMismatchError extends Schema.TaggedErrorClass<LockedPlanMismatchError>()(
+class LockedPlanMismatchError extends S.TaggedErrorClass<LockedPlanMismatchError>()(
   "LockedPlanMismatchError",
-  { message: Schema.String },
+  { message: S.String },
 ) {}
 
-class PlanConflictError extends Schema.TaggedErrorClass<PlanConflictError>()("PlanConflictError", {
-  conflicts: Schema.Array(Schema.String),
+class PlanConflictError extends S.TaggedErrorClass<PlanConflictError>()("PlanConflictError", {
+  conflicts: S.Array(S.String),
 }) {
   override get message() {
     const heading = `plan has ${this.conflicts.length} conflict${this.conflicts.length === 1 ? "" : "s"}`;
@@ -218,56 +218,56 @@ class PlanConflictError extends Schema.TaggedErrorClass<PlanConflictError>()("Pl
   }
 }
 
-class ApplyRaceError extends Schema.TaggedErrorClass<ApplyRaceError>()("ApplyRaceError", {
-  path: Schema.String,
+class ApplyRaceError extends S.TaggedErrorClass<ApplyRaceError>()("ApplyRaceError", {
+  path: S.String,
 }) {
   override get message() {
     return `managed path changed after planning: ${this.path}`;
   }
 }
 
-const fromJsonString = <S extends Schema.Constraint>(schema: S, space?: number) =>
+const fromJsonString = <S extends S.Constraint>(schema: S, space?: number) =>
   space === undefined
-    ? Schema.fromJsonString(schema)
-    : Schema.String.pipe(
-        Schema.decodeTo(Schema.toCodecJson(schema), {
+    ? S.fromJsonString(schema)
+    : S.String.pipe(
+        S.decodeTo(S.toCodecJson(schema), {
           decode: SchemaGetter.parseJson(),
           encode: SchemaGetter.stringifyJson({ space }),
         }),
       );
 
-const DevKitSetupSchema = Schema.Struct({
-  effectSource: Schema.optional(EffectSourceLockSchema),
-  effectTsgo: Schema.optional(EffectTsgoLockSchema),
+const DevKitSetupSchema = S.Struct({
+  effectSource: S.optional(EffectSourceLockSchema),
+  effectTsgo: S.optional(EffectTsgoLockSchema),
 });
-const OutputOwnershipIdentitySchema = Schema.Union([
-  Schema.Struct({
-    resourceId: Schema.String,
-    path: Schema.String,
-    mode: Schema.Literals(["copy", "symlink"]),
-    kind: Schema.Literals(["directory", "symlink"]),
-    skill: Schema.String,
-    target: Schema.Literals(["agents", "claude", "opencode"]),
+const OutputOwnershipIdentitySchema = S.Union([
+  S.Struct({
+    resourceId: S.String,
+    path: S.String,
+    mode: S.Literals(["copy", "symlink"]),
+    kind: S.Literals(["directory", "symlink"]),
+    skill: S.String,
+    target: S.Literals(["agents", "claude", "opencode"]),
   }),
-  Schema.Struct({
-    resourceId: Schema.String,
-    path: Schema.String,
-    mode: Schema.Literals(["copy", "symlink"]),
-    kind: Schema.Literals(["file", "symlink"]),
-    sourcePath: Schema.String,
+  S.Struct({
+    resourceId: S.String,
+    path: S.String,
+    mode: S.Literals(["copy", "symlink"]),
+    kind: S.Literals(["file", "symlink"]),
+    sourcePath: S.String,
   }),
 ]);
-const encodeAppliedStateJson = Schema.encodeSync(fromJsonString(AppliedStateSchema));
-const encodeDevKitLockJson = Schema.encodeSync(fromJsonString(DevKitLockSchema));
-const encodeDevKitLockPrettyJson = Schema.encodeSync(fromJsonString(DevKitLockSchema, 2));
-const encodeDevKitSetupJson = Schema.encodeSync(fromJsonString(DevKitSetupSchema));
-const encodeManifestJson = Schema.encodeSync(fromJsonString(DevKitManifestSchema));
-const encodeManagedOutputJson = Schema.encodeSync(fromJsonString(ManagedOutputSchema));
-const encodeOutputOwnershipIdentityJson = Schema.encodeSync(
+const encodeAppliedStateJson = S.encodeSync(fromJsonString(AppliedStateSchema));
+const encodeDevKitLockJson = S.encodeSync(fromJsonString(DevKitLockSchema));
+const encodeDevKitLockPrettyJson = S.encodeSync(fromJsonString(DevKitLockSchema, 2));
+const encodeDevKitSetupJson = S.encodeSync(fromJsonString(DevKitSetupSchema));
+const encodeManifestJson = S.encodeSync(fromJsonString(DevKitManifestSchema));
+const encodeManagedOutputJson = S.encodeSync(fromJsonString(ManagedOutputSchema));
+const encodeOutputOwnershipIdentityJson = S.encodeSync(
   fromJsonString(OutputOwnershipIdentitySchema),
 );
-const encodePlanSnapshotJson = Schema.encodeSync(Schema.UnknownFromJsonString);
-const encodeAppliedStatePrettyJson = Schema.encodeSync(fromJsonString(AppliedStateSchema, 2));
+const encodePlanSnapshotJson = S.encodeSync(S.UnknownFromJsonString);
+const encodeAppliedStatePrettyJson = S.encodeSync(fromJsonString(AppliedStateSchema, 2));
 
 const SKILL_FAMILIES: SkillCatalog = {
   effect: ["effect-ts"],
@@ -563,7 +563,7 @@ const resolveGitRoot = Effect.fn("resolveGitRoot")(function* (cwd: string) {
 const parseStructuredFile = Effect.fn("parseStructuredFile")(function* <A>(
   filePath: string,
   raw: string,
-  schema: Schema.ConstraintDecoder<A>,
+  schema: S.ConstraintDecoder<A>,
 ) {
   const errors: Array<ParseError> = [];
   const parsed = parseJsonc(raw, errors, { allowTrailingComma: true });
@@ -576,7 +576,7 @@ const parseStructuredFile = Effect.fn("parseStructuredFile")(function* <A>(
     });
   }
 
-  return yield* Schema.decodeUnknownEffect(schema)(parsed).pipe(
+  return yield* S.decodeUnknownEffect(schema)(parsed).pipe(
     Effect.mapError((cause) =>
       StructuredFileError.make({ path: filePath, message: cause.message }),
     ),
@@ -596,7 +596,7 @@ const readManifest = Effect.fn("readManifest")(function* (manifestPath: string) 
 
 const readOptionalStructuredFile = Effect.fn("readOptionalStructuredFile")(function* <A>(
   filePath: string,
-  schema: Schema.ConstraintDecoder<A>,
+  schema: S.ConstraintDecoder<A>,
 ) {
   const fs = yield* FileSystem.FileSystem;
 

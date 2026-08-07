@@ -29,6 +29,7 @@ export const recommendedOxlintConfig = {
   plugins: ["import", "react", "vitest"],
   rules: {
     eqeqeq: "error",
+    "effect/prefer-schema-alias": "error",
     "import/default": "off",
     "import/namespace": "off",
     "import/no-cycle": "error",

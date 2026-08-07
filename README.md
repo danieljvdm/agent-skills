@@ -611,8 +611,10 @@ variable declarations remain grouped, while the next logical statement and
 all `return` statements require a separating blank line. The rule is fixable,
 so `vp lint --fix` repairs missing spacing automatically.
 
-The preset also registers the shared `effect` JavaScript plugin. Effect
-projects opt into its rules in path-specific overrides, for example
+The preset also registers the shared `effect` JavaScript plugin. Effect Schema
+imports are required to use the conventional `S` alias, and `vp lint --fix`
+rewrites both the import and its references. Effect projects opt into
+the plugin's scope-sensitive rules in path-specific overrides, for example
 `effect/no-effect-run`, `effect/no-unsafe-promise`, and
 `effect/no-untyped-throw`. The package exports the plugin directly from
 `@danieljvdm/dev-kit/oxlint-plugin-effect` for configurations that do not

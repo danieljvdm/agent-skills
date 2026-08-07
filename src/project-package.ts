@@ -1,20 +1,20 @@
-import { Effect, FileSystem, Path, Schema } from "effect";
+import { Effect, FileSystem, Path, Schema as S } from "effect";
 
-export class ProjectPackageError extends Schema.TaggedErrorClass<ProjectPackageError>()(
+export class ProjectPackageError extends S.TaggedErrorClass<ProjectPackageError>()(
   "ProjectPackageError",
-  { message: Schema.String },
+  { message: S.String },
 ) {}
 
-const ProjectPackageSchema = Schema.fromJsonString(
-  Schema.Struct({
-    name: Schema.optional(Schema.String),
-    packageManager: Schema.optional(Schema.String),
-    scripts: Schema.optional(Schema.Record(Schema.String, Schema.String)),
-    dependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
-    devDependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
-    optionalDependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
-    peerDependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
-    workspaces: Schema.optional(Schema.Unknown),
+const ProjectPackageSchema = S.fromJsonString(
+  S.Struct({
+    name: S.optional(S.String),
+    packageManager: S.optional(S.String),
+    scripts: S.optional(S.Record(S.String, S.String)),
+    dependencies: S.optional(S.Record(S.String, S.String)),
+    devDependencies: S.optional(S.Record(S.String, S.String)),
+    optionalDependencies: S.optional(S.Record(S.String, S.String)),
+    peerDependencies: S.optional(S.Record(S.String, S.String)),
+    workspaces: S.optional(S.Unknown),
   }),
 );
 
@@ -29,7 +29,7 @@ export const readProjectPackage = Effect.fn("readProjectPackage")(function* (pro
     });
   }
   const manifest = yield* fs.readFileString(manifestPath).pipe(
-    Effect.flatMap(Schema.decodeUnknownEffect(ProjectPackageSchema)),
+    Effect.flatMap(S.decodeUnknownEffect(ProjectPackageSchema)),
     Effect.mapError(() =>
       ProjectPackageError.make({
         message: `invalid project package.json: ${manifestPath}`,

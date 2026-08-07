@@ -252,6 +252,10 @@ describe("project apply", () => {
         );
         assert.match(
           result.output,
+          /\+ copy build-effect-clis → \.agents\/skills\/build-effect-clis/,
+        );
+        assert.match(
+          result.output,
           /\+ copy effect-architecture-audit → \.agents\/skills\/effect-architecture-audit/,
         );
         assert.match(result.output, /\+ copy effect-ts → \.agents\/skills\/effect-ts/);
@@ -271,10 +275,15 @@ describe("project apply", () => {
         const first = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
 
         assert.strictEqual(first.exitCode, 0, first.output);
-        assert.match(first.output, /Dev kit ready 3 changes/);
+        assert.match(first.output, /Dev kit ready 4 changes/);
         assert.isTrue(
           yield* fs.exists(
             path.join(projectDir, ".agents", "skills", "build-effect-apis", "SKILL.md"),
+          ),
+        );
+        assert.isTrue(
+          yield* fs.exists(
+            path.join(projectDir, ".agents", "skills", "build-effect-clis", "SKILL.md"),
           ),
         );
         assert.isTrue(
@@ -299,6 +308,7 @@ describe("project apply", () => {
           ]),
           [
             ["skill:build-effect-apis@agents", ".agents/skills/build-effect-apis"],
+            ["skill:build-effect-clis@agents", ".agents/skills/build-effect-clis"],
             ["skill:effect-architecture-audit@agents", ".agents/skills/effect-architecture-audit"],
             ["skill:effect-ts@agents", ".agents/skills/effect-ts"],
           ],
@@ -335,7 +345,7 @@ describe("project apply", () => {
         const applied = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
 
         assert.strictEqual(applied.exitCode, 0, applied.output);
-        assert.match(applied.output, /✓ Dev kit ready 4 changes/);
+        assert.match(applied.output, /✓ Dev kit ready 5 changes/);
         assert.notMatch(applied.output, /Verification succeeded|Backed up original binary/);
         assert.strictEqual(yield* fs.readFileString(marker), "1");
 
@@ -415,10 +425,14 @@ describe("project apply", () => {
 
         assert.strictEqual(planned.exitCode, 0, planned.output);
         assert.match(planned.output, /− skill:build-effect-apis@agents/);
+        assert.match(planned.output, /− skill:build-effect-clis@agents/);
         assert.match(planned.output, /− skill:effect-architecture-audit@agents/);
         assert.match(planned.output, /− skill:effect-ts@agents/);
         assert.isTrue(
           yield* fs.exists(path.join(projectDir, ".agents", "skills", "build-effect-apis")),
+        );
+        assert.isTrue(
+          yield* fs.exists(path.join(projectDir, ".agents", "skills", "build-effect-clis")),
         );
         assert.isTrue(
           yield* fs.exists(path.join(projectDir, ".agents", "skills", "effect-architecture-audit")),
@@ -430,6 +444,9 @@ describe("project apply", () => {
         assert.strictEqual(applied.exitCode, 0, applied.output);
         assert.isFalse(
           yield* fs.exists(path.join(projectDir, ".agents", "skills", "build-effect-apis")),
+        );
+        assert.isFalse(
+          yield* fs.exists(path.join(projectDir, ".agents", "skills", "build-effect-clis")),
         );
         assert.isFalse(
           yield* fs.exists(path.join(projectDir, ".agents", "skills", "effect-architecture-audit")),
@@ -468,7 +485,7 @@ describe("project apply", () => {
         assert.match(yield* fs.readFileString(skillDocument), /local edit/);
         assert.lengthOf(
           JSON.parse(yield* fs.readFileString(path.join(projectDir, "dev-kit.lock.json"))).outputs,
-          3,
+          4,
         );
       }),
     );
@@ -1408,7 +1425,7 @@ describe("project apply", () => {
         assert.isTrue(yield* fs.exists(path.join(projectDir, ".agents", "skills", "effect-ts")));
         assert.lengthOf(
           JSON.parse(yield* fs.readFileString(path.join(projectDir, "dev-kit.lock.json"))).outputs,
-          3,
+          4,
         );
       }),
     );
@@ -1443,9 +1460,12 @@ describe("project apply", () => {
         ]);
 
         assert.strictEqual(result.exitCode, 0, result.output);
-        assert.match(result.output, /Dev kit ready 3 changes/);
+        assert.match(result.output, /Dev kit ready 4 changes/);
         assert.isFalse(
           yield* fs.exists(path.join(projectDir, ".agents", "skills", "build-effect-apis")),
+        );
+        assert.isFalse(
+          yield* fs.exists(path.join(projectDir, ".agents", "skills", "build-effect-clis")),
         );
         assert.isFalse(
           yield* fs.exists(path.join(projectDir, ".agents", "skills", "effect-architecture-audit")),

@@ -199,8 +199,10 @@ tool versions. A project-local process lock also prevents concurrent applies.
 
 - `dev-kit` installs guidance for operating the toolkit itself.
 - `effect` expands to the package-guidance `effect-ts` bootstrap, the
-  opinionated `effect-architecture-audit`, and `build-effect-apis` for shared
-  HTTP contracts, Effect Atom clients, TanStack Start, and Cloudflare Workers.
+  opinionated `effect-architecture-audit`, `build-effect-apis` for shared HTTP
+  contracts and clients, and `build-effect-clis` for typed command-line
+  applications. The focused references cover Effect Atom, TanStack Start,
+  Cloudflare Workers, child processes, runtime entrypoints, and CLI testing.
 - Prefer individual external skills such as `workers-best-practices` and
   `wrangler`, selected after scanning the project for relevant technologies.
 - `serve-sim` selects the approved Evan Bacon simulator skill directly.

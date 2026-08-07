@@ -270,7 +270,7 @@ const encodePlanSnapshotJson = Schema.encodeSync(Schema.fromJsonString(Schema.Un
 const encodeAppliedStatePrettyJson = Schema.encodeSync(fromJsonString(AppliedStateSchema, 2));
 
 const SKILL_FAMILIES: SkillCatalog = {
-  effect: ["effect-ts", "effect-architecture-audit", "build-effect-apis"],
+  effect: ["effect-ts", "effect-architecture-audit", "build-effect-apis", "build-effect-clis"],
 };
 
 export const DEFAULT_MANIFEST = "dev-kit.jsonc";

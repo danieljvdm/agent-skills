@@ -187,19 +187,30 @@ describe("shipped skills", () => {
         for (const { expectedSkills, include } of [
           {
             include: ["effect"],
-            expectedSkills: ["effect-ts", "effect-architecture-audit", "build-effect-apis"],
+            expectedSkills: [
+              "effect-ts",
+              "effect-architecture-audit",
+              "build-effect-apis",
+              "build-effect-clis",
+            ],
           },
           { include: ["effect-ts"], expectedSkills: ["effect-ts"] },
           {
             include: ["effect-architecture-audit"],
             expectedSkills: ["effect-architecture-audit"],
           },
+          { include: ["build-effect-clis"], expectedSkills: ["build-effect-clis"] },
         ]) {
           yield* writeManifest(projectDir, include);
           const result = yield* runCli(cli, projectDir, ["plan", "--project-dir", projectDir]);
 
           assert.strictEqual(result.exitCode, 0, result.output);
-          for (const skillName of ["effect-ts", "effect-architecture-audit", "build-effect-apis"]) {
+          for (const skillName of [
+            "effect-ts",
+            "effect-architecture-audit",
+            "build-effect-apis",
+            "build-effect-clis",
+          ]) {
             if (expectedSkills.includes(skillName)) {
               assert.include(result.output, `copy ${skillName} → .agents/skills/${skillName}`);
             } else {

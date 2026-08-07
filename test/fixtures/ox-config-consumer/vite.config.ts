@@ -8,6 +8,7 @@ export default defineConfig({
   lint: {
     ...recommended.lint,
     rules: {
+      ...recommended.lint?.rules,
       "effect/no-effect-run": "error",
     },
   },

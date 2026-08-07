@@ -21,6 +21,18 @@ describe("recommended Vite+ config", () => {
         },
       },
     });
+    expect(config.lint?.jsPlugins).toEqual([
+      {
+        name: "effect",
+        specifier: "@danieljvdm/dev-kit/oxlint-plugin-effect",
+      },
+      {
+        name: "stylistic",
+        specifier: "@danieljvdm/dev-kit/oxlint-plugin-style",
+      },
+    ]);
+    expect(config.lint?.rules["stylistic/padding-line-between-statements"]).toBeDefined();
+    expect(config.lint).not.toHaveProperty("extends");
   });
 
   it("appends project-owned generated paths to lint and format", () => {

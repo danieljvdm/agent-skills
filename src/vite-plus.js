@@ -68,7 +68,7 @@ export const createRecommendedVitePlusConfig = (options = {}) => {
       ignorePatterns,
     },
     lint: {
-      extends: [recommendedOxlintConfig],
+      ...recommendedOxlintConfig,
       ignorePatterns,
     },
     run: {

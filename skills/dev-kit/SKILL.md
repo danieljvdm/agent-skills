@@ -155,7 +155,8 @@ matching Oxlint/Oxfmt ignores, staged checks, and separate `check` and pure
 manifest defaults. Workspace mode accepts explicit package directories with
 pure `typecheck` scripts and generates cached, dependency-ordered,
 bounded-concurrency filters. Spread the returned top-level config before local
-options; spread a returned nested block before overriding that block.
+options; spread a returned nested block before overriding that block, and merge
+nested collections such as `lint.rules` so the recommended rules remain active.
 
 Enable `setup.vitePlus.quality.workflow` to own only
 `.github/workflows/check.yml`. It requires direct Dev Kit, compatible Vite+,
@@ -254,8 +255,18 @@ Enable the setup task in the same manifest:
 Install the exact `@effect/tsgo` and native `typescript` versions required by
 the installed dev-kit. Point `tsconfig.json` at
 `./node_modules/@effect/tsgo/schema.json` and configure the
-`@effect/language-service` compiler plugin. `dev-kit plan` validates these local
-dependencies; `dev-kit apply` patches once and then converges.
+`@effect/language-service` compiler plugin with Dev Kit's exported
+`recommendedEffectTsgoPlugin` profile: warnings for
+`anyUnknownInErrorContext` and `unsafeEffectTypeAssertion`; suggestions for
+`instanceOfSchema`, `nestedEffectGenYield`, `newSchemaClass`, and
+`preferSchemaTypeProperty`; plus a `src/**/*.ts` override that warns on
+`nodeBuiltinImport` and suggests `preferSchemaOverJson`. Copy the exact JSON
+profile from the README into JSON tsconfigs. In monorepos, child
+`compilerOptions.plugins` arrays replace rather than merge the root array, so
+workspace configs must inherit the root plugin without redeclaring it and the
+source override must be relative to the config that contains it. `dev-kit plan`
+validates the local dependencies; `dev-kit apply` patches once and then
+converges.
 
 Use `dev-kit tsgo patch --dry-run` for focused diagnosis. Use `--force` only
 after the user accepts a potentially commit-incompatible TypeScript binary.
@@ -289,6 +300,12 @@ The Oxlint preset enables the fixable
 `stylistic/padding-line-between-statements` rule. It keeps adjacent variable
 declarations grouped, requires a blank line before the next logical statement,
 and separates every `return` statement from the preceding statement.
+
+Vite+ 0.2.6 forwards the preset's JavaScript-plugin declarations but its native
+Oxlint path does not register or execute their rules. Treat native rules and
+Oxfmt as active through `vp`, and use standalone Oxlint when the `effect/*` or
+`stylistic/padding-line-between-statements` rules must be enforced. Re-enable a
+Vite+ execution assertion when a supported release adds JS-plugin execution.
 
 The Oxlint preset registers Dev Kit's shared Effect plugin as `effect`, but
 does not enable its scope-sensitive rules globally. Effect projects should

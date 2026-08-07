@@ -564,6 +564,7 @@ const parseStructuredFile = Effect.fn("parseStructuredFile")(function* <A>(
   filePath: string,
   raw: string,
   schema: Schema.ConstraintDecoder<A>,
+  options: { readonly rejectExcessProperties?: boolean } = {},
 ) {
   const errors: Array<ParseError> = [];
   const parsed = parseJsonc(raw, errors, { allowTrailingComma: true });
@@ -576,7 +577,10 @@ const parseStructuredFile = Effect.fn("parseStructuredFile")(function* <A>(
     });
   }
 
-  return yield* Schema.decodeUnknownEffect(schema)(parsed).pipe(
+  return yield* Schema.decodeUnknownEffect(
+    schema,
+    options.rejectExcessProperties ? { onExcessProperty: "error" } : undefined,
+  )(parsed).pipe(
     Effect.mapError((cause) =>
       StructuredFileError.make({ path: filePath, message: cause.message }),
     ),
@@ -591,7 +595,9 @@ const readManifest = Effect.fn("readManifest")(function* (manifestPath: string) 
   }
   const raw = yield* fs.readFileString(manifestPath);
 
-  return yield* parseStructuredFile(manifestPath, raw, DevKitManifestSchema);
+  return yield* parseStructuredFile(manifestPath, raw, DevKitManifestSchema, {
+    rejectExcessProperties: true,
+  });
 });
 
 const readOptionalStructuredFile = Effect.fn("readOptionalStructuredFile")(function* <A>(
@@ -1752,7 +1758,7 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
   });
   const stageDir = path.join(tempDir, "stage");
   const backupDir = path.join(tempDir, "backup");
-  const stagedByResource = new Map<string, string>();
+  const stagedByAction = new Map<(typeof mutating)[number], string>();
   let stageIndex = 0;
 
   for (const action of mutating) {
@@ -1816,10 +1822,7 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
         });
       }
     }
-    stagedByResource.set(
-      action.action === "remove" ? action.previous.resourceId : action.desired.resourceId,
-      staged,
-    );
+    stagedByAction.set(action, staged);
   }
 
   yield* verifyPackageSkillSources(plan);
@@ -1841,10 +1844,7 @@ const applyPlannedSkillChanges = Effect.fn("applyPlannedSkillChanges")(function*
   let replacementIndex = 0;
 
   for (const action of mutating) {
-    const staged =
-      action.action === "remove"
-        ? stagedByResource.get(action.previous.resourceId)
-        : stagedByResource.get(action.desired.resourceId);
+    const staged = stagedByAction.get(action);
 
     if (
       (action.action !== "remove" || action.stagedContent !== undefined) &&

@@ -7,6 +7,7 @@ import { runDevKit } from "./test-platform.ts";
 const writeManifest = Effect.fn("writePackageSyncManifest")(function* (
   projectDir: string,
   mode: "copy" | "symlink" = "copy",
+  targetPath?: string,
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -16,7 +17,13 @@ const writeManifest = Effect.fn("writePackageSyncManifest")(function* (
     `${JSON.stringify(
       {
         include: ["@tanstack/ai#ai-core"],
-        targets: { agents: { enabled: true, mode } },
+        targets: {
+          agents: {
+            enabled: true,
+            mode,
+            ...(targetPath === undefined ? {} : { path: targetPath }),
+          },
+        },
       },
       null,
       2,
@@ -170,6 +177,49 @@ describe("package-backed project sync", () => {
         assert.include(
           yield* fs.readFileString(path.join(installedSkill, "SKILL.md")),
           "Changed package content.",
+        );
+      }),
+    );
+
+    it.effect("moves a package skill when its target path changes", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const projectDir = yield* fs.makeTempDirectoryScoped({
+          prefix: "dev-kit-package-move-",
+        });
+
+        yield* writeManifest(projectDir);
+        yield* installTanStackAiSkill(projectDir, "1.2.3");
+        const first = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
+        assert.strictEqual(first.exitCode, 0, first.output);
+        yield* writeManifest(projectDir, "copy", ".custom/skills");
+        const moved = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
+        assert.strictEqual(moved.exitCode, 0, moved.output);
+        assert.isFalse(
+          yield* fs.exists(path.join(projectDir, ".agents", "skills", "tanstack-ai-ai-core")),
+        );
+        assert.isTrue(
+          yield* fs.exists(
+            path.join(projectDir, ".custom", "skills", "tanstack-ai-ai-core", "SKILL.md"),
+          ),
+        );
+        const lock = JSON.parse(
+          yield* fs.readFileString(path.join(projectDir, "dev-kit.lock.json")),
+        );
+        const state = JSON.parse(
+          yield* fs.readFileString(path.join(projectDir, ".dev-kit", "state.json")),
+        );
+
+        assert.deepEqual(
+          lock.outputs.map((output: { readonly path: string }) => output.path),
+          [".custom/skills/tanstack-ai-ai-core"],
+        );
+        assert.deepEqual(
+          state.outputs.map((output: { readonly path: string }) => output.path),
+          [".custom/skills/tanstack-ai-ai-core"],
         );
       }),
     );

@@ -48,6 +48,15 @@ describe("shared Oxlint and Oxfmt configuration", () => {
         const vitePlusLint = yield* runCommand(fixture, vitePlus, ["lint", "valid.ts"]);
 
         assert.strictEqual(vitePlusLint.exitCode, 0, vitePlusLint.output);
+        const vitePlusConfig = yield* runCommand(fixture, vitePlus, [
+          "lint",
+          "--print-config",
+          "invalid.js",
+        ]);
+
+        assert.strictEqual(vitePlusConfig.exitCode, 0, vitePlusConfig.output);
+        assert.include(vitePlusConfig.output, '"name": "effect"');
+        assert.include(vitePlusConfig.output, '"name": "stylistic"');
 
         const vitePlusFormat = yield* runCommand(fixture, vitePlus, ["fmt", "valid.ts", "--check"]);
 

@@ -9,6 +9,43 @@ export const EFFECT_TSGO_VERSION = "0.33.0";
 export const EFFECT_TSGO_TYPESCRIPT_VERSION = "7.0.2";
 export const EFFECT_TSGO_PLUGIN_NAME = "@effect/language-service";
 
+export type EffectTsgoDiagnosticSeverity = "off" | "error" | "warning" | "message" | "suggestion";
+
+export type EffectTsgoPluginConfig = {
+  readonly name: typeof EFFECT_TSGO_PLUGIN_NAME;
+  readonly diagnosticSeverity: Readonly<Record<string, EffectTsgoDiagnosticSeverity>>;
+  readonly overrides: ReadonlyArray<{
+    readonly include: ReadonlyArray<string>;
+    readonly options: {
+      readonly diagnosticSeverity: Readonly<Record<string, EffectTsgoDiagnosticSeverity>>;
+    };
+  }>;
+};
+
+/** Recommended diagnostics for projects using the Effect TypeScript-Go plugin. */
+export const recommendedEffectTsgoPlugin = {
+  name: EFFECT_TSGO_PLUGIN_NAME,
+  diagnosticSeverity: {
+    anyUnknownInErrorContext: "warning",
+    instanceOfSchema: "suggestion",
+    nestedEffectGenYield: "suggestion",
+    newSchemaClass: "suggestion",
+    preferSchemaTypeProperty: "suggestion",
+    unsafeEffectTypeAssertion: "warning",
+  },
+  overrides: [
+    {
+      include: ["src/**/*.ts"],
+      options: {
+        diagnosticSeverity: {
+          nodeBuiltinImport: "warning",
+          preferSchemaOverJson: "suggestion",
+        },
+      },
+    },
+  ],
+} as const satisfies EffectTsgoPluginConfig;
+
 export type EffectTsgoPatchOptions = {
   readonly dryRun?: boolean;
   readonly force?: boolean;

@@ -32,7 +32,7 @@ const resolvePaths = Effect.fn("resolveSkillManagerPaths")(function* (options: M
   const candidate = options.manifestPath ?? "dev-kit.jsonc";
 
   if (candidate.length === 0 || path.isAbsolute(candidate)) {
-    return yield* new SkillManagerError({
+    return yield* SkillManagerError.make({
       message: "--manifest must be a non-empty project-relative path",
     });
   }
@@ -40,7 +40,7 @@ const resolvePaths = Effect.fn("resolveSkillManagerPaths")(function* (options: M
   const relative = path.relative(projectDir, manifestPath);
 
   if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
-    return yield* new SkillManagerError({
+    return yield* SkillManagerError.make({
       message: "--manifest must resolve inside the project",
     });
   }
@@ -49,7 +49,7 @@ const resolvePaths = Effect.fn("resolveSkillManagerPaths")(function* (options: M
   for (const segment of relative.split(path.sep).slice(0, -1)) {
     ancestor = path.join(ancestor, segment);
     if ((yield* observeSymbolicLink(ancestor)).kind === "symlink") {
-      return yield* new SkillManagerError({
+      return yield* SkillManagerError.make({
         message: `manifest ancestor is a symlink: ${path.relative(projectDir, ancestor)}`,
       });
     }
@@ -57,10 +57,12 @@ const resolvePaths = Effect.fn("resolveSkillManagerPaths")(function* (options: M
   const destination = yield* observeSymbolicLink(manifestPath);
 
   if (destination.kind === "symlink") {
-    return yield* new SkillManagerError({ message: `manifest is a symlink: ${relative}` });
+    return yield* SkillManagerError.make({ message: `manifest is a symlink: ${relative}` });
   }
   if (destination.kind === "not-symlink" && (yield* fs.stat(manifestPath)).type !== "File") {
-    return yield* new SkillManagerError({ message: `manifest is not a regular file: ${relative}` });
+    return yield* SkillManagerError.make({
+      message: `manifest is not a regular file: ${relative}`,
+    });
   }
 
   return {
@@ -128,7 +130,7 @@ const readManifest = Effect.fn("readManagedSkillManifest")(function* (
 
   if (!(yield* fs.exists(paths.manifestPath))) {
     if (!create) {
-      return yield* new SkillManagerError({
+      return yield* SkillManagerError.make({
         message: "dev-kit.jsonc not found. Run `dev-kit init` first.",
       });
     }
@@ -139,10 +141,10 @@ const readManifest = Effect.fn("readManagedSkillManifest")(function* (
   const parsed = parseJsonc(raw, errors, { allowTrailingComma: true });
 
   if (errors.length > 0) {
-    return yield* new SkillManagerError({ message: `could not parse ${paths.manifestPath}` });
+    return yield* SkillManagerError.make({ message: `could not parse ${paths.manifestPath}` });
   }
   const manifest = yield* Schema.decodeUnknownEffect(DevKitManifestSchema)(parsed).pipe(
-    Effect.mapError((error) => new SkillManagerError({ message: error.message })),
+    Effect.mapError((error) => SkillManagerError.make({ message: error.message })),
   );
 
   return { ...paths, manifest, raw };
@@ -272,7 +274,7 @@ export const addSkills = Effect.fn("addManagedSkills")(function* (
   const unknown = names.filter((name) => !known.has(name));
 
   if (unknown.length > 0) {
-    return yield* new SkillManagerError({
+    return yield* SkillManagerError.make({
       message: `unknown skill${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}. Try \`dev-kit search ${unknown[0]}\`.`,
     });
   }
@@ -319,7 +321,7 @@ export const removeSkills = Effect.fn("removeManagedSkills")(function* (
   );
 
   if (absent.length > 0) {
-    return yield* new SkillManagerError({ message: `not selected: ${absent.join(", ")}` });
+    return yield* SkillManagerError.make({ message: `not selected: ${absent.join(", ")}` });
   }
   const include = current.manifest.include.filter((name) => !names.includes(name));
   const excluded = new Set(current.manifest.exclude ?? []);
@@ -399,7 +401,7 @@ export const showSkill = Effect.fn("showCatalogSkill")(function* (
   const catalog = yield* loadSkillCatalog(yield* packageRoot(), paths.projectDir);
   const skill = catalog.skills.find((candidate) => candidate.selector === name);
 
-  if (!skill) return yield* new SkillManagerError({ message: `unknown skill: ${name}` });
+  if (!skill) return yield* SkillManagerError.make({ message: `unknown skill: ${name}` });
   yield* printLine(skill.selector);
   if (skill.description) yield* printLine(displayValue(skill.description));
   if (skill.package) {
@@ -436,7 +438,7 @@ export const chooseSkillsToAdd = Effect.fn("chooseSkillsToAdd")(function* (
   options: ManagerOptions,
 ) {
   if (!(yield* isInteractiveTerminal)) {
-    return yield* new SkillManagerError({
+    return yield* SkillManagerError.make({
       message: "pass one or more skill names, or run this command in a terminal",
     });
   }
@@ -471,7 +473,7 @@ export const chooseSkillsToRemove = Effect.fn("chooseSkillsToRemove")(function* 
   options: ManagerOptions,
 ) {
   if (!(yield* isInteractiveTerminal)) {
-    return yield* new SkillManagerError({
+    return yield* SkillManagerError.make({
       message: "pass one or more skill names, or run this command in a terminal",
     });
   }

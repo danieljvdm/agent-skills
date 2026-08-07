@@ -9,10 +9,7 @@ const writeFixture = Effect.fn("writeVitePlusHooksFixture")(function* (projectDi
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
 
-  yield* fs.writeFileString(
-    path.join(projectDir, ".gitignore"),
-    ".dev-kit/\n.vite-hooks/_/\nnode_modules/\n",
-  );
+  yield* fs.writeFileString(path.join(projectDir, ".gitignore"), ".dev-kit/\nnode_modules/\n");
   yield* fs.writeFileString(
     path.join(projectDir, "dev-kit.jsonc"),
     `${JSON.stringify(
@@ -53,6 +50,7 @@ set -eu
 mkdir -p .vite-hooks/_
 printf '#!/usr/bin/env sh\\nexit 0\\n' > .vite-hooks/_/h
 printf '#!/usr/bin/env sh\\n. "$(dirname "$0")/h"\\n' > .vite-hooks/_/pre-commit
+printf '*\\n' > .vite-hooks/_/.gitignore
 chmod +x .vite-hooks/_/h .vite-hooks/_/pre-commit
 if [ ! -f .vite-hooks/pre-commit ]; then printf 'vp staged\\n' > .vite-hooks/pre-commit; fi
 git config core.hooksPath .vite-hooks/_
@@ -94,6 +92,10 @@ describe("Vite+ hooks setup", () => {
         assert.strictEqual(
           yield* fs.readFileString(path.join(projectDir, ".vite-hooks", "_", "config-count")),
           "1",
+        );
+        assert.include(
+          yield* fs.readFileString(path.join(projectDir, ".vite-hooks", "_", ".gitignore")),
+          "*",
         );
         assert.strictEqual(
           (yield* runCommandSuccess(projectDir, "git", [

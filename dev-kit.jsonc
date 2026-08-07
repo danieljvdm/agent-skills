@@ -9,7 +9,6 @@
     "vitePlus": {
       "hooks": { "enabled": true },
       "quality": {
-        "config": { "enabled": true },
         "workflow": { "enabled": true },
       },
     },

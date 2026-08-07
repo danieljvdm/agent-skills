@@ -89,7 +89,6 @@ changes.
     "vitePlus": {
       "hooks": { "enabled": true },
       "quality": {
-        "config": { "enabled": true },
         "workflow": { "enabled": true },
       },
     },
@@ -118,9 +117,10 @@ contradict the repository policy. Treat duplicate, overlapping, reversed, or
 unmatched managed markers as a conflict rather than guessing which content Dev
 Kit owns; remove a legacy owned Vite+ section during migration.
 The managed section also publishes the repository's command authority. Direct
-Vite+ projects must use `vp` built-ins and `vp run <task>`; managed quality
-projects use `vp run check` for the complete format/lint/test/typecheck suite
-and `vp run typecheck` for the Effect-patched compiler. Non-Vite+ projects run
+Vite+ projects must use `vp` built-ins and `vp run <task>`; projects using the
+recommended Vite+ factory use `vp run check` for the complete
+format/lint/test/typecheck suite and `vp run typecheck` for the Effect-patched
+compiler. Non-Vite+ projects run
 existing root quality scripts through `bun run`; package-manager metadata and
 lockfiles affect dependency-install guidance only. Never substitute another
 script runner or call raw `tsc`, test, lint, or format binaries when a project
@@ -134,27 +134,30 @@ place.
 
 Enable `setup.vitePlus.hooks` when an installed direct `vite-plus` dependency
 should manage Git hooks. Each apply checks the local `.vite-hooks/_` dispatcher,
-the portable `.vite-hooks/pre-commit` hook, and `core.hooksPath`, then runs the
-project-local `vp config --no-agent` when they need convergence. This recreates
-ignored dispatchers in linked worktrees. Preserve other hook managers; Dev Kit
+its internal `.gitignore`, the portable `.vite-hooks/pre-commit` hook, and
+`core.hooksPath`, then runs the project-local `vp config --no-agent` when they
+need convergence. This recreates ignored dispatchers in linked worktrees.
+Preserve other hook managers; Dev Kit
 refuses to replace an unrelated `core.hooksPath`. Use `VITE_GIT_HOOKS=0` or
 `HUSKY=0` to skip hook setup for an invocation.
 
-Enable `setup.vitePlus.quality.config` and
-`setup.vitePlus.quality.workflow` independently in supported Vite+/Effect
-repositories. Config owns canonical root `vite.config.ts`; workflow owns
-`.github/workflows/check.yml`; selecting one must not constrain the other's
-config, scripts, or TypeScript topology. Both require direct Dev Kit, compatible
-Vite+, Effect, Effect TypeScript-Go, and native TypeScript dependencies with
-`setup.effectTsgo.enabled`. Preserve unowned destinations and adopt only exact
-rendered matches.
+The repository always owns `vite.config.ts`. Compose
+`createRecommendedVitePlusConfig` from `@danieljvdm/dev-kit/vite-plus` there;
+Dev Kit never adopts, rewrites, or removes the config. The factory provides
+matching Oxlint/Oxfmt ignores, staged checks, and separate `check` and pure
+`typecheck` Vite tasks. Add repository/framework-generated paths through its
+`ignorePatterns` option, including any harness target paths that override the
+manifest defaults. Workspace mode accepts explicit package directories with
+pure `typecheck` scripts and generates cached, dependency-ordered,
+bounded-concurrency filters. Spread the returned top-level config before local
+options; spread a returned nested block before overriding that block.
 
-Managed config defines separate `check` and pure `typecheck` Vite tasks. Its
-default single-project strategy rejects project references; workspace mode
-requires explicit package directories with `typecheck` scripts and generates
-cached, dependency-ordered, bounded-concurrency filters. Keep project-reference
-builds custom. Workflow-only consumers may configure `workflow.beforeChecks`
-and `workflow.typecheck`; treat these commands as trusted manifest input.
+Enable `setup.vitePlus.quality.workflow` to own only
+`.github/workflows/check.yml`. It requires direct Dev Kit, compatible Vite+,
+Effect, Effect TypeScript-Go, and native TypeScript dependencies with
+`setup.effectTsgo.enabled`. Preserve unowned workflows and adopt only an exact
+rendered match. Consumers may configure `workflow.beforeChecks` and
+`workflow.typecheck`; treat these commands as trusted manifest input.
 
 The workflow must use one frozen, script-suppressed install, then locked Dev Kit
 convergence before preparation or checks. Set up Bun from the consumer's
@@ -254,31 +257,24 @@ after the user accepts a potentially commit-incompatible TypeScript binary.
 
 ## Oxlint and Oxfmt configurations
 
-Use Dev Kit's canonical Oxlint and Oxfmt objects in Vite+ projects:
+Use Dev Kit's composable factory in Vite+ projects:
 
 ```ts
-import { recommendedOxlintConfig } from "@danieljvdm/dev-kit/oxlint";
-import { recommendedOxfmtConfig } from "@danieljvdm/dev-kit/oxfmt";
+import { createRecommendedVitePlusConfig } from "@danieljvdm/dev-kit/vite-plus";
 import { defineConfig } from "vite-plus";
 
-export default defineConfig({
-  fmt: {
-    ...recommendedOxfmtConfig,
-  },
-  lint: {
-    extends: [recommendedOxlintConfig],
-    rules: {
-      // Project-specific rules apply after the shared preset.
-    },
-  },
-});
+export default defineConfig(
+  createRecommendedVitePlusConfig({
+    ignorePatterns: ["src/routeTree.gen.ts"],
+  }),
+);
 ```
 
-Use `lint.extends` instead of spreading the object so Vite+ composes nested
-rule maps correctly. Oxfmt has no inheritance mechanism, so spread its object
-before project-local options. Standalone `oxlint.config.ts` uses the same
-`extends: [recommendedOxlintConfig]`; standalone `oxfmt.config.ts` spreads the
-same `recommendedOxfmtConfig`. The shared lint preset enables `typeAware` for
+The factory composes the canonical Oxlint/Oxfmt objects, excludes tracked skill
+copies plus symlinked harness targets from both tools, and accepts additional
+project-owned ignores. Standalone `oxlint.config.ts` uses
+`extends: [recommendedOxlintConfig]`; standalone `oxfmt.config.ts` spreads
+`recommendedOxfmtConfig`. The shared lint preset enables `typeAware` for
 semantic lint rules but leaves `typeCheck` disabled. Effect TypeScript-Go
 projects must run the patched native compiler separately with
 `vp run typecheck` after `vp fmt --check`, `vp lint`, and `vp test`; Oxlint's
@@ -302,8 +298,7 @@ in the consuming project.
 
 Manage skill outputs, the `setup.agentInstructions` marked sections, the
 `setup.claudeInstructions` link, the `setup.vitePlus.hooks` dispatcher, the
-independently opt-in `setup.vitePlus.quality` config and GitHub workflow, the
-`setup.effectSource` checkout, and the explicit `setup.effectTsgo` task.
-Dependency and `tsconfig.json` contributions remain deliberate user-owned
-edits. Custom Vite configs compose the Oxlint and Oxfmt package exports
-manually, leave managed config disabled, and may still use the managed workflow.
+opt-in `setup.vitePlus.quality.workflow`, the `setup.effectSource` checkout,
+and the explicit `setup.effectTsgo` task. `vite.config.ts`, dependency, and
+`tsconfig.json` contributions remain deliberate user-owned edits. Compose the
+Vite+ factory or lower-level Oxlint/Oxfmt exports locally.

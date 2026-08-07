@@ -9,7 +9,26 @@
     "noUncheckedIndexedAccess": true,
     "plugins": [
       {
-        "name": "@effect/language-service"
+        "name": "@effect/language-service",
+        "diagnosticSeverity": {
+          "anyUnknownInErrorContext": "warning",
+          "instanceOfSchema": "suggestion",
+          "nestedEffectGenYield": "suggestion",
+          "newSchemaClass": "suggestion",
+          "preferSchemaTypeProperty": "suggestion",
+          "unsafeEffectTypeAssertion": "warning"
+        },
+        "overrides": [
+          {
+            "include": ["src/**/*.ts"],
+            "options": {
+              "diagnosticSeverity": {
+                "nodeBuiltinImport": "warning",
+                "preferSchemaOverJson": "suggestion"
+              }
+            }
+          }
+        ]
       }
     ],
     "resolveJsonModule": true,

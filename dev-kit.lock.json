@@ -1,7 +1,7 @@
 {
   "version": 1,
   "toolVersion": "0.11.3",
-  "manifestDigest": "sha256:04c172398d3e61603a4ca4735673dc98f5842a0abbd55c231222735a1dde19a1",
+  "manifestDigest": "sha256:3eececd65b6e33e758015a556f78bfa3b5fc8ca3951527217803e7426e8684d8",
   "setup": {
     "effectSource": {
       "packageName": "effect",
@@ -11,7 +11,7 @@
       "tag": "effect@4.0.0-beta.102"
     },
     "effectTsgo": {
-      "effectTsgoVersion": "0.24.3",
+      "effectTsgoVersion": "0.33.0",
       "typescriptPackage": "typescript",
       "typescriptVersion": "7.0.2"
     }
@@ -40,14 +40,6 @@
       "mode": "symlink",
       "kind": "symlink",
       "digest": "sha256:07728883f9dfed017a4810db4ea26e3248d1e603ce8b085ec87953359caae216"
-    },
-    {
-      "resourceId": "setup:vite-plus-config",
-      "path": "vite.config.ts",
-      "sourcePath": "templates/vite-plus/vite.config.ts",
-      "mode": "copy",
-      "kind": "file",
-      "digest": "sha256:ca1ca16d473c83899c2dc07081b380d576ccae35f3d5e35efd5ac4b8c0fe5189"
     }
   ]
 }

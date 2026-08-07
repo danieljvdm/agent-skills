@@ -13,6 +13,15 @@ export class ProjectAlreadyLockedError extends Schema.TaggedErrorClass<ProjectAl
   }
 }
 
+const ProjectProcessLockOwnerSchema = Schema.fromJsonString(
+  Schema.Struct({
+    version: Schema.Literal(1),
+    toolVersion: Schema.String,
+    token: Schema.String,
+    startedAt: Schema.String,
+  }),
+);
+
 export const acquireProjectProcessLock = Effect.fn("acquireProjectProcessLock")(function* (
   projectDir: string,
 ) {
@@ -24,16 +33,12 @@ export const acquireProjectProcessLock = Effect.fn("acquireProjectProcessLock")(
   const ownerPath = path.join(lockDir, "owner.json");
   const token = yield* crypto.randomUUIDv7;
   const startedAt = DateTime.formatIso(yield* DateTime.now);
-  const ownerContents = `${JSON.stringify(
-    {
-      version: 1,
-      toolVersion: DEV_KIT_VERSION,
-      token,
-      startedAt,
-    },
-    null,
-    2,
-  )}\n`;
+  const ownerContents = `${yield* Schema.encodeEffect(ProjectProcessLockOwnerSchema)({
+    version: 1,
+    toolVersion: DEV_KIT_VERSION,
+    token,
+    startedAt,
+  }).pipe(Effect.orDie)}\n`;
 
   return yield* Effect.acquireRelease(
     Effect.gen(function* () {
@@ -46,7 +51,7 @@ export const acquireProjectProcessLock = Effect.fn("acquireProjectProcessLock")(
             .pipe(
               Effect.mapError((error) =>
                 error.reason._tag === "AlreadyExists"
-                  ? new ProjectAlreadyLockedError({ path: lockDir })
+                  ? ProjectAlreadyLockedError.make({ path: lockDir })
                   : error,
               ),
             );

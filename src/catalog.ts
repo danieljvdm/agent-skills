@@ -66,7 +66,7 @@ const runGit = Effect.fn("runCatalogGit")(function* (cwd: string, args: Readonly
   ]);
 
   if (exitCode !== 0) {
-    return yield* new CatalogError({
+    return yield* CatalogError.make({
       message: `git ${args.join(" ")} failed: ${output.trim()}`,
     });
   }
@@ -85,11 +85,11 @@ const readCatalogLock = Effect.fn("readCatalogLock")(function* (packageRoot: str
   const value = parseJsonc(raw, errors, { allowTrailingComma: true });
 
   if (errors.length > 0) {
-    return yield* new CatalogError({ message: `invalid skill catalog lock: ${lockPath}` });
+    return yield* CatalogError.make({ message: `invalid skill catalog lock: ${lockPath}` });
   }
 
   return yield* Schema.decodeUnknownEffect(SkillSourcesLockSchema)(value).pipe(
-    Effect.mapError((error) => new CatalogError({ message: error.message })),
+    Effect.mapError((error) => CatalogError.make({ message: error.message })),
   );
 });
 
@@ -164,7 +164,7 @@ export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
   );
 
   if (duplicates.length > 0) {
-    return yield* new CatalogError({
+    return yield* CatalogError.make({
       message: `duplicate catalog skill selector: ${duplicates[0]?.selector ?? "unknown"}`,
     });
   }
@@ -176,7 +176,7 @@ export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
   );
 
   if (duplicateFamily !== undefined) {
-    return yield* new CatalogError({
+    return yield* CatalogError.make({
       message: `duplicate catalog family: ${duplicateFamily[0]}`,
     });
   }
@@ -290,14 +290,14 @@ const materializeSource = Effect.fn("materializeCatalogSource")(function* (
     const actual = yield* runGit(checkout, ["rev-parse", "HEAD"]);
 
     if (actual !== source.resolved) {
-      return yield* new CatalogError({
+      return yield* CatalogError.make({
         message: `source ${source.id} resolved to ${actual}, expected ${source.resolved}`,
       });
     }
     const symlinks = yield* runGit(checkout, ["ls-files", "--stage", "--", source.skillsPath]);
 
     if (symlinks.split(/\r?\n/).some((line) => line.startsWith("120000 "))) {
-      return yield* new CatalogError({
+      return yield* CatalogError.make({
         message: `source ${source.id} contains symlinks; refusing to install it`,
       });
     }
@@ -307,7 +307,7 @@ const materializeSource = Effect.fn("materializeCatalogSource")(function* (
       const observation = yield* observePath(from);
 
       if (observation.kind !== "directory") {
-        return yield* new CatalogError({
+        return yield* CatalogError.make({
           message: `source ${source.id} is missing skill ${skill}`,
         });
       }
@@ -331,7 +331,7 @@ const materializeSource = Effect.fn("materializeCatalogSource")(function* (
       approvedDigest !== undefined &&
       (observation.kind !== "directory" || observation.digest !== approvedDigest)
     ) {
-      return yield* new CatalogError({
+      return yield* CatalogError.make({
         message: `cached skill ${skill} does not match the approved catalog; remove ${root} and retry`,
       });
     }
@@ -380,7 +380,7 @@ export const resolveSkillSources = Effect.fn("resolveSkillSources")(function* (
     const observation = yield* observePath(resolved.path);
 
     if (observation.kind !== "directory") {
-      return yield* new CatalogError({ message: `package skill is missing: ${selector}` });
+      return yield* CatalogError.make({ message: `package skill is missing: ${selector}` });
     }
     sources.set(selector, {
       path: yield* materializePackageSkill(projectDir, resolved, observation.digest, cache),

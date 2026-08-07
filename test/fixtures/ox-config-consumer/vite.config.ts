@@ -1,13 +1,12 @@
-import { recommendedOxfmtConfig } from "@danieljvdm/dev-kit/oxfmt";
-import { recommendedOxlintConfig } from "@danieljvdm/dev-kit/oxlint";
+import { createRecommendedVitePlusConfig } from "@danieljvdm/dev-kit/vite-plus";
 import { defineConfig } from "vite-plus";
 
+const recommended = createRecommendedVitePlusConfig();
+
 export default defineConfig({
-  fmt: {
-    ...recommendedOxfmtConfig,
-  },
+  ...recommended,
   lint: {
-    extends: [recommendedOxlintConfig],
+    ...recommended.lint,
     rules: {
       "effect/no-effect-run": "error",
     },

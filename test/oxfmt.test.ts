@@ -6,6 +6,14 @@ import { recommendedOxfmtConfig as sourceOxfmtConfig } from "../src/oxfmt.ts";
 describe("recommended Oxfmt config", () => {
   it("pins the shared format and sorting conventions", () => {
     expect(packagedOxfmtConfig).toMatchObject({
+      ignorePatterns: [
+        ".agents/**",
+        ".claude/**",
+        ".dev-kit/**",
+        ".opencode/**",
+        ".repos/**",
+        ".vite-hooks/_/**",
+      ],
       printWidth: 100,
       semi: true,
       singleQuote: false,

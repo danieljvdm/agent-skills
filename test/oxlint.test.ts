@@ -7,6 +7,14 @@ const recommendedOxlintConfig = packagedOxlintConfig;
 
 describe("recommended Oxlint config", () => {
   it("enables the Vite+ plugins and type-aware rules", () => {
+    expect(recommendedOxlintConfig.ignorePatterns).toEqual([
+      ".agents/**",
+      ".claude/**",
+      ".dev-kit/**",
+      ".opencode/**",
+      ".repos/**",
+      ".vite-hooks/_/**",
+    ]);
     expect(recommendedOxlintConfig.options).toEqual({ typeAware: true });
     expect(recommendedOxlintConfig.jsPlugins).toEqual([
       {

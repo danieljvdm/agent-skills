@@ -1,5 +1,17 @@
 # @danieljvdm/dev-kit
 
+## 0.13.0
+
+### Minor Changes
+
+- 0a3ef5d: Add `build-effect-clis`, an opinionated Effect CLI development skill included in the `effect` family.
+
+### Patch Changes
+
+- 3934302: Fix package-skill path migrations, reject obsolete manifest fields, flatten the
+  recommended lint preset for Vite+ consumers, document its current JS-plugin
+  limit, and publish the recommended Effect TS-Go diagnostic profile.
+
 ## 0.12.0
 
 ### Minor Changes

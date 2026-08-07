@@ -43,13 +43,16 @@ export {
   EFFECT_TSGO_PLUGIN_NAME,
   EFFECT_TSGO_TYPESCRIPT_VERSION,
   EFFECT_TSGO_VERSION,
+  type EffectTsgoDiagnosticSeverity,
   EffectTsgoDependencyError,
   InvalidEffectTsgoPackageNameError,
   type EffectTsgoPatchOptions,
   type EffectTsgoPatchPlan,
+  type EffectTsgoPluginConfig,
   EffectTsgoPatchCommandError,
   patchEffectTsgo,
   planEffectTsgoPatch,
+  recommendedEffectTsgoPlugin,
 } from "./effect-tsgo.ts";
 export {
   ExternalSkillSourceSchema,

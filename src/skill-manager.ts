@@ -143,9 +143,9 @@ const readManifest = Effect.fn("readManagedSkillManifest")(function* (
   if (errors.length > 0) {
     return yield* SkillManagerError.make({ message: `could not parse ${paths.manifestPath}` });
   }
-  const manifest = yield* Schema.decodeUnknownEffect(DevKitManifestSchema)(parsed).pipe(
-    Effect.mapError((error) => SkillManagerError.make({ message: error.message })),
-  );
+  const manifest = yield* Schema.decodeUnknownEffect(DevKitManifestSchema, {
+    onExcessProperty: "error",
+  })(parsed).pipe(Effect.mapError((error) => SkillManagerError.make({ message: error.message })));
 
   return { ...paths, manifest, raw };
 });

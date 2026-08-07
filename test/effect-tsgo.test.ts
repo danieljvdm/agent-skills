@@ -6,6 +6,7 @@ import {
   EFFECT_TSGO_TYPESCRIPT_VERSION,
   EFFECT_TSGO_VERSION,
   planEffectTsgoPatch,
+  recommendedEffectTsgoPlugin,
 } from "../src/effect-tsgo.ts";
 
 const writePackageVersion = Effect.fn("writeTestPackageVersion")(function* (
@@ -109,6 +110,30 @@ const installIsolatedPatchedToolchain = Effect.fn("installIsolatedPatchedToolcha
 
 describe("Effect tsgo patch", () => {
   layer(NodeServices.layer)((it) => {
+    it.effect("exports the recommended diagnostic profile", () =>
+      Effect.sync(() => {
+        assert.deepEqual(recommendedEffectTsgoPlugin.diagnosticSeverity, {
+          anyUnknownInErrorContext: "warning",
+          instanceOfSchema: "suggestion",
+          nestedEffectGenYield: "suggestion",
+          newSchemaClass: "suggestion",
+          preferSchemaTypeProperty: "suggestion",
+          unsafeEffectTypeAssertion: "warning",
+        });
+        assert.deepEqual(recommendedEffectTsgoPlugin.overrides, [
+          {
+            include: ["src/**/*.ts"],
+            options: {
+              diagnosticSeverity: {
+                nodeBuiltinImport: "warning",
+                preferSchemaOverJson: "suggestion",
+              },
+            },
+          },
+        ]);
+      }),
+    );
+
     it.effect("plans only the exact pinned local toolchain", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;

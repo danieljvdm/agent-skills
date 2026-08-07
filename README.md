@@ -307,13 +307,22 @@ export default defineConfig({
 
 Spread the returned top-level config before local options. When overriding a
 `fmt`, `lint`, `run`, or `staged` block, spread that returned block as well so
-its defaults remain composed.
+its defaults remain composed. Merge nested collections too; for example, a
+local lint rule block starts with `...recommended.lint.rules` before adding
+repository-specific rules.
 
 The factory configures `vp staged`, matching Oxlint/Oxfmt ignores for Dev Kit's
 tool-owned paths, and separate `vp run check` and pure `vp run typecheck` tasks.
 Project and framework-generated paths belong in `ignorePatterns` as shown;
 custom harness target paths belong there too. Dev Kit does not grow a global
 framework ignore list.
+
+Vite+ 0.2.6 forwards JavaScript-plugin declarations into its effective lint
+config but its bundled native Oxlint path does not register or execute those
+rules. Native Oxlint rules and Oxfmt settings remain active; run standalone
+Oxlint when enforcement of Dev Kit's `effect/*` or
+`stylistic/padding-line-between-statements` rules is required. This limitation
+can be removed once a supported Vite+ release executes configured JS plugins.
 
 ```jsonc
 {
@@ -441,7 +450,30 @@ Pin the compatible packages in the consuming project:
 {
   "$schema": "./node_modules/@effect/tsgo/schema.json",
   "compilerOptions": {
-    "plugins": [{ "name": "@effect/language-service" }],
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "diagnosticSeverity": {
+          "anyUnknownInErrorContext": "warning",
+          "instanceOfSchema": "suggestion",
+          "nestedEffectGenYield": "suggestion",
+          "newSchemaClass": "suggestion",
+          "preferSchemaTypeProperty": "suggestion",
+          "unsafeEffectTypeAssertion": "warning",
+        },
+        "overrides": [
+          {
+            "include": ["src/**/*.ts"],
+            "options": {
+              "diagnosticSeverity": {
+                "nodeBuiltinImport": "warning",
+                "preferSchemaOverJson": "suggestion",
+              },
+            },
+          },
+        ],
+      },
+    ],
   },
 }
 ```
@@ -451,7 +483,12 @@ native TypeScript compiler. It does not download dependencies and skips an
 installation that is already patched. Use `dev-kit tsgo patch --dry-run` when
 troubleshooting the task directly.
 
-Dependency and `tsconfig.json` edits remain explicit.
+The same typed object is exported as `recommendedEffectTsgoPlugin` for
+programmatic configuration tooling. Dependency and `tsconfig.json` edits remain
+explicit. In a monorepo, put the plugin in the shared root config and ensure
+every workspace extends it without redeclaring `compilerOptions.plugins`:
+TypeScript replaces that array in child configs rather than merging it. Adjust
+the `src/**/*.ts` override to the source layout seen from each config file.
 
 ## Installed package skills
 

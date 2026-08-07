@@ -237,6 +237,36 @@ const createLockedInstructionFixture = Effect.fn("createLockedInstructionFixture
 
 describe("project apply", () => {
   layer(NodeServices.layer)((it) => {
+    it.effect("rejects obsolete Vite+ quality config manifest input", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const projectDir = yield* fs.makeTempDirectoryScoped({
+          prefix: "dev-kit-obsolete-quality-config-",
+        });
+
+        yield* fs.writeFileString(
+          path.join(projectDir, "dev-kit.jsonc"),
+          JSON.stringify({
+            include: [],
+            setup: {
+              vitePlus: {
+                quality: {
+                  config: { enabled: false },
+                  workflow: { enabled: false },
+                },
+              },
+            },
+          }),
+        );
+        const result = yield* runDevKit(projectDir, ["plan", "--project-dir", projectDir]);
+
+        assert.notStrictEqual(result.exitCode, 0);
+        assert.include(result.output, "config");
+        assert.match(result.output, /excess property|Unexpected key/i);
+      }),
+    );
+
     it.effect("plans creates without writing project state", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;

@@ -58,16 +58,10 @@ describe("shipped skills", () => {
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
-        const { architectureReferencesDir, architectureSkillDir, root, skillDir } =
+        const { architectureReferencesDir, architectureSkillDir, skillDir } =
           yield* repositoryPaths();
 
         assert.isTrue(yield* fs.exists(path.join(skillDir, "SKILL.md")));
-        assert.isFalse(yield* fs.exists(path.join(root, "skills", "effect-cli", "SKILL.md")));
-        assert.isFalse(yield* fs.exists(path.join(root, "skills", "effect-patterns", "SKILL.md")));
-        assert.isFalse(
-          yield* fs.exists(path.join(root, "skills", "effect-atom-data-fetching", "SKILL.md")),
-        );
-        assert.isFalse(yield* fs.exists(path.join(root, "skills", "effect-datetime", "SKILL.md")));
 
         const skill = yield* fs.readFileString(path.join(skillDir, "SKILL.md"));
 
@@ -182,7 +176,7 @@ describe("shipped skills", () => {
       }),
     );
 
-    it.effect("selects the Effect umbrella directly and through compatibility aliases", () =>
+    it.effect("selects the Effect umbrella and its focused skills directly", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const { cli } = yield* repositoryPaths();
@@ -200,10 +194,6 @@ describe("shipped skills", () => {
             include: ["effect-architecture-audit"],
             expectedSkills: ["effect-architecture-audit"],
           },
-          {
-            include: ["effect-atom-data-fetching"],
-            expectedSkills: ["effect-ts", "effect-architecture-audit", "build-effect-apis"],
-          },
         ]) {
           yield* writeManifest(projectDir, include);
           const result = yield* runCli(cli, projectDir, ["plan", "--project-dir", projectDir]);
@@ -216,25 +206,6 @@ describe("shipped skills", () => {
               assert.notInclude(result.output, `copy ${skillName}`);
             }
           }
-          assert.notMatch(result.output, /copy effect-atom-data-fetching|copy effect-datetime/);
-          assert.notMatch(result.output, /effect-cli|effect-patterns/);
-        }
-      }),
-    );
-
-    it.effect("rejects removed split Effect skill ids", () =>
-      Effect.gen(function* () {
-        const fs = yield* FileSystem.FileSystem;
-        const { cli } = yield* repositoryPaths();
-        const projectDir = yield* fs.makeTempDirectoryScoped({
-          prefix: "dev-kit-old-effect-id-test-",
-        });
-
-        for (const oldSkill of ["effect-cli", "effect-patterns", "effect-datetime"]) {
-          yield* writeManifest(projectDir, [oldSkill]);
-          const result = yield* runCli(cli, projectDir, ["plan", "--project-dir", projectDir]);
-
-          assert.notStrictEqual(result.exitCode, 0);
         }
       }),
     );

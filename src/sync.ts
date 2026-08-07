@@ -271,7 +271,6 @@ const encodeAppliedStatePrettyJson = Schema.encodeSync(fromJsonString(AppliedSta
 
 const SKILL_FAMILIES: SkillCatalog = {
   effect: ["effect-ts", "effect-architecture-audit", "build-effect-apis"],
-  "effect-atom-data-fetching": ["effect-ts", "effect-architecture-audit", "build-effect-apis"],
 };
 
 export const DEFAULT_MANIFEST = "dev-kit.jsonc";

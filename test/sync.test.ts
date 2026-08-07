@@ -255,7 +255,6 @@ describe("project apply", () => {
           /\+ copy effect-architecture-audit → \.agents\/skills\/effect-architecture-audit/,
         );
         assert.match(result.output, /\+ copy effect-ts → \.agents\/skills\/effect-ts/);
-        assert.notMatch(result.output, /copy effect-atom-data-fetching|copy effect-datetime/);
         assert.isFalse(yield* fs.exists(path.join(projectDir, ".agents")));
         assert.isFalse(yield* fs.exists(path.join(projectDir, "AGENTS.md")));
         assert.isFalse(yield* fs.exists(path.join(projectDir, "dev-kit.lock.json")));

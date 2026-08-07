@@ -4,8 +4,8 @@ export type SymbolicLinkObservation =
   | { readonly kind: "missing" | "not-symlink" }
   | { readonly kind: "symlink"; readonly target: string };
 
-// Effect beta.102's Node FileSystem adapter maps readlink(2) EINVAL to Unknown.
-// Keep that runtime-specific normalization at this narrow adapter boundary.
+// Effect's Node FileSystem adapter maps readlink(2) EINVAL to Unknown. Keep
+// that runtime-specific normalization at this narrow adapter boundary.
 const isNotSymbolicLink = (error: PlatformError.PlatformError): boolean => {
   if (error.reason._tag !== "Unknown") return false;
   const cause = error.reason.cause;

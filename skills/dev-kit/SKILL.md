@@ -116,6 +116,11 @@ useful unified-toolchain overview, help and documentation entry points, and
 contradict the repository policy. Treat duplicate, overlapping, reversed, or
 unmatched managed markers as a conflict rather than guessing which content Dev
 Kit owns; remove a legacy owned Vite+ section during migration.
+When `effect` is a declared direct dependency and the installed package ships a
+regular `node_modules/effect/AGENTS.md` file, the managed section also directs
+agents to read that version-matched guide completely and use
+`node_modules/effect/src` for gaps. Omit the pointer when the package is absent,
+transitive, or too old to ship the guide; never generate a dangling path.
 The managed section also publishes the repository's command authority. Direct
 Vite+ projects must use `vp` built-ins and `vp run <task>`; projects using the
 recommended Vite+ factory use `vp run check` for the complete

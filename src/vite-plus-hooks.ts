@@ -1,4 +1,4 @@
-import { Config, Effect, FileSystem, Path, Schema as S, Stream } from "effect";
+import { Config, Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
 
 import { validateInstalledVitePlus } from "./vite-plus-dependency.ts";
@@ -14,23 +14,23 @@ export type VitePlusHooksPlan = {
   readonly vpBin: string;
 };
 
-export class VitePlusHooksDependencyError extends S.TaggedErrorClass<VitePlusHooksDependencyError>()(
+export class VitePlusHooksDependencyError extends Schema.TaggedError<VitePlusHooksDependencyError>()(
   "VitePlusHooksDependencyError",
-  { message: S.String },
+  { message: Schema.String },
 ) {}
 
-export class VitePlusHooksConflictError extends S.TaggedErrorClass<VitePlusHooksConflictError>()(
+export class VitePlusHooksConflictError extends Schema.TaggedError<VitePlusHooksConflictError>()(
   "VitePlusHooksConflictError",
-  { hooksPath: S.String },
+  { hooksPath: Schema.String },
 ) {
   override get message() {
     return `core.hooksPath is already set to "${this.hooksPath}"; refusing to replace another Git hook manager`;
   }
 }
 
-class VitePlusHooksCommandError extends S.TaggedErrorClass<VitePlusHooksCommandError>()(
+class VitePlusHooksCommandError extends Schema.TaggedError<VitePlusHooksCommandError>()(
   "VitePlusHooksCommandError",
-  { command: S.String, exitCode: S.Int, output: S.String },
+  { command: Schema.String, exitCode: Schema.Int, output: Schema.String },
 ) {
   override get message() {
     return this.output.length > 0
@@ -39,9 +39,9 @@ class VitePlusHooksCommandError extends S.TaggedErrorClass<VitePlusHooksCommandE
   }
 }
 
-class VitePlusHooksConvergenceError extends S.TaggedErrorClass<VitePlusHooksConvergenceError>()(
+class VitePlusHooksConvergenceError extends Schema.TaggedError<VitePlusHooksConvergenceError>()(
   "VitePlusHooksConvergenceError",
-  { message: S.String },
+  { message: Schema.String },
 ) {}
 
 const runCommand = Effect.fn("runVitePlusHooksCommand")(function* (

@@ -1,4 +1,4 @@
-import { Effect, FileSystem, Path, Schema as S, Stream } from "effect";
+import { Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
 import { parse as parseJsonc, type ParseError } from "jsonc-parser";
 
@@ -50,8 +50,8 @@ export type ResolvedSkillSource = {
       };
 };
 
-class CatalogError extends S.TaggedErrorClass<CatalogError>()("CatalogError", {
-  message: S.String,
+class CatalogError extends Schema.TaggedError<CatalogError>()("CatalogError", {
+  message: Schema.String,
 }) {}
 
 const runGit = Effect.fn("runCatalogGit")(function* (cwd: string, args: ReadonlyArray<string>) {
@@ -88,7 +88,7 @@ const readCatalogLock = Effect.fn("readCatalogLock")(function* (packageRoot: str
     return yield* CatalogError.make({ message: `invalid skill catalog lock: ${lockPath}` });
   }
 
-  return yield* S.decodeUnknownEffect(SkillSourcesLockSchema)(value).pipe(
+  return yield* Schema.decodeUnknownEffect(SkillSourcesLockSchema)(value).pipe(
     Effect.mapError((error) => CatalogError.make({ message: error.message })),
   );
 });
@@ -181,8 +181,7 @@ export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
     });
   }
   const families: Readonly<Record<string, ReadonlyArray<string>>> = {
-    effect: ["effect-ts"],
-    "effect-atom-data-fetching": ["effect-ts"],
+    effect: ["effect-ts", "effect-architecture-audit", "build-effect-apis"],
     ...Object.fromEntries(externalFamilies),
   };
 

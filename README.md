@@ -198,9 +198,9 @@ tool versions. A project-local process lock also prevents concurrent applies.
 ```
 
 - `dev-kit` installs guidance for operating the toolkit itself.
-- `effect` expands to the `effect-ts` umbrella, whose lazy references include
-  Effect Atom HTTP data fetching and Effect DateTime guidance. The former
-  `effect-atom-data-fetching` selector remains an alias for compatibility.
+- `effect` expands to the package-guidance `effect-ts` bootstrap, the
+  opinionated `effect-architecture-audit`, and `build-effect-apis` for shared
+  HTTP contracts, Effect Atom clients, TanStack Start, and Cloudflare Workers.
 - Prefer individual external skills such as `workers-best-practices` and
   `wrangler`, selected after scanning the project for relevant technologies.
 - `serve-sim` selects the approved Evan Bacon simulator skill directly.
@@ -611,10 +611,8 @@ variable declarations remain grouped, while the next logical statement and
 all `return` statements require a separating blank line. The rule is fixable,
 so `vp lint --fix` repairs missing spacing automatically.
 
-The preset also registers the shared `effect` JavaScript plugin. Effect Schema
-imports are required to use the conventional `S` alias, and `vp lint --fix`
-rewrites both the import and its references. Effect projects opt into
-the plugin's scope-sensitive rules in path-specific overrides, for example
+The preset also registers the shared `effect` JavaScript plugin. Effect
+projects opt into its rules in path-specific overrides, for example
 `effect/no-effect-run`, `effect/no-unsafe-promise`, and
 `effect/no-untyped-throw`. The package exports the plugin directly from
 `@danieljvdm/dev-kit/oxlint-plugin-effect` for configurations that do not

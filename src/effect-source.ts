@@ -1,4 +1,4 @@
-import { Config, Effect, FileSystem, Path, Schema as S, Stream } from "effect";
+import { Config, Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
 
 import { printStatus, withSpinner } from "./cli-ui.ts";
@@ -28,36 +28,36 @@ export type EffectSourcePlan = {
   readonly tag: string;
 };
 
-const EffectSourcePlanJsonSchema = S.fromJsonString(
-  S.Struct({
-    action: S.Literals(["sync", "unchanged", "skipped"]),
-    checkoutDir: S.String,
-    packageName: S.String,
-    packageVersion: S.String,
-    path: S.String,
-    projectDir: S.String,
-    repository: S.String,
-    tag: S.String,
+const EffectSourcePlanJsonSchema = Schema.fromJsonString(
+  Schema.Struct({
+    action: Schema.Literals(["sync", "unchanged", "skipped"]),
+    checkoutDir: Schema.String,
+    packageName: Schema.String,
+    packageVersion: Schema.String,
+    path: Schema.String,
+    projectDir: Schema.String,
+    repository: Schema.String,
+    tag: Schema.String,
   }),
 );
 
-export class EffectSourceDependencyError extends S.TaggedErrorClass<EffectSourceDependencyError>()(
+export class EffectSourceDependencyError extends Schema.TaggedError<EffectSourceDependencyError>()(
   "EffectSourceDependencyError",
-  { packageName: S.String },
+  { packageName: Schema.String },
 ) {
   override get message() {
     return `${this.packageName} must be installed before syncing its Effect source checkout`;
   }
 }
 
-export class EffectSourceCheckoutError extends S.TaggedErrorClass<EffectSourceCheckoutError>()(
+export class EffectSourceCheckoutError extends Schema.TaggedError<EffectSourceCheckoutError>()(
   "EffectSourceCheckoutError",
-  { message: S.String },
+  { message: Schema.String },
 ) {}
 
-class EffectSourceCommandError extends S.TaggedErrorClass<EffectSourceCommandError>()(
+class EffectSourceCommandError extends Schema.TaggedError<EffectSourceCommandError>()(
   "EffectSourceCommandError",
-  { command: S.String, exitCode: S.Int, output: S.String },
+  { command: Schema.String, exitCode: Schema.Int, output: Schema.String },
 ) {
   override get message() {
     return this.output.length > 0
@@ -66,9 +66,9 @@ class EffectSourceCommandError extends S.TaggedErrorClass<EffectSourceCommandErr
   }
 }
 
-const PackageVersionSchema = S.fromJsonString(
-  S.Struct({
-    version: S.String.check(S.isPattern(/^[0-9A-Za-z][0-9A-Za-z.+-]*$/)),
+const PackageVersionSchema = Schema.fromJsonString(
+  Schema.Struct({
+    version: Schema.String.check(Schema.isPattern(/^[0-9A-Za-z][0-9A-Za-z.+-]*$/)),
   }),
 );
 
@@ -121,7 +121,7 @@ const readPackageVersion = Effect.fn("readEffectSourcePackageVersion")(function*
       ),
     );
 
-  return yield* S.decodeEffect(PackageVersionSchema)(contents).pipe(
+  return yield* Schema.decodeEffect(PackageVersionSchema)(contents).pipe(
     Effect.mapError(() => EffectSourceDependencyError.make({ packageName })),
     Effect.map((manifest) => manifest.version),
   );
@@ -357,8 +357,8 @@ export const syncEffectSource = Effect.fn("syncEffectSource")(function* (
   yield* acquireProjectProcessLock(plan.projectDir);
   const replanned = yield* planEffectSource(options);
   const [plannedSignature, replannedSignature] = yield* Effect.all([
-    S.encodeEffect(EffectSourcePlanJsonSchema)(plan),
-    S.encodeEffect(EffectSourcePlanJsonSchema)(replanned),
+    Schema.encodeEffect(EffectSourcePlanJsonSchema)(plan),
+    Schema.encodeEffect(EffectSourcePlanJsonSchema)(replanned),
   ]).pipe(
     Effect.mapError((error) =>
       EffectSourceCheckoutError.make({

@@ -1,4 +1,4 @@
-import { Effect, Schema as S } from "effect";
+import { Effect, Schema } from "effect";
 
 import type { VitePlusQualityWorkflowStep } from "./manifest.ts";
 import { readDirectDependencyNames } from "./project-package.ts";
@@ -7,9 +7,9 @@ import { validateInstalledVitePlus } from "./vite-plus-dependency.ts";
 export const VITE_PLUS_GITHUB_ACTIONS_PATH = ".github/workflows/check.yml";
 export const VITE_PLUS_GITHUB_ACTIONS_TEMPLATE = "templates/vite-plus/github-actions-check.yml";
 
-export class VitePlusQualitySupportError extends S.TaggedErrorClass<VitePlusQualitySupportError>()(
+export class VitePlusQualitySupportError extends Schema.TaggedError<VitePlusQualitySupportError>()(
   "VitePlusQualitySupportError",
-  { message: S.String },
+  { message: Schema.String },
 ) {}
 
 export type VitePlusQualityWorkflow = {

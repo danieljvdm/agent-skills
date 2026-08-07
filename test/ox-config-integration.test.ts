@@ -129,35 +129,6 @@ describe("shared Oxlint and Oxfmt configuration", () => {
           yield* fs.readFileString(importsFile),
           'import { RuntimeValue, type TypeOnly } from "./types.ts";',
         );
-
-        const schemaAliasFile = path.join(importsDir, "schema-alias.ts");
-
-        yield* fs.writeFileString(
-          schemaAliasFile,
-          'import { Schema } from "effect";\n\nexport const Name = Schema.String;\nexport const namespace = { Schema };\nexport { Schema };\n',
-        );
-        const schemaAliasLint = yield* runCommand(
-          fixture,
-          oxlint,
-          ["--config", "oxlint.config.mjs", schemaAliasFile],
-          standaloneEnv,
-        );
-
-        assert.notStrictEqual(schemaAliasLint.exitCode, 0);
-        assert.include(schemaAliasLint.output, "effect(prefer-schema-alias)");
-
-        const fixedSchemaAlias = yield* runCommand(
-          fixture,
-          oxlint,
-          ["--fix", "--config", "oxlint.config.mjs", schemaAliasFile],
-          standaloneEnv,
-        );
-
-        assert.strictEqual(fixedSchemaAlias.exitCode, 0, fixedSchemaAlias.output);
-        assert.strictEqual(
-          yield* fs.readFileString(schemaAliasFile),
-          'import { Schema as S } from "effect";\n\nexport const Name = S.String;\nexport const namespace = { Schema: S };\nexport { S as Schema };\n',
-        );
       }),
     );
   });

@@ -61,6 +61,34 @@ const installTanStackAiSkill = Effect.fn("installTestTanStackAiSkill")(function*
   );
 });
 
+const writePackageSkill = Effect.fn("writeTestPackageSkill")(function* (
+  projectDir: string,
+  packageName: string,
+  skill: string,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const root = path.join(projectDir, "node_modules", packageName);
+
+  yield* fs.makeDirectory(path.join(root, "skills", skill), { recursive: true });
+  yield* fs.writeFileString(
+    path.join(root, "package.json"),
+    JSON.stringify({
+      name: packageName,
+      version: "1.0.0",
+      intent: {
+        version: 1,
+        repo: `https://example.test/${packageName}`,
+        docs: "https://example.test/docs",
+      },
+    }),
+  );
+  yield* fs.writeFileString(
+    path.join(root, "skills", skill, "SKILL.md"),
+    `---\nname: ${skill}\ndescription: ${packageName}.\n---\n`,
+  );
+});
+
 describe("package-backed project sync", () => {
   layer(NodeServices.layer)((it) => {
     it.effect("copies nested package skills and locks installed version and content", () =>
@@ -75,21 +103,28 @@ describe("package-backed project sync", () => {
         const applied = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
 
         assert.strictEqual(applied.exitCode, 0, applied.output);
-        const installedSkill = path.join(projectDir, ".agents", "skills", "ai-core");
+        const installedSkill = path.join(projectDir, ".agents", "skills", "tanstack-ai-ai-core");
 
-        assert.isTrue(yield* fs.exists(path.join(installedSkill, "SKILL.md")));
-        assert.isTrue(yield* fs.exists(path.join(installedSkill, "chat-experience", "SKILL.md")));
+        assert.strictEqual(
+          yield* fs.readFileString(path.join(installedSkill, "SKILL.md")),
+          "---\nname: tanstack-ai-ai-core\ndescription: Test TanStack AI skill.\n---\n\nPackage content.\n",
+        );
+        assert.include(
+          yield* fs.readFileString(path.join(installedSkill, "chat-experience", "SKILL.md")),
+          "name: ai-core/chat-experience",
+        );
 
         const lockPath = path.join(projectDir, "dev-kit.lock.json");
         const firstLock = JSON.parse(yield* fs.readFileString(lockPath));
 
-        assert.deepEqual(firstLock.outputs[0].catalog, {
-          package: "@tanstack/ai",
-          version: "1.2.3",
-          skill: "ai-core",
-          digest: firstLock.outputs[0].digest,
-        });
+        assert.strictEqual(firstLock.outputs[0].skill, "tanstack-ai-ai-core");
+        assert.strictEqual(firstLock.outputs[0].path, ".agents/skills/tanstack-ai-ai-core");
+        assert.strictEqual(firstLock.outputs[0].catalog.package, "@tanstack/ai");
+        assert.strictEqual(firstLock.outputs[0].catalog.version, "1.2.3");
+        assert.strictEqual(firstLock.outputs[0].catalog.skill, "ai-core");
+        assert.match(firstLock.outputs[0].catalog.digest, /^sha256:/);
         assert.match(firstLock.outputs[0].digest, /^sha256:/);
+        assert.notStrictEqual(firstLock.outputs[0].catalog.digest, firstLock.outputs[0].digest);
 
         const converged = yield* runDevKit(projectDir, [
           "apply",
@@ -128,6 +163,14 @@ describe("package-backed project sync", () => {
 
         assert.notStrictEqual(changedContent.exitCode, 0);
         assert.match(changedContent.output, /manifest or packaged skills differ/);
+
+        const restaged = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
+        assert.strictEqual(restaged.exitCode, 0, restaged.output);
+        assert.include(
+          yield* fs.readFileString(path.join(installedSkill, "SKILL.md")),
+          "Changed package content.",
+        );
       }),
     );
 
@@ -170,6 +213,13 @@ describe("package-backed project sync", () => {
           const applied = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
 
           assert.strictEqual(applied.exitCode, 0, applied.output);
+          const linked = path.join(projectDir, ".agents", "skills", "tanstack-ai-ai-core");
+
+          assert.strictEqual(
+            yield* fs.readLink(linked).pipe(Effect.map((target) => path.basename(target))),
+            "ai-core",
+          );
+          assert.include(yield* fs.readFileString(path.join(linked, "SKILL.md")), "name: ai-core");
           const lock = JSON.parse(
             yield* fs.readFileString(path.join(projectDir, "dev-kit.lock.json")),
           );
@@ -205,12 +255,12 @@ describe("package-backed project sync", () => {
         }),
     );
 
-    it.effect("rejects selected package skills that collide at the output name", () =>
+    it.effect("installs same-named skills from different packages under distinct names", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const projectDir = yield* fs.makeTempDirectoryScoped({
-          prefix: "dev-kit-package-collision-",
+          prefix: "dev-kit-package-distinct-",
         });
 
         yield* fs.writeFileString(
@@ -222,31 +272,49 @@ describe("package-backed project sync", () => {
           '{"include":["one#same","two#same"],"targets":{"agents":{"enabled":true,"mode":"copy"}}}\n',
         );
         for (const packageName of ["one", "two"]) {
-          const root = path.join(projectDir, "node_modules", packageName);
-
-          yield* fs.makeDirectory(path.join(root, "skills", "same"), { recursive: true });
-          yield* fs.writeFileString(
-            path.join(root, "package.json"),
-            JSON.stringify({
-              name: packageName,
-              version: "1.0.0",
-              intent: {
-                version: 1,
-                repo: `https://example.test/${packageName}`,
-                docs: "https://example.test/docs",
-              },
-            }),
-          );
-          yield* fs.writeFileString(
-            path.join(root, "skills", "same", "SKILL.md"),
-            `---\nname: same\ndescription: ${packageName}.\n---\n`,
-          );
+          yield* writePackageSkill(projectDir, packageName, "same");
         }
 
         const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
 
+        assert.strictEqual(result.exitCode, 0, result.output);
+        for (const packageName of ["one", "two"]) {
+          assert.include(
+            yield* fs.readFileString(
+              path.join(projectDir, ".agents", "skills", `${packageName}-same`, "SKILL.md"),
+            ),
+            `name: ${packageName}-same`,
+          );
+        }
+      }),
+    );
+
+    it.effect("rejects selected package skills that collide at the install name", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const projectDir = yield* fs.makeTempDirectoryScoped({
+          prefix: "dev-kit-package-collision-",
+        });
+
+        yield* fs.writeFileString(
+          path.join(projectDir, "package.json"),
+          '{"dependencies":{"one":"1","one-two":"1"}}\n',
+        );
+        yield* fs.writeFileString(
+          path.join(projectDir, "dev-kit.jsonc"),
+          '{"include":["one#two-same","one-two#same"],"targets":{"agents":{"enabled":true,"mode":"copy"}}}\n',
+        );
+        yield* writePackageSkill(projectDir, "one", "two-same");
+        yield* writePackageSkill(projectDir, "one-two", "same");
+
+        const result = yield* runDevKit(projectDir, ["apply", "--project-dir", projectDir]);
+
         assert.notStrictEqual(result.exitCode, 0);
-        assert.match(result.output, /would both install as same: one#same, two#same/);
+        assert.match(
+          result.output,
+          /would both install as one-two-same: one#two-same, one-two#same/,
+        );
         assert.isFalse(yield* fs.exists(path.join(projectDir, ".agents")));
         assert.isFalse(yield* fs.exists(path.join(projectDir, "dev-kit.lock.json")));
       }),
@@ -288,7 +356,9 @@ describe("package-backed project sync", () => {
 
         assert.strictEqual(applied.exitCode, 0, applied.output);
         assert.isTrue(
-          yield* fs.exists(path.join(projectDir, ".agents", "skills", "valid", "SKILL.md")),
+          yield* fs.exists(
+            path.join(projectDir, ".agents", "skills", "package-skills-valid", "SKILL.md"),
+          ),
         );
       }),
     );

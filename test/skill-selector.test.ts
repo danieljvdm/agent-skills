@@ -1,6 +1,6 @@
 import { assert, describe, it } from "@effect/vitest";
 
-import { isSkillName, parseSkillSelector } from "../src/skill-selector.ts";
+import { isSkillName, packageSkillInstallName, parseSkillSelector } from "../src/skill-selector.ts";
 
 describe("skill selectors", () => {
   it("parses canonical static and exact package selectors", () => {
@@ -23,6 +23,23 @@ describe("skill selectors", () => {
     }
     for (const name of ["", "AI-core", "ai_core", "ai/core", "ai--core", "-ai", "ai-"]) {
       assert.isFalse(isSkillName(name));
+    }
+  });
+
+  it("flattens package skill install names into valid qualified directory names", () => {
+    const cases: ReadonlyArray<readonly [string, string, string]> = [
+      ["@tanstack/table-core", "core", "tanstack-table-core-core"],
+      ["@tanstack/react-table", "getting-started", "tanstack-react-table-getting-started"],
+      ["tanstack", "router", "tanstack-router"],
+      ["effect_lib.tools", "alpha", "effect-lib-tools-alpha"],
+      ["weird..name-", "beta", "weird-name-beta"],
+    ];
+
+    for (const [packageName, skill, expected] of cases) {
+      const installName = packageSkillInstallName(packageName, skill);
+
+      assert.strictEqual(installName, expected);
+      assert.isTrue(isSkillName(installName), installName);
     }
   });
 

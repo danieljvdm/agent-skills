@@ -2,8 +2,13 @@ import { Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
 import { parse as parseJsonc, type ParseError } from "jsonc-parser";
 
-import { discoverPackageSkills, resolvePackageSkillSelector } from "./package-skill-source.ts";
+import {
+  discoverPackageSkills,
+  resolvePackageSkillSelector,
+  type DiscoveredPackageSkill,
+} from "./package-skill-source.ts";
 import { observePath, type Digest } from "./path-digest.ts";
+import { packageSkillInstallName } from "./skill-selector.ts";
 import {
   SkillSourcesLockSchema,
   type LockedSkillSource,
@@ -145,7 +150,7 @@ export const loadSkillCatalog = Effect.fn("loadSkillCatalog")(function* (
 
   for (const candidate of discovery.candidates) {
     skills.push({
-      name: candidate.name,
+      name: packageSkillInstallName(candidate.package, candidate.name),
       selector: candidate.selector,
       description: candidate.description,
       source: candidate.package,
@@ -205,6 +210,57 @@ const stripFrontmatterKeys = (text: string, keys: ReadonlyArray<string>): string
 
   return `---\n${lines.join("\n")}\n---${frontmatter[2]}${text.slice(frontmatter[0].length)}`;
 };
+
+const rewriteFrontmatterName = (text: string, name: string): string => {
+  const frontmatter = text.match(/^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/);
+
+  if (!frontmatter?.[1]) return text;
+  let replacing = false;
+  const lines = frontmatter[1].split(/\r?\n/).flatMap((line) => {
+    const key = line.match(/^([A-Za-z0-9_-]+):/)?.[1];
+
+    if (key !== undefined) replacing = key === "name";
+
+    return replacing ? (key === undefined ? [] : [`name: ${name}`]) : [line];
+  });
+
+  return `---\n${lines.join("\n")}\n---${frontmatter[2]}${text.slice(frontmatter[0].length)}`;
+};
+
+const materializePackageSkill = Effect.fn("materializePackageSkill")(function* (
+  projectDir: string,
+  skill: DiscoveredPackageSkill,
+  digest: Digest,
+  cache: boolean,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const installName = packageSkillInstallName(skill.package, skill.name);
+  const root = cache
+    ? path.join(projectDir, ".dev-kit", "cache", "package-skills", installName)
+    : path.join(
+        yield* fs.makeTempDirectoryScoped({ prefix: "dev-kit-package-plan-" }),
+        installName,
+      );
+  const staged = path.join(root, "skill");
+  const ready = path.join(root, ".ready");
+  const stamp = `${skill.version}\n${digest}\n`;
+
+  if (!(yield* fs.exists(ready)) || (yield* fs.readFileString(ready)) !== stamp) {
+    yield* fs.remove(root, { force: true, recursive: true });
+    yield* fs.makeDirectory(root, { recursive: true });
+    yield* fs.copy(skill.path, staged, { overwrite: true });
+    const document = path.join(staged, "SKILL.md");
+
+    yield* fs.writeFileString(
+      document,
+      rewriteFrontmatterName(yield* fs.readFileString(document), installName),
+    );
+    yield* fs.writeFileString(ready, stamp);
+  }
+
+  return staged;
+});
 
 const materializeSource = Effect.fn("materializeCatalogSource")(function* (
   projectDir: string,
@@ -327,7 +383,7 @@ export const resolveSkillSources = Effect.fn("resolveSkillSources")(function* (
       return yield* CatalogError.make({ message: `package skill is missing: ${selector}` });
     }
     sources.set(selector, {
-      path: resolved.path,
+      path: yield* materializePackageSkill(projectDir, resolved, observation.digest, cache),
       linkPath: resolved.linkPath,
       catalog: {
         package: resolved.package,

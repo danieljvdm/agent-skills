@@ -28,6 +28,18 @@ export const SKILL_SELECTOR_PATTERN =
 
 export const isSkillName = (value: string): boolean => SKILL_NAME_PATTERN.test(value);
 
+/**
+ * The package-qualified directory name for an installed package skill. The npm
+ * package name keeps its identity in the flattened output: `@` is dropped,
+ * every other non-alphanumeric run becomes one dash, and the bare skill name
+ * is appended. `@tanstack/table-core#core` installs as
+ * `tanstack-table-core-core`.
+ */
+export const packageSkillInstallName = (packageName: string, skillName: string): string =>
+  `${packageName.replaceAll("@", "")}-${skillName}`
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
 /** Parse an exact, canonical manifest skill selector. */
 export const parseSkillSelector = (value: string): SkillSelector | undefined => {
   if (isSkillName(value)) return { type: "static", name: value };

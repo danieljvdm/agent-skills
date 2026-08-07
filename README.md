@@ -479,8 +479,16 @@ bun x dev-kit add @tanstack/ai#ai-core
 That writes `@tanstack/ai#ai-core` to `dev-kit.jsonc` and, unless
 `--no-apply` is passed, installs it through the normal ownership-safe sync
 path. The qualifier prevents ambiguity when two dependencies publish the same
-skill name. Two selected skills that would both write the same destination are
-rejected before any output is changed.
+skill name, and the installed output carries it too: the copied directory is
+named by flattening the package name (drop `@`, turn every other
+non-alphanumeric run into one dash) and appending the skill name, so
+`@tanstack/ai#ai-core` installs as `tanstack-ai-ai-core`. Agent harnesses
+identify a project skill by its directory name, so the copied `SKILL.md`
+frontmatter `name:` is rewritten to that same install name; all other content
+is copied verbatim. Symlink-mode targets link straight into `node_modules`, so
+only the link itself carries the qualified name while the linked frontmatter
+keeps the upstream bare name. Two selected skills that would both write the
+same destination are rejected before any output is changed.
 
 The initial compatibility boundary is intentionally small and deterministic:
 
@@ -498,9 +506,9 @@ and frontmatter-name invariants expected by Agent Skills targets. Dev Kit does
 not rewrite nested names or ask Intent to manage agent configuration.
 
 The project `dev-kit.lock.json` records the selected package name, installed
-version, skill name, and content digest. `apply --locked` therefore rejects
-package-version or skill-content drift. Dev Kit never downloads a missing
-package or substitutes a registry version.
+version, original bare skill name, and the `node_modules` content digest.
+`apply --locked` therefore rejects package-version or skill-content drift.
+Dev Kit never downloads a missing package or substitutes a registry version.
 
 See TanStack's
 [Agent Skills documentation](https://tanstack.com/ai/latest/docs/getting-started/agent-skills)

@@ -1678,7 +1678,6 @@ const verifyPackageSkillSources = Effect.fn("verifyPackageSkillSources")(functio
     const observation = yield* observePath(resolved.path);
 
     if (
-      resolved.path !== action.desired.source ||
       resolved.version !== catalog.version ||
       observation.kind !== "directory" ||
       observation.digest !== catalog.digest

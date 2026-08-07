@@ -1,13 +1,13 @@
-import { Effect, FileSystem, Path, Result, Schema as S } from "effect";
+import { Effect, FileSystem, Path, Result, Schema } from "effect";
 
 import { observeSymbolicLink } from "./node-symbolic-link.ts";
 import { readDirectDependencyNames } from "./project-package.ts";
 import { isSkillName, parseSkillSelector } from "./skill-selector.ts";
 import { isTypeScriptPackageName } from "./typescript-package-name.ts";
 
-export class PackageSkillSourceError extends S.TaggedErrorClass<PackageSkillSourceError>()(
+export class PackageSkillSourceError extends Schema.TaggedErrorClass<PackageSkillSourceError>()(
   "PackageSkillSourceError",
-  { message: S.String },
+  { message: Schema.String },
 ) {}
 
 export type PackageSkillDiagnostic = {
@@ -25,12 +25,12 @@ export type DiscoveredPackageSkill = {
   readonly linkPath: string;
 };
 
-const PackageMetadataSchema = S.fromJsonString(
-  S.Struct({
-    name: S.String,
-    version: S.String,
-    intent: S.optional(S.Unknown),
-    repository: S.optional(S.Unknown),
+const PackageMetadataSchema = Schema.fromJsonString(
+  Schema.Struct({
+    name: Schema.String,
+    version: Schema.String,
+    intent: Schema.optional(Schema.Unknown),
+    repository: Schema.optional(Schema.Unknown),
   }),
 );
 
@@ -180,7 +180,7 @@ const loadInstalledPackageSkills = Effect.fn("loadInstalledPackageSkills")(funct
       message: `package skill package is not a directory: ${packageName}`,
     });
   const metadata = yield* fs.readFileString(path.join(packageRoot, "package.json")).pipe(
-    Effect.flatMap(S.decodeUnknownEffect(PackageMetadataSchema)),
+    Effect.flatMap(Schema.decodeUnknownEffect(PackageMetadataSchema)),
     Effect.mapError(() =>
       PackageSkillSourceError.make({
         message: `invalid package.json for package skill package: ${packageName}`,

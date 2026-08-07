@@ -1,47 +1,47 @@
-import { Schema as S } from "effect";
+import { Schema } from "effect";
 
 import { DigestSchema } from "./path-digest.ts";
 
-export const ExternalSkillSourceSchema = S.Struct({
-  id: S.String,
-  repository: S.String,
-  ref: S.String,
-  skillsPath: S.String,
-  include: S.Array(S.String),
-  exclude: S.optional(S.Array(S.String)),
-  licensePath: S.optional(S.String),
-  stripFrontmatter: S.optional(S.Array(S.String)),
+export const ExternalSkillSourceSchema = Schema.Struct({
+  id: Schema.String,
+  repository: Schema.String,
+  ref: Schema.String,
+  skillsPath: Schema.String,
+  include: Schema.Array(Schema.String),
+  exclude: Schema.optional(Schema.Array(Schema.String)),
+  licensePath: Schema.optional(Schema.String),
+  stripFrontmatter: Schema.optional(Schema.Array(Schema.String)),
 });
 
 export type ExternalSkillSource = typeof ExternalSkillSourceSchema.Type;
 
-export const SkillSourcesManifestSchema = S.Struct({
-  $schema: S.optional(S.String),
-  sources: S.Array(ExternalSkillSourceSchema),
+export const SkillSourcesManifestSchema = Schema.Struct({
+  $schema: Schema.optional(Schema.String),
+  sources: Schema.Array(ExternalSkillSourceSchema),
 });
 
 export type SkillSourcesManifest = typeof SkillSourcesManifestSchema.Type;
 
-export const LockedSkillSourceSchema = S.Struct({
-  id: S.String,
-  repository: S.String,
-  ref: S.String,
-  resolved: S.String,
-  skillsPath: S.String,
-  include: S.Array(S.String),
-  exclude: S.optional(S.Array(S.String)),
-  skills: S.Array(S.String),
-  descriptions: S.optional(S.Record(S.String, S.String)),
-  digests: S.optional(S.Record(S.String, DigestSchema)),
-  licensePath: S.optional(S.String),
-  stripFrontmatter: S.optional(S.Array(S.String)),
+export const LockedSkillSourceSchema = Schema.Struct({
+  id: Schema.String,
+  repository: Schema.String,
+  ref: Schema.String,
+  resolved: Schema.String,
+  skillsPath: Schema.String,
+  include: Schema.Array(Schema.String),
+  exclude: Schema.optional(Schema.Array(Schema.String)),
+  skills: Schema.Array(Schema.String),
+  descriptions: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+  digests: Schema.optional(Schema.Record(Schema.String, DigestSchema)),
+  licensePath: Schema.optional(Schema.String),
+  stripFrontmatter: Schema.optional(Schema.Array(Schema.String)),
 });
 
 export type LockedSkillSource = typeof LockedSkillSourceSchema.Type;
 
-export const SkillSourcesLockSchema = S.Struct({
-  version: S.Literal(1),
-  sources: S.Array(LockedSkillSourceSchema),
+export const SkillSourcesLockSchema = Schema.Struct({
+  version: Schema.Literal(1),
+  sources: Schema.Array(LockedSkillSourceSchema),
 });
 
 export type SkillSourcesLock = typeof SkillSourcesLockSchema.Type;

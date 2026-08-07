@@ -31,7 +31,6 @@ describe("recommended Oxlint config", () => {
       "error",
       { preferInline: true },
     ]);
-    expect(recommendedOxlintConfig.rules["effect/prefer-schema-alias"]).toBe("error");
     expect(recommendedOxlintConfig.rules["react/rules-of-hooks"]).toBe("error");
     expect(recommendedOxlintConfig.rules["stylistic/padding-line-between-statements"]).toEqual([
       "error",

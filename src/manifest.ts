@@ -1,97 +1,103 @@
-import { Schema as S } from "effect";
+import { Schema } from "effect";
 
 import { SKILL_SELECTOR_PATTERN } from "./skill-selector.ts";
 import { TYPESCRIPT_PACKAGE_NAME_PATTERN } from "./typescript-package-name.ts";
 
 export type HarnessTarget = "agents" | "claude" | "opencode";
 
-export const SyncMode = S.Literals(["copy", "symlink"]);
+export const SyncMode = Schema.Literals(["copy", "symlink"]);
 export type SyncMode = "copy" | "symlink";
 
-export const TargetConfigSchema = S.Struct({
-  enabled: S.optional(S.Boolean),
-  mode: S.optional(SyncMode),
-  path: S.optional(S.String),
+export const TargetConfigSchema = Schema.Struct({
+  enabled: Schema.optional(Schema.Boolean),
+  mode: Schema.optional(SyncMode),
+  path: Schema.optional(Schema.String),
 });
 
 export type TargetConfig = typeof TargetConfigSchema.Type;
 
-export const EffectTsgoSetupSchema = S.Struct({
-  enabled: S.optional(S.Boolean),
-  force: S.optional(S.Boolean),
-  typescriptPackage: S.optional(S.String.check(S.isPattern(TYPESCRIPT_PACKAGE_NAME_PATTERN))),
+export const EffectTsgoSetupSchema = Schema.Struct({
+  enabled: Schema.optional(Schema.Boolean),
+  force: Schema.optional(Schema.Boolean),
+  typescriptPackage: Schema.optional(
+    Schema.String.check(Schema.isPattern(TYPESCRIPT_PACKAGE_NAME_PATTERN)),
+  ),
 });
 
 export type EffectTsgoSetup = typeof EffectTsgoSetupSchema.Type;
 
-export const EffectSourceSetupSchema = S.Struct({
-  enabled: S.optional(S.Boolean),
-  packageName: S.optional(S.String.check(S.isPattern(TYPESCRIPT_PACKAGE_NAME_PATTERN))),
-  path: S.optional(S.String),
-  repository: S.optional(S.String),
+export const EffectSourceSetupSchema = Schema.Struct({
+  enabled: Schema.optional(Schema.Boolean),
+  packageName: Schema.optional(
+    Schema.String.check(Schema.isPattern(TYPESCRIPT_PACKAGE_NAME_PATTERN)),
+  ),
+  path: Schema.optional(Schema.String),
+  repository: Schema.optional(Schema.String),
 });
 
 export type EffectSourceSetup = typeof EffectSourceSetupSchema.Type;
 
-export const AgentInstructionsSetupSchema = S.Struct({
-  enabled: S.optional(S.Boolean),
+export const AgentInstructionsSetupSchema = Schema.Struct({
+  enabled: Schema.optional(Schema.Boolean),
 });
 
 export type AgentInstructionsSetup = typeof AgentInstructionsSetupSchema.Type;
 
-export const ClaudeInstructionsSetupSchema = S.Struct({
-  enabled: S.optional(S.Boolean),
+export const ClaudeInstructionsSetupSchema = Schema.Struct({
+  enabled: Schema.optional(Schema.Boolean),
 });
 
 export type ClaudeInstructionsSetup = typeof ClaudeInstructionsSetupSchema.Type;
 
-export const VitePlusHooksSetupSchema = S.Struct({
-  enabled: S.optional(S.Boolean),
+export const VitePlusHooksSetupSchema = Schema.Struct({
+  enabled: Schema.optional(Schema.Boolean),
 });
 
-export const VitePlusQualityWorkflowStepSchema = S.Struct({
-  name: S.String,
-  run: S.Array(S.String),
+export const VitePlusQualityWorkflowStepSchema = Schema.Struct({
+  name: Schema.String,
+  run: Schema.Array(Schema.String),
 });
 export type VitePlusQualityWorkflowStep = typeof VitePlusQualityWorkflowStepSchema.Type;
 
-export const VitePlusQualityWorkflowSetupSchema = S.Struct({
-  enabled: S.optional(S.Boolean),
-  beforeChecks: S.optional(S.Array(VitePlusQualityWorkflowStepSchema)),
-  typecheck: S.optional(S.Array(S.String)),
+export const VitePlusQualityWorkflowSetupSchema = Schema.Struct({
+  enabled: Schema.optional(Schema.Boolean),
+  beforeChecks: Schema.optional(Schema.Array(VitePlusQualityWorkflowStepSchema)),
+  typecheck: Schema.optional(Schema.Array(Schema.String)),
 });
 export type VitePlusQualityWorkflowSetup = typeof VitePlusQualityWorkflowSetupSchema.Type;
 
-export const VitePlusQualitySetupSchema = S.Struct({
-  workflow: S.optional(VitePlusQualityWorkflowSetupSchema),
+export const VitePlusQualitySetupSchema = Schema.Struct({
+  workflow: Schema.optional(VitePlusQualityWorkflowSetupSchema),
 });
 export type VitePlusQualitySetup = typeof VitePlusQualitySetupSchema.Type;
 
-export const VitePlusSetupSchema = S.Struct({
-  hooks: S.optional(VitePlusHooksSetupSchema),
-  quality: S.optional(VitePlusQualitySetupSchema),
+export const VitePlusSetupSchema = Schema.Struct({
+  hooks: Schema.optional(VitePlusHooksSetupSchema),
+  quality: Schema.optional(VitePlusQualitySetupSchema),
 });
 
 export type VitePlusSetup = typeof VitePlusSetupSchema.Type;
 
-export const DevKitManifestSchema = S.Struct({
-  $schema: S.optional(S.String),
-  include: S.Array(S.String.check(S.isPattern(SKILL_SELECTOR_PATTERN))),
-  exclude: S.optional(S.Array(S.String.check(S.isPattern(SKILL_SELECTOR_PATTERN)))),
-  setup: S.optional(
-    S.Struct({
-      agentInstructions: S.optional(AgentInstructionsSetupSchema),
-      claudeInstructions: S.optional(ClaudeInstructionsSetupSchema),
-      effectSource: S.optional(EffectSourceSetupSchema),
-      effectTsgo: S.optional(EffectTsgoSetupSchema),
-      vitePlus: S.optional(VitePlusSetupSchema),
+export const DevKitManifestSchema = Schema.Struct({
+  $schema: Schema.optional(Schema.String),
+  include: Schema.Array(Schema.String.check(Schema.isPattern(SKILL_SELECTOR_PATTERN))),
+  exclude: Schema.optional(
+    Schema.Array(Schema.String.check(Schema.isPattern(SKILL_SELECTOR_PATTERN))),
+  ),
+  setup: Schema.optional(
+    Schema.Struct({
+      agentInstructions: Schema.optional(AgentInstructionsSetupSchema),
+      claudeInstructions: Schema.optional(ClaudeInstructionsSetupSchema),
+      effectSource: Schema.optional(EffectSourceSetupSchema),
+      effectTsgo: Schema.optional(EffectTsgoSetupSchema),
+      vitePlus: Schema.optional(VitePlusSetupSchema),
     }),
   ),
-  targets: S.optional(
-    S.Struct({
-      agents: S.optional(TargetConfigSchema),
-      claude: S.optional(TargetConfigSchema),
-      opencode: S.optional(TargetConfigSchema),
+  targets: Schema.optional(
+    Schema.Struct({
+      agents: Schema.optional(TargetConfigSchema),
+      claude: Schema.optional(TargetConfigSchema),
+      opencode: Schema.optional(TargetConfigSchema),
     }),
   ),
 });

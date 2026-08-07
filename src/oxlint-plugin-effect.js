@@ -156,66 +156,6 @@ const noSyncBoundaryDecode = {
   },
 };
 
-const preferSchemaAlias = {
-  meta: {
-    type: "suggestion",
-    docs: { description: "Require Effect Schema imports to use the conventional S alias." },
-    fixable: "code",
-    messages: {
-      preferSchemaAlias: 'Import Schema as S: import { Schema as S } from "effect".',
-    },
-  },
-  create(context) {
-    return {
-      ImportDeclaration(node) {
-        if (node.source.value !== "effect") return;
-
-        const schemaSpecifier = node.specifiers.find(
-          (specifier) =>
-            specifier.type === "ImportSpecifier" &&
-            specifier.imported.type === "Identifier" &&
-            specifier.imported.name === "Schema" &&
-            specifier.local.name === "Schema",
-        );
-
-        if (!schemaSpecifier) return;
-
-        context.report({
-          node: schemaSpecifier,
-          messageId: "preferSchemaAlias",
-          fix(fixer) {
-            const schemaVariable = context.sourceCode
-              .getDeclaredVariables(schemaSpecifier)
-              .find((variable) => variable.name === "Schema");
-
-            if (!schemaVariable || schemaVariable.scope.set.has("S")) return null;
-
-            const referenceFixes = schemaVariable.references.map(({ identifier }) => {
-              const parent = identifier.parent;
-
-              if (parent.type === "Property" && parent.shorthand) {
-                return fixer.replaceText(identifier, "Schema: S");
-              }
-              if (
-                parent.type === "ExportSpecifier" &&
-                parent.local === identifier &&
-                parent.exported.type === "Identifier" &&
-                parent.exported.name === "Schema"
-              ) {
-                return fixer.replaceText(identifier, "S as Schema");
-              }
-
-              return fixer.replaceText(identifier, "S");
-            });
-
-            return [fixer.insertTextAfter(schemaSpecifier.imported, " as S"), ...referenceFixes];
-          },
-        });
-      },
-    };
-  },
-};
-
 export default {
   meta: { name: "dev-kit-effect" },
   rules: {
@@ -225,6 +165,5 @@ export default {
     "no-sync-boundary-decode": noSyncBoundaryDecode,
     "no-untyped-throw": noUntypedThrow,
     "no-unsafe-promise": noUnsafePromise,
-    "prefer-schema-alias": preferSchemaAlias,
   },
 };

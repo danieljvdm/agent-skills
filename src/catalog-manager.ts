@@ -1,4 +1,4 @@
-import { Effect, FileSystem, Path, Schema as S } from "effect";
+import { Effect, FileSystem, Path, Schema } from "effect";
 import { Prompt } from "effect/unstable/cli";
 import { applyEdits, modify, parse as parseJsonc, type ParseError } from "jsonc-parser";
 
@@ -36,9 +36,10 @@ export type CatalogAddOptions = CatalogCommandOptions & {
   readonly dryRun?: boolean;
 };
 
-class CatalogManagerError extends S.TaggedErrorClass<CatalogManagerError>()("CatalogManagerError", {
-  message: S.String,
-}) {}
+class CatalogManagerError extends Schema.TaggedErrorClass<CatalogManagerError>()(
+  "CatalogManagerError",
+  { message: Schema.String },
+) {}
 
 const formattingOptions = { insertSpaces: true, tabSize: 2 } as const;
 
@@ -57,7 +58,7 @@ const resolvePaths = Effect.fn("resolveCatalogManagerPaths")(function* (
 
 const readJsonc = Effect.fn("readCatalogManagerJsonc")(function* <A>(
   filePath: string,
-  schema: S.ConstraintDecoder<A>,
+  schema: Schema.ConstraintDecoder<A>,
 ) {
   const fs = yield* FileSystem.FileSystem;
 
@@ -71,7 +72,7 @@ const readJsonc = Effect.fn("readCatalogManagerJsonc")(function* <A>(
   if (errors.length > 0) {
     return yield* CatalogManagerError.make({ message: `could not parse ${filePath}` });
   }
-  const value = yield* S.decodeUnknownEffect(schema)(parsed).pipe(
+  const value = yield* Schema.decodeUnknownEffect(schema)(parsed).pipe(
     Effect.mapError((error) => CatalogManagerError.make({ message: error.message })),
   );
 

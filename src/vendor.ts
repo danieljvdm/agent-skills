@@ -1,4 +1,4 @@
-import { Effect, FileSystem, Path, Schema as S, SchemaGetter, Stream } from "effect";
+import { Effect, FileSystem, Path, Schema, SchemaGetter, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
 import { parse as parseJsonc, printParseErrorCode, type ParseError } from "jsonc-parser";
 
@@ -51,33 +51,42 @@ type PreparedSource = {
   readonly licenseSource?: string;
 };
 
-class SourceManifestError extends S.TaggedErrorClass<SourceManifestError>()("SourceManifestError", {
-  path: S.String,
-  message: S.String,
-}) {}
+class SourceManifestError extends Schema.TaggedErrorClass<SourceManifestError>()(
+  "SourceManifestError",
+  {
+    path: Schema.String,
+    message: Schema.String,
+  },
+) {}
 
-class InvalidSourceError extends S.TaggedErrorClass<InvalidSourceError>()("InvalidSourceError", {
-  source: S.String,
-  reason: S.String,
-}) {
+class InvalidSourceError extends Schema.TaggedErrorClass<InvalidSourceError>()(
+  "InvalidSourceError",
+  {
+    source: Schema.String,
+    reason: Schema.String,
+  },
+) {
   override get message(): string {
     return `invalid source "${this.source}": ${this.reason}`;
   }
 }
 
-class SkillCollisionError extends S.TaggedErrorClass<SkillCollisionError>()("SkillCollisionError", {
-  skill: S.String,
-  owners: S.Array(S.String),
-}) {
+class SkillCollisionError extends Schema.TaggedErrorClass<SkillCollisionError>()(
+  "SkillCollisionError",
+  {
+    skill: Schema.String,
+    owners: Schema.Array(Schema.String),
+  },
+) {
   override get message() {
     return `skill "${this.skill}" is owned by more than one source: ${this.owners.join(", ")}`;
   }
 }
 
-class CommandError extends S.TaggedErrorClass<CommandError>()("CommandError", {
-  command: S.String,
-  exitCode: S.Int,
-  output: S.String,
+class CommandError extends Schema.TaggedErrorClass<CommandError>()("CommandError", {
+  command: Schema.String,
+  exitCode: Schema.Int,
+  output: Schema.String,
 }) {
   override get message() {
     return this.output.length > 0
@@ -86,15 +95,15 @@ class CommandError extends S.TaggedErrorClass<CommandError>()("CommandError", {
   }
 }
 
-const SkillSourcesLockJsonSchema = S.fromJsonString(SkillSourcesLockSchema);
-const SkillSourcesLockPrettyJsonSchema = S.String.pipe(
-  S.decodeTo(S.toCodecJson(SkillSourcesLockSchema), {
+const SkillSourcesLockJsonSchema = Schema.fromJsonString(SkillSourcesLockSchema);
+const SkillSourcesLockPrettyJsonSchema = Schema.String.pipe(
+  Schema.decodeTo(Schema.toCodecJson(SkillSourcesLockSchema), {
     decode: SchemaGetter.parseJson(),
     encode: SchemaGetter.stringifyJson({ space: 2 }),
   }),
 );
-const encodeSkillSourcesLockJson = S.encodeSync(SkillSourcesLockJsonSchema);
-const encodeSkillSourcesLockPrettyJson = S.encodeSync(SkillSourcesLockPrettyJsonSchema);
+const encodeSkillSourcesLockJson = Schema.encodeSync(SkillSourcesLockJsonSchema);
+const encodeSkillSourcesLockPrettyJson = Schema.encodeSync(SkillSourcesLockPrettyJsonSchema);
 
 const DEFAULT_SOURCES_PATH = "skill-sources.jsonc";
 const DEFAULT_LOCKFILE_PATH = "skill-sources.lock.json";
@@ -197,7 +206,7 @@ const resolveGitRoot = Effect.fn("resolveVendorGitRoot")(function* (cwd: string)
 
 const readJsonc = Effect.fn("readVendorJsonc")(function* <A>(
   filePath: string,
-  schema: S.ConstraintDecoder<A>,
+  schema: Schema.ConstraintDecoder<A>,
 ) {
   const fs = yield* FileSystem.FileSystem;
 
@@ -218,7 +227,7 @@ const readJsonc = Effect.fn("readVendorJsonc")(function* <A>(
     });
   }
 
-  return yield* S.decodeUnknownEffect(schema)(parsed).pipe(
+  return yield* Schema.decodeUnknownEffect(schema)(parsed).pipe(
     Effect.mapError((cause) =>
       SourceManifestError.make({ path: filePath, message: cause.message }),
     ),

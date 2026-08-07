@@ -17,15 +17,17 @@ packages/domain/
         ├── endpoints/
         │   ├── get-project.ts
         │   └── update-project.ts
+        ├── authorization.ts
         ├── project-api.ts
         ├── application-api.ts
         └── index.ts
 ```
 
-Export the root API and any genuinely reusable schemas. Keep server handlers,
-React, database clients, secrets, platform bindings, and runtime layers out of
-this package. A workspace export map can expose `./http`, `./models`, and
-endpoint subpaths when consumers need them.
+Export the root API, contract-visible middleware declarations, and any genuinely
+reusable schemas. Keep middleware implementations, server handlers, React,
+database clients, secrets, platform bindings, and runtime layers out of this
+package. A workspace export map can expose `./http`, `./models`, and endpoint
+subpaths when consumers need them.
 
 ## Model the wire
 

@@ -15,6 +15,8 @@ test integration and command authority.
 
 - Build every changed group and fail the test if an endpoint handler is missing.
 - Provide deterministic test layers for application services and middleware.
+- Prove each handler exposes only errors declared by its endpoint; exercise
+  expected reason mapping and unexpected failure defects separately.
 - Exercise success, declared failure, malformed input, and middleware rejection.
 - Assert cross-field boundary invariants before the service workflow runs.
 - Exercise raw routes separately and prove they enforce middleware-equivalent
@@ -28,6 +30,8 @@ decoding are skipped.
 ## Client tests
 
 - Derive the client from the same root API used by the server.
+- Provide every `requiredForClient` middleware with
+  `HttpApiMiddleware.layerClient` and assert that it transforms the request.
 - Assert params, query, headers, payload, and expected errors at least once for
   every changed request shape.
 - For Atom clients, complete every applicable scenario routed through

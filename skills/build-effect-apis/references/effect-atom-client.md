@@ -3,6 +3,12 @@
 Derive clients from the shared `HttpApi`; keep request types, response types,
 and expected errors owned by the contract.
 
+- [Inventory the client boundary](#inventory-the-client-boundary)
+- [Build one Atom API service](#build-one-atom-api-service)
+- [Define queries](#define-queries)
+- [Define mutations and invalidation](#define-mutations-and-invalidation)
+- [Use a direct client outside React](#use-a-direct-client-outside-react)
+
 ## Inventory the client boundary
 
 Before changing Atom code, locate every `RegistryProvider`, runtime factory,
@@ -16,10 +22,21 @@ Create one module-scoped runtime factory and one `AtomHttpApi.Service`. Share a
 memo map when multiple client services must reuse layers.
 
 ```ts
-import { Layer } from "effect";
+import { Effect, Layer } from "effect";
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/unstable/http";
+import { HttpApiMiddleware } from "effect/unstable/httpapi";
 import { Atom, AtomHttpApi } from "effect/unstable/reactivity";
-import { ApplicationApi } from "@app/domain";
+import { ApplicationApi, Authenticate } from "@app/domain";
+
+export const AuthenticateClient = HttpApiMiddleware.layerClient(
+  Authenticate,
+  Effect.fn("AuthenticateClient")(function* ({ next, request }) {
+    const token = yield* readAccessToken;
+    return yield* next(HttpClientRequest.bearerToken(request, token));
+  }),
+);
+
+const ApiHttpClient = Layer.mergeAll(FetchHttpClient.layer, AuthenticateClient);
 
 export const appRuntime = Atom.context({
   memoMap: Layer.makeMemoMapUnsafe(),
@@ -27,7 +44,7 @@ export const appRuntime = Atom.context({
 
 export const ApiClient = AtomHttpApi.Service()("ApiClient", {
   api: ApplicationApi,
-  httpClient: FetchHttpClient.layer,
+  httpClient: ApiHttpClient,
   runtime: appRuntime,
   baseUrl: "/api",
   transformClient: (client) =>
@@ -39,6 +56,11 @@ export const ApiClient = AtomHttpApi.Service()("ApiClient", {
 
 Define the runtime, service, key constructors, queries, and mutations outside
 React renders. Keep browser-only identity access behind the client boundary.
+When contract middleware sets `requiredForClient`, satisfy it with
+`HttpApiMiddleware.layerClient` in the `httpClient` layer. Reserve
+`transformClient` for transport-wide behavior such as correlation headers,
+base URL changes, tracing, or retries; do not bypass declared API security with
+an unrelated raw header transform.
 
 ## Define queries
 
@@ -112,17 +134,28 @@ with the initiating UI.
 
 ```ts
 import { Effect } from "effect";
-import { FetchHttpClient } from "effect/unstable/http";
-import { HttpApiClient } from "effect/unstable/httpapi";
+import { FetchHttpClient, HttpClientRequest } from "effect/unstable/http";
+import { HttpApiClient, HttpApiMiddleware } from "effect/unstable/httpapi";
+import { ApplicationApi, Authenticate } from "@app/domain";
+import { AccessToken, AccessTokenLive } from "./AccessToken";
+
+const AuthenticateClient = HttpApiMiddleware.layerClient(
+  Authenticate,
+  Effect.fn("AuthenticateClient")(function* ({ next, request }) {
+    const token = yield* AccessToken;
+    return yield* next(HttpClientRequest.bearerToken(request, token.value));
+  }),
+);
 
 const program = Effect.gen(function* () {
   const client = yield* HttpApiClient.make(ApplicationApi, {
     baseUrl: "https://api.example.com",
   });
   return yield* client.projects.getProject({ params: { projectId } });
-}).pipe(Effect.provide(FetchHttpClient.layer));
+}).pipe(Effect.provide([FetchHttpClient.layer, AuthenticateClient, AccessTokenLive]));
 ```
 
 Use the direct client in services, scripts, tests, and non-React applications.
-Transform the underlying `HttpClient` once for shared headers, tracing, or
-base behavior rather than repeating it at every call site.
+Provide every required contract middleware at the client composition root.
+Transform the underlying `HttpClient` once for non-contract headers, tracing,
+retry, or base behavior rather than repeating it at every call site.

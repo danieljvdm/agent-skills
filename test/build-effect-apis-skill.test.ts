@@ -26,6 +26,7 @@ describe("build-effect-apis skill", () => {
           "effect-atom-client.md",
           "effect-atom-lifecycle.md",
           "effect-atom-testing.md",
+          "runtime-assembly.md",
           "server-and-middleware.md",
           "shared-contracts.md",
           "tanstack-start.md",
@@ -56,6 +57,10 @@ describe("build-effect-apis skill", () => {
         const atomTesting = yield* fs.readFileString(
           path.join(referencesDir, "effect-atom-testing.md"),
         );
+        const server = yield* fs.readFileString(
+          path.join(referencesDir, "server-and-middleware.md"),
+        );
+        const runtime = yield* fs.readFileString(path.join(referencesDir, "runtime-assembly.md"));
 
         assert.match(cloudflare, /effect-cf/);
         assert.match(cloudflare, /raw route escape hatches/i);
@@ -64,6 +69,11 @@ describe("build-effect-apis skill", () => {
         assert.match(atomLifecycle, /AsyncResult\.all/);
         assert.match(atomLifecycle, /Atom\.Interrupt/);
         assert.match(atomTesting, /unmounting one\s+consumer does not cancel work/);
+        assert.match(atomClient, /HttpApiMiddleware\.layerClient/);
+        assert.match(server, /requiredForClient/);
+        assert.match(server, /Effect\.catchReasons/);
+        assert.match(runtime, /HttpRouter\.toWebHandler/);
+        assert.match(runtime, /HttpApiScalar\.layer/);
       }),
     );
   });

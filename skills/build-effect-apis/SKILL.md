@@ -51,6 +51,9 @@ from another version.
 
 ## Optional branches
 
+- Read [runtime-assembly.md](references/runtime-assembly.md) when wiring a
+  conventional Node/Bun server, generated API docs, process entrypoint, or
+  serverless web handler.
 - Read [effect-atom-testing.md](references/effect-atom-testing.md) when changing
   Atom cache retention, SWR, polling, invalidation, cancellation, aggregation,
   provider placement, SSR, or hydration behavior.

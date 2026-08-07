@@ -1,4 +1,4 @@
-import { Crypto, Effect, Encoding, FileSystem, Path, Schema, Stream } from "effect";
+import { Crypto, Effect, Encoding, FileSystem, Path, Schema as S, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
 
 import { printStatus, withSpinner } from "./cli-ui.ts";
@@ -27,12 +27,12 @@ export type EffectTsgoPatchPlan = {
   readonly typescriptVersion: string;
 };
 
-export class EffectTsgoDependencyError extends Schema.TaggedErrorClass<EffectTsgoDependencyError>()(
+export class EffectTsgoDependencyError extends S.TaggedErrorClass<EffectTsgoDependencyError>()(
   "EffectTsgoDependencyError",
   {
-    packageName: Schema.String,
-    expectedVersion: Schema.String,
-    actualVersion: Schema.optional(Schema.String),
+    packageName: S.String,
+    expectedVersion: S.String,
+    actualVersion: S.optional(S.String),
   },
 ) {
   override get message() {
@@ -42,12 +42,12 @@ export class EffectTsgoDependencyError extends Schema.TaggedErrorClass<EffectTsg
   }
 }
 
-export class EffectTsgoPatchCommandError extends Schema.TaggedErrorClass<EffectTsgoPatchCommandError>()(
+export class EffectTsgoPatchCommandError extends S.TaggedErrorClass<EffectTsgoPatchCommandError>()(
   "EffectTsgoPatchCommandError",
   {
-    command: Schema.String,
-    exitCode: Schema.Int,
-    output: Schema.String,
+    command: S.String,
+    exitCode: S.Int,
+    output: S.String,
   },
 ) {
   override get message() {
@@ -57,16 +57,16 @@ export class EffectTsgoPatchCommandError extends Schema.TaggedErrorClass<EffectT
   }
 }
 
-export class InvalidEffectTsgoPackageNameError extends Schema.TaggedErrorClass<InvalidEffectTsgoPackageNameError>()(
+export class InvalidEffectTsgoPackageNameError extends S.TaggedErrorClass<InvalidEffectTsgoPackageNameError>()(
   "InvalidEffectTsgoPackageNameError",
-  { packageName: Schema.String },
+  { packageName: S.String },
 ) {
   override get message() {
     return `invalid native TypeScript package name: ${this.packageName}`;
   }
 }
 
-const PackageVersionSchema = Schema.fromJsonString(Schema.Struct({ version: Schema.String }));
+const PackageVersionSchema = S.fromJsonString(S.Struct({ version: S.String }));
 
 const packagePath = (path: Path.Path, projectDir: string, packageName: string): string =>
   path.join(projectDir, "node_modules", ...packageName.split("/"), "package.json");
@@ -86,7 +86,7 @@ const readExactPackageVersion = Effect.fn("readExactEffectTsgoPackageVersion")(f
         Effect.fail(EffectTsgoDependencyError.make({ packageName, expectedVersion })),
       ),
     );
-  const manifest = yield* Schema.decodeEffect(PackageVersionSchema)(contents).pipe(
+  const manifest = yield* S.decodeEffect(PackageVersionSchema)(contents).pipe(
     Effect.mapError(() => EffectTsgoDependencyError.make({ packageName, expectedVersion })),
   );
 

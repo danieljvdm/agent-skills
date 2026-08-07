@@ -1,4 +1,4 @@
-import { Effect, FileSystem, Path, Schema } from "effect";
+import { Effect, FileSystem, Path, Schema as S } from "effect";
 import { Prompt } from "effect/unstable/cli";
 import { applyEdits, modify, parse as parseJsonc, type ParseError } from "jsonc-parser";
 
@@ -9,8 +9,8 @@ import { DevKitManifestSchema } from "./manifest.ts";
 import { observeSymbolicLink } from "./node-symbolic-link.ts";
 import { runProjectSkillPlan } from "./sync.ts";
 
-class SkillManagerError extends Schema.TaggedErrorClass<SkillManagerError>()("SkillManagerError", {
-  message: Schema.String,
+class SkillManagerError extends S.TaggedErrorClass<SkillManagerError>()("SkillManagerError", {
+  message: S.String,
 }) {}
 
 type ManagerOptions = {
@@ -143,7 +143,7 @@ const readManifest = Effect.fn("readManagedSkillManifest")(function* (
   if (errors.length > 0) {
     return yield* SkillManagerError.make({ message: `could not parse ${paths.manifestPath}` });
   }
-  const manifest = yield* Schema.decodeUnknownEffect(DevKitManifestSchema)(parsed).pipe(
+  const manifest = yield* S.decodeUnknownEffect(DevKitManifestSchema)(parsed).pipe(
     Effect.mapError((error) => SkillManagerError.make({ message: error.message })),
   );
 

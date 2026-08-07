@@ -1,4 +1,4 @@
-import { Cause, Effect, FileSystem, Path, type PlatformError, Schema } from "effect";
+import { Cause, Effect, FileSystem, Path, type PlatformError, Schema as S } from "effect";
 
 import { printStatus } from "./cli-ui.ts";
 import { observeSymbolicLink } from "./node-symbolic-link.ts";
@@ -22,11 +22,11 @@ export type GitignorePatch = {
   readonly added: ReadonlyArray<string>;
 };
 
-export class UnsafeGitignorePathError extends Schema.TaggedErrorClass<UnsafeGitignorePathError>()(
+export class UnsafeGitignorePathError extends S.TaggedErrorClass<UnsafeGitignorePathError>()(
   "UnsafeGitignorePathError",
   {
-    path: Schema.String,
-    reason: Schema.String,
+    path: S.String,
+    reason: S.String,
   },
 ) {
   override get message() {
@@ -34,9 +34,9 @@ export class UnsafeGitignorePathError extends Schema.TaggedErrorClass<UnsafeGiti
   }
 }
 
-export class GitignoreConflictError extends Schema.TaggedErrorClass<GitignoreConflictError>()(
+export class GitignoreConflictError extends S.TaggedErrorClass<GitignoreConflictError>()(
   "GitignoreConflictError",
-  { path: Schema.String },
+  { path: S.String },
 ) {
   override get message() {
     return `${this.path} changed while dev-kit was preparing its patch; rerun the command`;

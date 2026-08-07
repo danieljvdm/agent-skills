@@ -1,16 +1,14 @@
-import { Effect, FileSystem, Path, Schema } from "effect";
+import { Effect, FileSystem, Path, Schema as S } from "effect";
 import semver from "semver";
 
 import { readDirectDependencyNames } from "./project-package.ts";
 import { VITE_PLUS_SUPPORTED_RANGE } from "./tool-metadata.ts";
 
-const InstalledVitePlusPackageSchema = Schema.fromJsonString(
-  Schema.Struct({ version: Schema.String }),
-);
+const InstalledVitePlusPackageSchema = S.fromJsonString(S.Struct({ version: S.String }));
 
-export class VitePlusDependencyError extends Schema.TaggedErrorClass<VitePlusDependencyError>()(
+export class VitePlusDependencyError extends S.TaggedErrorClass<VitePlusDependencyError>()(
   "VitePlusDependencyError",
-  { message: Schema.String },
+  { message: S.String },
 ) {}
 
 export type InstalledVitePlus = {
@@ -39,7 +37,7 @@ export const validateInstalledVitePlus = Effect.fn("validateInstalledVitePlus")(
     });
   }
   const installed = yield* fs.readFileString(packagePath).pipe(
-    Effect.flatMap(Schema.decodeUnknownEffect(InstalledVitePlusPackageSchema)),
+    Effect.flatMap(S.decodeUnknownEffect(InstalledVitePlusPackageSchema)),
     Effect.mapError(() =>
       VitePlusDependencyError.make({
         message: "installed vite-plus package metadata has no valid version",

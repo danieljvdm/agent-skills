@@ -1,24 +1,24 @@
-import { Cause, Crypto, DateTime, Effect, FileSystem, Path, Schema } from "effect";
+import { Cause, Crypto, DateTime, Effect, FileSystem, Path, Schema as S } from "effect";
 
 import { DEV_KIT_VERSION } from "./tool-metadata.ts";
 
 export const PROJECT_PROCESS_LOCK_PATH = ".dev-kit/apply.lock";
 
-export class ProjectAlreadyLockedError extends Schema.TaggedErrorClass<ProjectAlreadyLockedError>()(
+export class ProjectAlreadyLockedError extends S.TaggedErrorClass<ProjectAlreadyLockedError>()(
   "ProjectAlreadyLockedError",
-  { path: Schema.String },
+  { path: S.String },
 ) {
   override get message() {
     return `another dev-kit operation may be active (${this.path}); verify the owner before removing a stale lock`;
   }
 }
 
-const ProjectProcessLockOwnerSchema = Schema.fromJsonString(
-  Schema.Struct({
-    version: Schema.Literal(1),
-    toolVersion: Schema.String,
-    token: Schema.String,
-    startedAt: Schema.String,
+const ProjectProcessLockOwnerSchema = S.fromJsonString(
+  S.Struct({
+    version: S.Literal(1),
+    toolVersion: S.String,
+    token: S.String,
+    startedAt: S.String,
   }),
 );
 
@@ -33,7 +33,7 @@ export const acquireProjectProcessLock = Effect.fn("acquireProjectProcessLock")(
   const ownerPath = path.join(lockDir, "owner.json");
   const token = yield* crypto.randomUUIDv7;
   const startedAt = DateTime.formatIso(yield* DateTime.now);
-  const ownerContents = `${yield* Schema.encodeEffect(ProjectProcessLockOwnerSchema)({
+  const ownerContents = `${yield* S.encodeEffect(ProjectProcessLockOwnerSchema)({
     version: 1,
     toolVersion: DEV_KIT_VERSION,
     token,

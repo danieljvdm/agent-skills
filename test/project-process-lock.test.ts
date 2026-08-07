@@ -1,14 +1,14 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, layer } from "@effect/vitest";
-import { Effect, FileSystem, Path, Schema } from "effect";
+import { Effect, FileSystem, Path, Schema as S } from "effect";
 
 import { acquireProjectProcessLock } from "../src/project-process-lock.ts";
 
-const ProcessLockOwnerSchema = Schema.Struct({
-  version: Schema.Literal(1),
-  toolVersion: Schema.String,
-  token: Schema.String,
-  startedAt: Schema.String,
+const ProcessLockOwnerSchema = S.Struct({
+  version: S.Literal(1),
+  toolVersion: S.String,
+  token: S.String,
+  startedAt: S.String,
 });
 
 describe("project process lock", () => {
@@ -26,7 +26,7 @@ describe("project process lock", () => {
         yield* Effect.scoped(
           Effect.gen(function* () {
             assert.strictEqual(yield* acquireProjectProcessLock(projectDir), lockDir);
-            const owner = yield* Schema.decodeEffect(Schema.fromJsonString(ProcessLockOwnerSchema))(
+            const owner = yield* S.decodeEffect(S.fromJsonString(ProcessLockOwnerSchema))(
               yield* fs.readFileString(ownerPath),
             );
 

@@ -19,7 +19,8 @@
     "skill-sources.jsonc",
     "skill-sources.lock.json",
     "src/",
-    "templates/"
+    "templates/",
+    "tsconfig/"
   ],
   "type": "module",
   "exports": {
@@ -30,6 +31,10 @@
     "./schema": "./schema/dev-kit.schema.json",
     "./schema/dev-kit.schema.json": "./schema/dev-kit.schema.json",
     "./schema/skill-sources.schema.json": "./schema/skill-sources.schema.json",
+    "./tsconfig/base.json": "./tsconfig/base.json",
+    "./tsconfig/bundler.json": "./tsconfig/bundler.json",
+    "./tsconfig/react.json": "./tsconfig/react.json",
+    "./tsconfig/worker.json": "./tsconfig/worker.json",
     "./oxlint": {
       "types": "./src/oxlint.ts",
       "default": "./src/oxlint.js"

@@ -1,12 +1,9 @@
 {
   "$schema": "./node_modules/@effect/tsgo/schema.json",
+  "extends": "./tsconfig/base.json",
   "compilerOptions": {
-    "allowImportingTsExtensions": true,
-    "exactOptionalPropertyTypes": true,
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "noEmit": true,
-    "noUncheckedIndexedAccess": true,
     "plugins": [
       {
         "name": "@effect/language-service",
@@ -31,12 +28,8 @@
         ]
       }
     ],
-    "resolveJsonModule": true,
-    "skipLibCheck": true,
-    "strict": true,
     "target": "ES2024",
-    "types": ["node"],
-    "verbatimModuleSyntax": true
+    "types": ["node"]
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "vite.config.ts", "vitest.config.ts"]
 }

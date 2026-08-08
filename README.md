@@ -420,6 +420,63 @@ The path, package name, and repository URL may be overridden for compatible
 Effect package layouts. Use `dev-kit effect sync --dry-run` to inspect this
 task directly.
 
+## TypeScript configuration presets
+
+Dev Kit publishes composable JSON presets for projects that typecheck source
+without emitting it:
+
+| Preset                                      | Adds                                                         |
+| ------------------------------------------- | ------------------------------------------------------------ |
+| `@danieljvdm/dev-kit/tsconfig/base.json`    | Strict, no-emit checks and explicit ambient type selection   |
+| `@danieljvdm/dev-kit/tsconfig/bundler.json` | ES2022, ES modules, bundler resolution, and isolated modules |
+| `@danieljvdm/dev-kit/tsconfig/react.json`   | The bundler preset plus React JSX and browser libraries      |
+| `@danieljvdm/dev-kit/tsconfig/worker.json`  | The bundler preset plus Web Worker libraries                 |
+
+Choose the most specific preset for a standalone project, then keep globals and
+source selection local:
+
+```jsonc
+{
+  "extends": "@danieljvdm/dev-kit/tsconfig/react.json",
+  "compilerOptions": {
+    "types": ["vite/client", "node"],
+  },
+  "include": ["src", "vite.config.ts"],
+}
+```
+
+Runtime presets already extend `base.json`. TypeScript 5 or newer can also
+compose a repository-local config with a runtime preset. For example, a
+Cloudflare Worker package in an Effect monorepo can retain the root
+language-service plugin while adding Worker libraries and Node globals used by
+its build tooling:
+
+```jsonc
+{
+  "$schema": "../../node_modules/@effect/tsgo/schema.json",
+  "extends": ["../../tsconfig.json", "@danieljvdm/dev-kit/tsconfig/worker.json"],
+  "compilerOptions": {
+    "types": ["node"],
+  },
+  "include": ["src", "worker-configuration.d.ts"],
+}
+```
+
+Later entries in `extends` win. Presets deliberately omit `files`, `include`,
+`exclude`, and tool-generated declarations because those belong to each
+project. The strict base sets `types: []`, which disables automatic inclusion
+of visible `@types/*` globals without affecting types imported by source code.
+Consumers opt into globals such as `node`, `vite/client`, or
+`@cloudflare/workers-types`. Runtime presets do not declare `plugins`, so an
+Effect plugin inherited from the root remains active; a leaf that declares its
+own `compilerOptions.plugins` replaces the inherited array.
+
+These files configure TypeScript but do not select its executable. Extending a
+preset does not install or activate Effect TypeScript-Go. Effect projects must
+also enable `setup.effectTsgo`, install the compatible packages, and keep the
+language-service plugin in a local config so its source-path overrides are
+relative to that project.
+
 ## Effect TypeScript-Go
 
 Enable Effect TypeScript-Go in the same manifest:
@@ -439,7 +496,7 @@ Pin the compatible packages in the consuming project:
 ```jsonc
 {
   "devDependencies": {
-    "@danieljvdm/dev-kit": "^0.2.0",
+    "@danieljvdm/dev-kit": "^0.14.0",
     "@effect/tsgo": "0.33.0",
     "typescript": "7.0.2",
   },
@@ -449,6 +506,7 @@ Pin the compatible packages in the consuming project:
 ```jsonc
 {
   "$schema": "./node_modules/@effect/tsgo/schema.json",
+  "extends": "@danieljvdm/dev-kit/tsconfig/base.json",
   "compilerOptions": {
     "plugins": [
       {
@@ -478,6 +536,11 @@ Pin the compatible packages in the consuming project:
 }
 ```
 
+For a monorepo root that exists only to share the plugin, add `"files": []`
+and make override globs relative to that root, for example
+`["apps/*/src/**/*.ts", "packages/*/src/**/*.ts", "scripts/**/*.ts"]`.
+Inherited workspaces continue to use those root-relative paths.
+
 `dev-kit apply` validates both exact version pins and patches the project-local
 native TypeScript compiler. It does not download dependencies and skips an
 installation that is already patched. Use `dev-kit tsgo patch --dry-run` when
@@ -488,7 +551,8 @@ programmatic configuration tooling. Dependency and `tsconfig.json` edits remain
 explicit. In a monorepo, put the plugin in the shared root config and ensure
 every workspace extends it without redeclaring `compilerOptions.plugins`:
 TypeScript replaces that array in child configs rather than merging it. Adjust
-the `src/**/*.ts` override to the source layout seen from each config file.
+the `src/**/*.ts` override to the source layout relative to the local config
+that declares the plugin.
 
 ## Installed package skills
 

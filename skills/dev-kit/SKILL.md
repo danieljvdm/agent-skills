@@ -158,6 +158,19 @@ bounded-concurrency filters. Spread the returned top-level config before local
 options; spread a returned nested block before overriding that block, and merge
 nested collections such as `lint.rules` so the recommended rules remain active.
 
+Use the package's TypeScript presets to remove repeated compiler options while
+keeping source selection and ambient globals consumer-owned. The explicit
+`@danieljvdm/dev-kit/tsconfig/base.json` config is the strict, no-emit base and
+sets `types: []`; `tsconfig/bundler.json`, `tsconfig/react.json`, and
+`tsconfig/worker.json` add runtime assumptions. TypeScript 5 or newer can use an
+`extends` array to combine a local monorepo root with one runtime preset; later
+entries win. Keep `files`, `include`, `exclude`, generated declarations, and
+explicit `types` in each leaf config. `types: []` disables automatic ambient
+`@types/*` inclusion, not types explicitly imported by source files. Extending
+a preset does not enable Effect TypeScript-Go: keep the Effect language-service
+plugin in a local config so its source override globs remain relative to that
+project, and use `setup.effectTsgo` to patch the compatible compiler separately.
+
 Enable `setup.vitePlus.quality.workflow` to own only
 `.github/workflows/check.yml`. It requires direct Dev Kit, compatible Vite+,
 Effect, Effect TypeScript-Go, and native TypeScript dependencies with
@@ -267,6 +280,12 @@ workspace configs must inherit the root plugin without redeclaring it and the
 source override must be relative to the config that contains it. `dev-kit plan`
 validates the local dependencies; `dev-kit apply` patches once and then
 converges.
+
+Extend `@danieljvdm/dev-kit/tsconfig/base.json` in that local config to reuse
+the strict TypeScript policy. For a monorepo plugin host, set `files: []` and use
+root-relative override globs such as `apps/*/src/**/*.ts` and
+`packages/*/src/**/*.ts`; leaf runtime presets do not redeclare `plugins`, so
+the inherited Effect plugin remains active.
 
 Use `dev-kit tsgo patch --dry-run` for focused diagnosis. Use `--force` only
 after the user accepts a potentially commit-incompatible TypeScript binary.
